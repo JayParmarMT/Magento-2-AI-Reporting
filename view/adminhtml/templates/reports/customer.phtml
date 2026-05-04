@@ -1,0 +1,190 @@
+<?php
+/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Customer $block */
+$kpi         = $block->getKpiCards();
+$topCustomers= $block->getTopCustomers();
+$rfm         = $block->getRfmSegmentation();
+$newVsReturn = $block->getNewVsReturning();
+$acquisition = $block->getCustomerAcquisition();
+$clvDist     = $block->getClvDistribution();
+$repeatRate  = $block->getRepeatPurchaseRate();
+?>
+<div class="meetanshi-aireporting-wrap">
+
+    <div class="ai-header">
+        <span class="ai-provider-badge">👥 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="ai-stats-grid">
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Customers')) ?></div>
+            <div class="ai-stat-value"><?= (int)($kpi['total_customers'] ?? 0) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('New This Month')) ?></div>
+            <div class="ai-stat-value ai-stat-green"><?= (int)($kpi['new_this_month'] ?? 0) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Rate')) ?></div>
+            <div class="ai-stat-value ai-stat-blue"><?= $repeatRate['repeat_rate'] ?? 0 ?>%</div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Customers w/ Orders')) ?></div>
+            <div class="ai-stat-value ai-stat-purple"><?= (int)($kpi['customers_with_orders'] ?? 0) ?></div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="ai-charts-row">
+        <!-- New vs Returning -->
+        <div class="ai-chart-card ai-chart-wide">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('New vs Returning Customers (Last 12 Months)')) ?></h3>
+            </div>
+            <canvas id="chart-new-vs-returning" height="80"></canvas>
+        </div>
+
+        <!-- CLV Distribution -->
+        <div class="ai-chart-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Customer Lifetime Value Distribution')) ?></h3>
+            </div>
+            <canvas id="chart-clv-dist" height="180"></canvas>
+        </div>
+    </div>
+
+    <!-- Repeat Purchase Rate -->
+    <div class="ai-chart-card" style="margin-bottom:20px;">
+        <div class="ai-chart-card-header">
+            <h3><?= $block->escapeHtml(__('Repeat Purchase Rate')) ?></h3>
+        </div>
+        <div class="ai-stats-grid" style="padding:16px;">
+            <div class="ai-stat-card">
+                <div class="ai-stat-label"><?= $block->escapeHtml(__('One-time Buyers')) ?></div>
+                <div class="ai-stat-value"><?= (int)($repeatRate['one_time_customers'] ?? 0) ?></div>
+            </div>
+            <div class="ai-stat-card">
+                <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Buyers')) ?></div>
+                <div class="ai-stat-value ai-stat-green"><?= (int)($repeatRate['repeat_customers'] ?? 0) ?></div>
+            </div>
+            <div class="ai-stat-card">
+                <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Rate')) ?></div>
+                <div class="ai-stat-value ai-stat-blue"><?= $repeatRate['repeat_rate'] ?? 0 ?>%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RFM Segmentation Table -->
+    <?php if (!empty($rfm)): ?>
+    <div class="ai-table-card" style="margin-bottom:20px;">
+        <div class="ai-chart-card-header">
+            <h3><?= $block->escapeHtml(__('RFM Segmentation (Top 50 Customers)')) ?></h3>
+            <span class="ai-help-text"><?= $block->escapeHtml(__('R=Recency, F=Frequency, M=Monetary (1-5 scale)')) ?></span>
+        </div>
+        <table class="ai-table">
+            <thead><tr>
+                <th><?= $block->escapeHtml(__('Customer')) ?></th>
+                <th><?= $block->escapeHtml(__('Email')) ?></th>
+                <th><?= $block->escapeHtml(__('Last Order')) ?></th>
+                <th><?= $block->escapeHtml(__('Orders')) ?></th>
+                <th><?= $block->escapeHtml(__('Total Spent')) ?></th>
+                <th><?= $block->escapeHtml(__('R')) ?></th>
+                <th><?= $block->escapeHtml(__('F')) ?></th>
+                <th><?= $block->escapeHtml(__('M')) ?></th>
+                <th><?= $block->escapeHtml(__('Segment')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($rfm as $row): ?>
+            <?php
+                $label = $block->getRfmLabel((int)$row['r_score'], (int)$row['f_score'], (int)$row['m_score']);
+                $badgeClass = $block->getRfmBadgeClass($label);
+            ?>
+            <tr>
+                <td><?= $block->escapeHtml($row['customer_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($row['customer_email']) ?></td>
+                <td><?= (int)$row['recency_days'] ?> days ago</td>
+                <td><?= (int)$row['frequency'] ?></td>
+                <td><?= $block->escapeHtml($block->formatCurrency((float)$row['monetary'])) ?></td>
+                <td><span class="ai-score-badge"><?= (int)$row['r_score'] ?></span></td>
+                <td><span class="ai-score-badge"><?= (int)$row['f_score'] ?></span></td>
+                <td><span class="ai-score-badge"><?= (int)$row['m_score'] ?></span></td>
+                <td><span class="ai-badge <?= $block->escapeHtmlAttr($badgeClass) ?>"><?= $block->escapeHtml($label) ?></span></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+
+    <!-- Top Customers by CLV -->
+    <?php if (!empty($topCustomers)): ?>
+    <div class="ai-table-card">
+        <div class="ai-chart-card-header">
+            <h3><?= $block->escapeHtml(__('Top 20 Customers by Lifetime Value')) ?></h3>
+        </div>
+        <table class="ai-table">
+            <thead><tr>
+                <th>#</th>
+                <th><?= $block->escapeHtml(__('Customer')) ?></th>
+                <th><?= $block->escapeHtml(__('Email')) ?></th>
+                <th><?= $block->escapeHtml(__('Orders')) ?></th>
+                <th><?= $block->escapeHtml(__('Lifetime Value')) ?></th>
+                <th><?= $block->escapeHtml(__('Avg Order')) ?></th>
+                <th><?= $block->escapeHtml(__('Last Order')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($topCustomers as $i => $cust): ?>
+            <tr>
+                <td><strong><?= $i + 1 ?></strong></td>
+                <td><?= $block->escapeHtml($cust['customer_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($cust['customer_email']) ?></td>
+                <td><?= (int)$cust['total_orders'] ?></td>
+                <td><strong class="ai-text-green"><?= $block->escapeHtml($block->formatCurrency((float)$cust['lifetime_value'])) ?></strong></td>
+                <td><?= $block->escapeHtml($block->formatCurrency((float)$cust['avg_order_value'])) ?></td>
+                <td><?= $block->escapeHtml(substr($cust['last_order_date'], 0, 10)) ?></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
+
+</div>
+
+<script>
+require(['jquery', 'chartjs'], function($, Chart) {
+    var nvr = <?= /* @noEscape */ json_encode(array_values($newVsReturn)) ?>;
+    new Chart(document.getElementById('chart-new-vs-returning'), {
+        type: 'bar',
+        data: {
+            labels: nvr.map(r => r.label),
+            datasets: [
+                {
+                    label: '<?= $block->escapeJs(__('New Customers')) ?>',
+                    data: nvr.map(r => parseInt(r.new_customers || 0)),
+                    backgroundColor: 'rgba(99,102,241,0.8)'
+                },
+                {
+                    label: '<?= $block->escapeJs(__('Returning Customers')) ?>',
+                    data: nvr.map(r => parseInt(r.returning_customers || 0)),
+                    backgroundColor: 'rgba(16,185,129,0.8)'
+                }
+            ]
+        },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
+    });
+
+    var clv = <?= /* @noEscape */ json_encode(array_values($clvDist)) ?>;
+    new Chart(document.getElementById('chart-clv-dist'), {
+        type: 'doughnut',
+        data: {
+            labels: clv.map(r => r.clv_range),
+            datasets: [{
+                data: clv.map(r => parseInt(r.customer_count)),
+                backgroundColor: ['#e5e7eb','#a5b4fc','#818cf8','#6366f1','#4f46e5']
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+});
+</script>

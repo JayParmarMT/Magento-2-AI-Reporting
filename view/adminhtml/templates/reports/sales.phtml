@@ -1,0 +1,276 @@
+<?php
+/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Sales $block */
+$kpi      = $block->getKpiCards();
+$monthly  = $block->getRevenueByMonth();
+$daily    = $block->getRevenueByDay();
+$statuses = $block->getOrdersByStatus();
+$shipping = $block->getRevenueByShipping();
+$coupons  = $block->getCouponUsage();
+$regions  = $block->getRevenueByRegion();
+$refunds  = $block->getRefundSummary();
+$dow      = $block->getRevenueByDayOfWeek();
+?>
+<div class="meetanshi-aireporting-wrap">
+
+    <!-- Header -->
+    <div class="ai-header">
+        <span class="ai-provider-badge">📊 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
+    </div>
+
+    <!-- Period Tabs -->
+    <div class="ai-period-tabs">
+        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
+        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
+        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
+        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="ai-stats-grid" id="ai-kpi-grid">
+        <?php foreach (['today','week','month','year'] as $period): ?>
+        <div class="ai-kpi-panel" data-period="<?= $period ?>" style="<?= $period !== 'month' ? 'display:none' : '' ?>">
+            <div class="ai-stats-grid">
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Revenue')) ?></div>
+                    <div class="ai-stat-value ai-stat-green"><?= $block->escapeHtml($block->formatCurrency((float)($kpi[$period]['revenue'] ?? 0))) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Orders')) ?></div>
+                    <div class="ai-stat-value"><?= (int)($kpi[$period]['orders'] ?? 0) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Avg Order Value')) ?></div>
+                    <div class="ai-stat-value ai-stat-blue"><?= $block->escapeHtml($block->formatCurrency((float)($kpi[$period]['aov'] ?? 0))) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Refunds')) ?></div>
+                    <div class="ai-stat-value ai-stat-red"><?= $block->escapeHtml($block->formatCurrency((float)($refunds['total_refunded'] ?? 0))) ?></div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="ai-charts-row">
+        <!-- Revenue by Month -->
+        <div class="ai-chart-card ai-chart-wide">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Revenue by Month (Last 12 Months)')) ?></h3>
+            </div>
+            <canvas id="chart-revenue-monthly" height="80"></canvas>
+        </div>
+
+        <!-- Orders by Status -->
+        <div class="ai-chart-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Orders by Status')) ?></h3>
+            </div>
+            <canvas id="chart-order-status" height="180"></canvas>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="ai-charts-row">
+        <!-- Revenue by Day (last 30) -->
+        <div class="ai-chart-card ai-chart-wide">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Daily Revenue (Last 30 Days)')) ?></h3>
+            </div>
+            <canvas id="chart-revenue-daily" height="80"></canvas>
+        </div>
+
+        <!-- Revenue by Day of Week -->
+        <div class="ai-chart-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Revenue by Day of Week')) ?></h3>
+            </div>
+            <canvas id="chart-dow" height="180"></canvas>
+        </div>
+    </div>
+
+    <!-- Tables Row -->
+    <div class="ai-tables-row">
+
+        <!-- Coupon Usage -->
+        <?php if (!empty($coupons)): ?>
+        <div class="ai-table-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Coupon Usage')) ?></h3>
+            </div>
+            <table class="ai-table">
+                <thead><tr>
+                    <th><?= $block->escapeHtml(__('Coupon Code')) ?></th>
+                    <th><?= $block->escapeHtml(__('Used')) ?></th>
+                    <th><?= $block->escapeHtml(__('Revenue')) ?></th>
+                    <th><?= $block->escapeHtml(__('Discount')) ?></th>
+                    <th><?= $block->escapeHtml(__('AOV')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($coupons as $coupon): ?>
+                <tr>
+                    <td><strong><?= $block->escapeHtml($coupon['coupon_code']) ?></strong></td>
+                    <td><?= (int)$coupon['times_used'] ?></td>
+                    <td><?= $block->escapeHtml($block->formatCurrency((float)$coupon['revenue'])) ?></td>
+                    <td class="ai-text-red">-<?= $block->escapeHtml($block->formatCurrency((float)$coupon['total_discount'])) ?></td>
+                    <td><?= $block->escapeHtml($block->formatCurrency((float)$coupon['avg_order_value'])) ?></td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+
+        <!-- Revenue by Region -->
+        <?php if (!empty($regions)): ?>
+        <div class="ai-table-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Revenue by Region')) ?></h3>
+            </div>
+            <table class="ai-table">
+                <thead><tr>
+                    <th><?= $block->escapeHtml(__('State/Region')) ?></th>
+                    <th><?= $block->escapeHtml(__('Orders')) ?></th>
+                    <th><?= $block->escapeHtml(__('Revenue')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($regions as $region): ?>
+                <tr>
+                    <td><?= $block->escapeHtml($region['state']) ?></td>
+                    <td><?= (int)$region['orders'] ?></td>
+                    <td><?= $block->escapeHtml($block->formatCurrency((float)$region['revenue'])) ?></td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+
+        <!-- Shipping Methods -->
+        <?php if (!empty($shipping)): ?>
+        <div class="ai-table-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Revenue by Shipping Method')) ?></h3>
+            </div>
+            <table class="ai-table">
+                <thead><tr>
+                    <th><?= $block->escapeHtml(__('Method')) ?></th>
+                    <th><?= $block->escapeHtml(__('Orders')) ?></th>
+                    <th><?= $block->escapeHtml(__('Revenue')) ?></th>
+                    <th><?= $block->escapeHtml(__('AOV')) ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($shipping as $ship): ?>
+                <tr>
+                    <td><?= $block->escapeHtml($ship['shipping_method']) ?></td>
+                    <td><?= (int)$ship['orders'] ?></td>
+                    <td><?= $block->escapeHtml($block->formatCurrency((float)$ship['revenue'])) ?></td>
+                    <td><?= $block->escapeHtml($block->formatCurrency((float)$ship['aov'])) ?></td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+
+    </div>
+</div>
+
+<script>
+require(['jquery', 'chartjs'], function($, Chart) {
+    // Period tabs
+    $('.ai-period-tab').on('click', function() {
+        $('.ai-period-tab').removeClass('active');
+        $(this).addClass('active');
+        var period = $(this).data('period');
+        $('.ai-kpi-panel').hide();
+        $('.ai-kpi-panel[data-period="' + period + '"]').show();
+    });
+
+    // Monthly Revenue Chart
+    var monthlyData = <?= /* @noEscape */ json_encode(array_values($monthly)) ?>;
+    new Chart(document.getElementById('chart-revenue-monthly'), {
+        type: 'bar',
+        data: {
+            labels: monthlyData.map(r => r.label),
+            datasets: [
+                {
+                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    data: monthlyData.map(r => parseFloat(r.revenue)),
+                    backgroundColor: 'rgba(99,102,241,0.8)',
+                    borderColor: 'rgba(99,102,241,1)',
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: '<?= $block->escapeJs(__('Orders')) ?>',
+                    data: monthlyData.map(r => parseInt(r.orders)),
+                    type: 'line',
+                    borderColor: 'rgba(16,185,129,1)',
+                    backgroundColor: 'rgba(16,185,129,0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    yAxisID: 'y1',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Revenue ($)' } },
+                y1: { type: 'linear', position: 'right', title: { display: true, text: 'Orders' }, grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+
+    // Order Status Pie
+    var statusData = <?= /* @noEscape */ json_encode(array_values($statuses)) ?>;
+    new Chart(document.getElementById('chart-order-status'), {
+        type: 'doughnut',
+        data: {
+            labels: statusData.map(r => r.status),
+            datasets: [{
+                data: statusData.map(r => parseInt(r.orders)),
+                backgroundColor: ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#14b8a6']
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // Daily Revenue Line
+    var dailyData = <?= /* @noEscape */ json_encode(array_values($daily)) ?>;
+    new Chart(document.getElementById('chart-revenue-daily'), {
+        type: 'line',
+        data: {
+            labels: dailyData.map(r => r.label),
+            datasets: [{
+                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                data: dailyData.map(r => parseFloat(r.revenue)),
+                borderColor: 'rgba(99,102,241,1)',
+                backgroundColor: 'rgba(99,102,241,0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+
+    // Day of Week Bar
+    var dowData = <?= /* @noEscape */ json_encode(array_values($dow)) ?>;
+    new Chart(document.getElementById('chart-dow'), {
+        type: 'bar',
+        data: {
+            labels: dowData.map(r => r.day_name),
+            datasets: [{
+                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                data: dowData.map(r => parseFloat(r.revenue)),
+                backgroundColor: ['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff']
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+});
+</script>

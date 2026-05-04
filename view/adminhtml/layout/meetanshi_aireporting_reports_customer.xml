@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <update handle="meetanshi_aireporting_default"/>
+    <body>
+        <referenceContainer name="content">
+            <block class="Meetanshi\AIReporting\Block\Adminhtml\Reports\Customer"
+                   name="meetanshi_aireporting_reports_customer"
+                   template="Meetanshi_AIReporting::reports/customer.phtml"/>
+        </referenceContainer>
+    </body>
+</page>

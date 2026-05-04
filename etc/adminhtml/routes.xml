@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/routes.xsd">
+    <router id="admin">
+        <route id="meetanshi_aireporting" frontName="meetanshi_aireporting">
+            <module name="Meetanshi_AIReporting" before="Magento_Backend"/>
+        </route>
+    </router>
+</config>

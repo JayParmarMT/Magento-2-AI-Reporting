@@ -1,0 +1,32 @@
+{
+    "name": "meetanshi/module-ai-reporting",
+    "description": "Meetanshi AI Reporting Extension for Magento 2",
+    "type": "magento2-module",
+    "version": "1.0.0",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "Meetanshi",
+            "email": "[email protected]",
+            "homepage": "https://meetanshi.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "magento/framework": "*",
+        "magento/module-backend": "*",
+        "magento/module-config": "*",
+        "magento/module-store": "*",
+        "magento/module-sales": "*",
+        "magento/module-catalog": "*",
+        "magento/module-customer": "*"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Meetanshi\\AIReporting\\": ""
+        }
+    }
+}

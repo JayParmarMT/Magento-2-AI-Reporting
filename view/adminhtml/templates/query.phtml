@@ -1,0 +1,649 @@
+<?php
+/**
+ * Meetanshi AIReporting — Ask AI (NLP Query) Template
+ *
+ * @var \Meetanshi\AIReporting\Block\Adminhtml\Query $block
+ */
+?>
+<?php if (!$block->isEnabled()): ?>
+    <div class="message message-warning">
+        <?= $block->escapeHtml(__('Meetanshi AI Reporting is disabled. Please enable it in Stores > Configuration > Meetanshi > AI Reporting.')) ?>
+    </div>
+<?php else: ?>
+
+<div class="meetanshi-aireporting-wrap">
+
+    <!-- Header -->
+    <div class="ai-header">
+        <span class="ai-provider-badge">
+            <?= $block->escapeHtml(__('Provider: %1', strtoupper($block->getLlmProvider()))) ?>
+        </span>
+    </div>
+
+    <!-- Query Input -->
+    <div class="ai-query-box">
+        <div class="ai-input-row">
+            <input type="text"
+                   id="ai-nlp-query"
+                   class="ai-query-input"
+                   placeholder="<?= $block->escapeHtmlAttr(__('e.g. Show me top 10 products by revenue this month')) ?>"
+                   autocomplete="off"/>
+            <button id="ai-query-btn" class="ai-btn ai-btn-primary">
+                <span class="ai-btn-icon">&#9733;</span>
+                <?= $block->escapeHtml(__('Ask AI')) ?>
+            </button>
+        </div>
+
+        <!-- Suggested Queries -->
+        <div class="ai-suggestions">
+            <span class="ai-suggestions-label"><?= $block->escapeHtml(__('Try:')) ?></span>
+            <?php foreach ($block->getSuggestedQueries() as $suggestion): ?>
+                <button class="ai-suggestion-chip" data-query="<?= $block->escapeHtmlAttr($suggestion) ?>">
+                    <?= $block->escapeHtml($suggestion) ?>
+                </button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="ai-loading" class="ai-loading" style="display:none;">
+        <div class="ai-spinner"></div>
+        <span><?= $block->escapeHtml(__('AI is thinking...')) ?></span>
+    </div>
+
+    <!-- Error Message -->
+    <div id="ai-error" class="ai-error-box" style="display:none;"></div>
+
+    <!-- Results Panel -->
+    <div id="ai-results" style="display:none;">
+
+        <!-- SQL Query Display -->
+        <div class="ai-sql-box">
+            <div class="ai-sql-header">
+                <span><?= $block->escapeHtml(__('Generated SQL')) ?></span>
+                <button id="ai-copy-sql" class="ai-btn ai-btn-sm"><?= $block->escapeHtml(__('Copy SQL')) ?></button>
+            </div>
+            <pre id="ai-sql-display" class="ai-sql-code"></pre>
+        </div>
+
+        <!-- Chart Type Selector -->
+        <div class="ai-chart-controls">
+            <div class="ai-chart-type-group">
+                <label><?= $block->escapeHtml(__('View as:')) ?></label>
+                <button class="ai-chart-btn active" data-chart="table">
+                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/grid.svg')) ?>" alt="Table" class="ai-chart-icon" />
+                    Table
+                </button>
+                <button class="ai-chart-btn" data-chart="bar">
+                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/bar-chart.svg')) ?>" alt="Bar" class="ai-chart-icon" />
+                    Bar
+                </button>
+                <button class="ai-chart-btn" data-chart="line">
+                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/line-chart.svg')) ?>" alt="Line" class="ai-chart-icon" />
+                    Line
+                </button>
+                <button class="ai-chart-btn" data-chart="pie">
+                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/pie-chart.svg')) ?>" alt="Pie" class="ai-chart-icon" />
+                    Pie
+                </button>
+            </div>
+            <div class="ai-result-meta">
+                <span id="ai-row-count"></span>
+                <span id="ai-exec-time"></span>
+            </div>
+        </div>
+
+        <!-- Axis Selection Controls (shown only for charts) -->
+        <div id="ai-axis-controls" class="ai-axis-controls" style="display:none;">
+            <div class="ai-axis-group">
+                <label for="ai-x-axis-select"><?= $block->escapeHtml(__('X-Axis (Labels):')) ?></label>
+                <select id="ai-x-axis-select" class="ai-axis-select">
+                    <option value=""><?= $block->escapeHtml(__('Auto-detect')) ?></option>
+                </select>
+            </div>
+            <div class="ai-axis-group">
+                <label for="ai-y-axis-select"><?= $block->escapeHtml(__('Y-Axis (Values):')) ?></label>
+                <select id="ai-y-axis-select" class="ai-axis-select" multiple>
+                    <option value=""><?= $block->escapeHtml(__('Auto-detect')) ?></option>
+                </select>
+            </div>
+            <button id="ai-apply-axis" class="ai-btn ai-btn-sm ai-btn-secondary">
+                <?= $block->escapeHtml(__('Apply')) ?>
+            </button>
+        </div>
+
+        <!-- Chart Canvas -->
+        <div id="ai-chart-container" style="display:none;">
+            <canvas id="ai-chart" width="500" height="500"></canvas>
+        </div>
+
+        <!-- Data Table -->
+        <div id="ai-table-container">
+            <table id="ai-data-table" class="ai-table">
+                <thead id="ai-table-head"></thead>
+                <tbody id="ai-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- Actions -->
+        <div class="ai-actions">
+            <button id="ai-download-csv" class="ai-btn ai-btn-secondary">
+                ⬇ <?= $block->escapeHtml(__('Download CSV')) ?>
+            </button>
+            <button id="ai-save-report-btn" class="ai-btn ai-btn-success">
+                &#10004; <?= $block->escapeHtml(__('Save Report')) ?>
+            </button>
+        </div>
+    </div>
+
+    <!-- Save Report Modal -->
+    <div id="ai-save-modal" class="ai-modal" style="display:none;">
+        <div class="ai-modal-content">
+            <div class="ai-modal-header">
+                <h3><?= $block->escapeHtml(__('Save Report')) ?></h3>
+                <button id="ai-modal-close" class="ai-modal-close">✕</button>
+            </div>
+            <div class="ai-modal-body">
+                <label for="ai-report-title"><?= $block->escapeHtml(__('Report Title')) ?></label>
+                <input type="text" id="ai-report-title" class="ai-input"
+                       placeholder="<?= $block->escapeHtmlAttr(__('e.g. Monthly Revenue Report')) ?>"/>
+            </div>
+            <div class="ai-modal-footer">
+                <button id="ai-modal-save" class="ai-btn ai-btn-primary"><?= $block->escapeHtml(__('Save')) ?></button>
+                <button id="ai-modal-cancel" class="ai-btn ai-btn-secondary"><?= $block->escapeHtml(__('Cancel')) ?></button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, alert) {
+    'use strict';
+
+    const EXECUTE_URL  = '<?= $block->escapeJs($block->getQueryExecuteUrl()) ?>';
+    const SAVE_URL     = '<?= $block->escapeJs($block->getSaveReportUrl()) ?>';
+    const FORM_KEY     = '<?= $block->escapeJs($block->getFormKey()) ?>';
+
+    let currentSql     = '';
+    let currentNlp     = '';
+    let currentColumns = [];
+    let currentRows    = [];
+    let chartInstance  = null;
+    let activeChart    = 'table';
+    let selectedXAxis  = null;
+    let selectedYAxis  = [];
+    
+    // Make Chart available globally for debugging
+    window.Chart = Chart;
+
+    // ── Check for saved report to run ──────────────────────────────────────
+    $(document).ready(function () {
+        const savedReportData = sessionStorage.getItem('ai_run_saved_report');
+        if (savedReportData) {
+            try {
+                const data = JSON.parse(savedReportData);
+                sessionStorage.removeItem('ai_run_saved_report');
+                
+                // Set the NLP query in the input
+                if (data.nlp) {
+                    $('#ai-nlp-query').val(data.nlp);
+                }
+                
+                // Execute the saved SQL directly
+                if (data.sql) {
+                    currentNlp = data.nlp || '';
+                    currentSql = data.sql;
+                    activeChart = data.chart || 'table';
+                    
+                    // Execute the SQL query directly
+                    executeSavedQuery(data.sql, data.chart);
+                }
+            } catch (e) {
+                console.error('Failed to parse saved report data:', e);
+            }
+        }
+    });
+
+    // ── Execute Saved Query (direct SQL execution) ─────────────────────────
+    function executeSavedQuery(sql, chartType) {
+        showLoading(true);
+        hideError();
+        $('#ai-results').hide();
+
+        $.ajax({
+            url: EXECUTE_URL,
+            type: 'POST',
+            data: { sql: sql, form_key: FORM_KEY },
+            dataType: 'json',
+            success: function (response) {
+                showLoading(false);
+                if (response.success) {
+                    currentSql     = sql;
+                    currentColumns = response.columns;
+                    currentRows    = response.rows;
+
+                    $('#ai-sql-display').text(currentSql);
+                    $('#ai-row-count').text(response.row_count + ' <?= $block->escapeJs(__('rows')) ?>');
+                    $('#ai-exec-time').text(response.execution_time_ms + ' ms');
+
+                    // Set active chart type
+                    $('.ai-chart-btn').removeClass('active');
+                    $('.ai-chart-btn[data-chart="' + chartType + '"]').addClass('active');
+                    activeChart = chartType;
+
+                    renderView(activeChart);
+                    $('#ai-results').show();
+                } else {
+                    showError(response.message || '<?= $block->escapeJs(__('An error occurred.')) ?>');
+                }
+            },
+            error: function (xhr) {
+                showLoading(false);
+                showError('<?= $block->escapeJs(__('Request failed. Please try again.')) ?>');
+            }
+        });
+    }
+
+    // ── Suggested query chips ──────────────────────────────────────────────
+    $(document).on('click', '.ai-suggestion-chip', function () {
+        $('#ai-nlp-query').val($(this).data('query'));
+        executeQuery();
+    });
+
+    // ── Enter key on input ─────────────────────────────────────────────────
+    $('#ai-nlp-query').on('keypress', function (e) {
+        if (e.which === 13) { executeQuery(); }
+    });
+
+    // ── Ask AI button ──────────────────────────────────────────────────────
+    $('#ai-query-btn').on('click', function () { executeQuery(); });
+
+    // ── Chart type buttons ─────────────────────────────────────────────────
+    $(document).on('click', '.ai-chart-btn', function () {
+        $('.ai-chart-btn').removeClass('active');
+        $(this).addClass('active');
+        activeChart = $(this).data('chart');
+        
+        // Show/hide axis controls based on chart type
+        if (activeChart === 'table') {
+            $('#ai-axis-controls').hide();
+        } else {
+            $('#ai-axis-controls').show();
+            populateAxisSelects();
+        }
+        
+        renderView(activeChart);
+    });
+
+    // ── Apply axis selection ───────────────────────────────────────────────
+    $('#ai-apply-axis').on('click', function () {
+        selectedXAxis = $('#ai-x-axis-select').val();
+        selectedYAxis = $('#ai-y-axis-select').val();
+        
+        if (activeChart !== 'table') {
+            renderView(activeChart);
+        }
+    });
+
+    // ── Populate axis select dropdowns ─────────────────────────────────────
+    function populateAxisSelects() {
+        if (currentColumns.length === 0) return;
+        
+        const $xSelect = $('#ai-x-axis-select');
+        const $ySelect = $('#ai-y-axis-select');
+        
+        // Clear existing options except the first one
+        $xSelect.find('option:not(:first)').remove();
+        $ySelect.find('option:not(:first)').remove();
+        
+        // Add column options
+        currentColumns.forEach(function (col) {
+            $xSelect.append($('<option>').val(col).text(col));
+            $ySelect.append($('<option>').val(col).text(col));
+        });
+        
+        // Auto-select based on data types if not already selected
+        if (!selectedXAxis && !selectedYAxis.length) {
+            autoSelectAxes();
+        } else {
+            // Restore previous selections
+            if (selectedXAxis) {
+                $xSelect.val(selectedXAxis);
+            }
+            if (selectedYAxis.length) {
+                $ySelect.val(selectedYAxis);
+            }
+        }
+    }
+
+    // ── Auto-select axes based on data types ───────────────────────────────
+    function autoSelectAxes() {
+        if (currentRows.length === 0) return;
+        
+        const firstRow = currentRows[0];
+        const ignoredCols = ['entity_id', 'increment_id', 'id'];
+        
+        // Find first non-numeric column for X-axis (labels)
+        const xCol = currentColumns.find(c => !isNumeric(firstRow[c]) && !ignoredCols.includes(c.toLowerCase())) || currentColumns[0];
+        
+        // Find all numeric columns for Y-axis (values)
+        const yCols = currentColumns.filter(c => c !== xCol && isNumeric(firstRow[c]) && !ignoredCols.includes(c.toLowerCase()));
+        
+        selectedXAxis = xCol;
+        selectedYAxis = yCols.length > 0 ? yCols : [currentColumns[currentColumns.length - 1]];
+        
+        $('#ai-x-axis-select').val(selectedXAxis);
+        $('#ai-y-axis-select').val(selectedYAxis);
+    }
+
+    // ── Copy SQL ───────────────────────────────────────────────────────────
+    $('#ai-copy-sql').on('click', function () {
+        navigator.clipboard.writeText(currentSql).then(function () {
+            $('#ai-copy-sql').text('<?= $block->escapeJs(__('Copied!')) ?>');
+            setTimeout(function () {
+                $('#ai-copy-sql').text('<?= $block->escapeJs(__('Copy SQL')) ?>');
+            }, 2000);
+        });
+    });
+
+    // ── Download CSV ───────────────────────────────────────────────────────
+    $('#ai-download-csv').on('click', function () {
+        downloadCsv(currentColumns, currentRows);
+    });
+
+    // ── Save Report Modal ──────────────────────────────────────────────────
+    $('#ai-save-report-btn').on('click', function () {
+        $('#ai-save-modal').show();
+        $('#ai-report-title').focus();
+    });
+
+    $('#ai-modal-close, #ai-modal-cancel').on('click', function () {
+        $('#ai-save-modal').hide();
+    });
+
+    $('#ai-modal-save').on('click', function () {
+        const title = $('#ai-report-title').val().trim();
+        if (!title) {
+            $('#ai-report-title').addClass('ai-input-error');
+            return;
+        }
+        saveReport(title);
+    });
+
+    // ── Core: Execute Query ────────────────────────────────────────────────
+    function executeQuery() {
+        const query = $('#ai-nlp-query').val().trim();
+        if (!query) { return; }
+
+        currentNlp = query;
+        showLoading(true);
+        hideError();
+        $('#ai-results').hide();
+
+        $.ajax({
+            url: EXECUTE_URL,
+            type: 'POST',
+            data: { query: query, form_key: FORM_KEY },
+            dataType: 'json',
+            success: function (response) {
+                showLoading(false);
+                if (response.success) {
+                    currentSql     = response.sql_query;
+                    currentColumns = response.columns;
+                    currentRows    = response.rows;
+
+                    $('#ai-sql-display').text(currentSql);
+                    $('#ai-row-count').text(response.row_count + ' <?= $block->escapeJs(__('rows')) ?>');
+                    $('#ai-exec-time').text(response.execution_time_ms + ' ms');
+
+                    renderView(activeChart);
+                    $('#ai-results').show();
+                } else {
+                    showError(response.message || '<?= $block->escapeJs(__('An error occurred.')) ?>');
+                }
+            },
+            error: function (xhr) {
+                showLoading(false);
+                showError('<?= $block->escapeJs(__('Request failed. Please try again.')) ?>');
+            }
+        });
+    }
+
+    // ── Render: Table or Chart ─────────────────────────────────────────────
+    function renderView(type) {
+        if (type === 'table') {
+            $('#ai-chart-container').hide();
+            $('#ai-table-container').show();
+            renderTable(currentColumns, currentRows);
+        } else {
+            $('#ai-table-container').hide();
+            $('#ai-chart-container').show();
+            renderChart(type, currentColumns, currentRows);
+        }
+    }
+
+    function renderTable(columns, rows) {
+        let thead = '<tr>' + columns.map(c => '<th>' + escHtml(c) + '</th>').join('') + '</tr>';
+        let tbody = rows.map(function (row) {
+            return '<tr>' + columns.map(c => '<td>' + escHtml(String(row[c] ?? '')) + '</td>').join('') + '</tr>';
+        }).join('');
+        $('#ai-table-head').html(thead);
+        $('#ai-table-body').html(tbody);
+    }
+
+    function renderChart(type, columns, rows) {
+        if (chartInstance) { chartInstance.destroy(); }
+
+        if (columns.length < 2 || rows.length === 0) {
+            $('#ai-chart-container').hide();
+            $('#ai-table-container').show();
+            renderTable(columns, rows);
+            return;
+        }
+
+        // Check if Chart is available
+        if (typeof Chart === 'undefined') {
+            console.error('Chart.js is not loaded');
+            showError('<?= $block->escapeJs(__('Chart library failed to load. Please refresh the page.')) ?>');
+            $('#ai-chart-container').hide();
+            $('#ai-table-container').show();
+            renderTable(columns, rows);
+            return;
+        }
+
+        // --- Use selected axes or auto-detect ---
+        const firstRow = rows[0];
+        const ignoredCols = ['entity_id', 'increment_id', 'id'];
+        
+        let labelCol, valueCols;
+        
+        // Use selected axes if available
+        if (selectedXAxis && selectedYAxis.length > 0) {
+            labelCol = selectedXAxis;
+            valueCols = selectedYAxis;
+        } else {
+            // Auto-detect: Labels - first non-numeric column, Values - all numeric columns
+            labelCol = columns.find(c => !isNumeric(firstRow[c]) && !ignoredCols.includes(c.toLowerCase())) || columns[0];
+            valueCols = columns.filter(c => c !== labelCol && isNumeric(firstRow[c]) && !ignoredCols.includes(c.toLowerCase()));
+            
+            if (valueCols.length === 0) {
+                valueCols = [columns[columns.length - 1]];
+            }
+        }
+        
+        const labels = rows.map(r => String(r[labelCol] ?? ''));
+        const palette = [
+            '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+            '#3b82f6', '#ef4444', '#14b8a6', '#f97316', '#84cc16'
+        ];
+        
+        let datasets = [];
+        if (type === 'pie') {
+            // Pie chart uses only the first value column
+            const vCol = valueCols[0];
+            const pieColors = generateColors(rows.length);
+            datasets.push({
+                label: vCol,
+                data: rows.map(r => parseFloat(r[vCol]) || 0),
+                backgroundColor: pieColors,
+                borderColor: '#ffffff',
+                borderWidth: 2
+            });
+        } else {
+            // Bar/Line can show multiple datasets
+            valueCols.forEach((vCol, idx) => {
+                const color = palette[idx % palette.length];
+                datasets.push({
+                    label: vCol,
+                    data: rows.map(r => parseFloat(r[vCol]) || 0),
+                    backgroundColor: type === 'area' ? color + '33' : color + 'BB',
+                    borderColor: color,
+                    borderWidth: 2,
+                    fill: type === 'area',
+                    tension: 0.4
+                });
+            });
+        }
+
+        const ctx = document.getElementById('ai-chart').getContext('2d');
+        
+        try {
+            chartInstance = new Chart(ctx, {
+                type: type === 'area' ? 'line' : type,
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: type === 'pie' || datasets.length > 1 },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    const val = context.raw;
+                                    label += typeof val === 'number' ? val.toLocaleString() : val;
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: type !== 'pie' ? {
+                        x: {
+                            title: {
+                                display: true,
+                                text: labelCol
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: valueCols.length === 1 ? valueCols[0] : 'Values'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    } : {}
+                }
+            });
+        } catch (error) {
+            console.error('Chart rendering error:', error);
+            showError('<?= $block->escapeJs(__('Failed to render chart. Showing table instead.')) ?>');
+            $('#ai-chart-container').hide();
+            $('#ai-table-container').show();
+            renderTable(columns, rows);
+        }
+    }
+    
+    // Helper function to check if value is numeric
+    function isNumeric(value) {
+        return !isNaN(parseFloat(value)) && isFinite(value);
+    }
+
+    // ── Save Report ────────────────────────────────────────────────────────
+    function saveReport(title) {
+        $.ajax({
+            url: SAVE_URL,
+            type: 'POST',
+            data: {
+                title:      title,
+                nlp_query:  currentNlp,
+                sql_query:  currentSql,
+                chart_type: activeChart,
+                form_key:   FORM_KEY
+            },
+            dataType: 'json',
+            success: function (response) {
+                $('#ai-save-modal').hide();
+                if (response.success) {
+                    showSuccessMessage(response.message);
+                } else {
+                    showError(response.message);
+                }
+            },
+            error: function () {
+                $('#ai-save-modal').hide();
+                showError('<?= $block->escapeJs(__('Failed to save report.')) ?>');
+            }
+        });
+    }
+
+    // ── CSV Download ───────────────────────────────────────────────────────
+    function downloadCsv(columns, rows) {
+        let csv = columns.join(',') + '\n';
+        rows.forEach(function (row) {
+            csv += columns.map(c => '"' + String(row[c] ?? '').replace(/"/g, '""') + '"').join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'ai_report_' + Date.now() + '.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function showLoading(show) {
+        $('#ai-loading').toggle(show);
+        $('#ai-query-btn').prop('disabled', show);
+    }
+
+    function showError(msg) {
+        $('#ai-error').text(msg).show();
+    }
+
+    function hideError() {
+        $('#ai-error').hide().text('');
+    }
+
+    function showSuccessMessage(msg) {
+        $('<div class="ai-success-toast">' + escHtml(msg) + '</div>')
+            .appendTo('body')
+            .delay(3000)
+            .fadeOut(400, function () { $(this).remove(); });
+    }
+
+    function escHtml(str) {
+        return $('<div>').text(str).html();
+    }
+
+    function generateColors(count) {
+        const palette = [
+            '#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981',
+            '#3b82f6','#ef4444','#14b8a6','#f97316','#84cc16'
+        ];
+        return Array.from({ length: count }, (_, i) => palette[i % palette.length]);
+    }
+});
+</script>
+
+<?php endif; ?>

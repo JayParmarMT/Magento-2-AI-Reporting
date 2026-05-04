@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+
+    <!-- Saved AI Reports -->
+    <table name="meetanshi_aireporting_saved_report" resource="default" engine="innodb"
+           comment="Meetanshi AI Reporting - Saved Reports">
+        <column xsi:type="int" name="report_id" unsigned="true" nullable="false" identity="true"
+                comment="Report ID"/>
+        <column xsi:type="varchar" name="title" nullable="false" length="255" comment="Report Title"/>
+        <column xsi:type="text" name="nlp_query" nullable="false" comment="Original NLP Query"/>
+        <column xsi:type="text" name="sql_query" nullable="false" comment="Generated SQL Query"/>
+        <column xsi:type="varchar" name="chart_type" nullable="false" length="50" default="table"
+                comment="Chart Type: table, line, bar, pie, area"/>
+        <column xsi:type="text" name="chart_config" nullable="true" comment="Chart Config JSON"/>
+        <column xsi:type="int" name="admin_user_id" unsigned="true" nullable="false" comment="Admin User ID"/>
+        <column xsi:type="timestamp" name="created_at" nullable="false" default="CURRENT_TIMESTAMP"
+                comment="Created At"/>
+        <column xsi:type="timestamp" name="updated_at" nullable="false" default="CURRENT_TIMESTAMP"
+                on_update="true" comment="Updated At"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="report_id"/>
+        </constraint>
+        <index referenceId="MEETANSHI_AIREPORTING_SAVED_REPORT_ADMIN_USER_ID" indexType="btree">
+            <column name="admin_user_id"/>
+        </index>
+    </table>
+
+    <!-- Query Log -->
+    <table name="meetanshi_aireporting_query_log" resource="default" engine="innodb"
+           comment="Meetanshi AI Reporting - Query Log">
+        <column xsi:type="int" name="log_id" unsigned="true" nullable="false" identity="true"
+                comment="Log ID"/>
+        <column xsi:type="text" name="nlp_query" nullable="false" comment="NLP Query"/>
+        <column xsi:type="text" name="sql_query" nullable="true" comment="Generated SQL Query"/>
+        <column xsi:type="varchar" name="llm_provider" nullable="false" length="50" comment="LLM Provider Used"/>
+        <column xsi:type="varchar" name="status" nullable="false" length="20" default="success"
+                comment="Status: success, error"/>
+        <column xsi:type="text" name="error_message" nullable="true" comment="Error Message if any"/>
+        <column xsi:type="int" name="execution_time_ms" unsigned="true" nullable="true"
+                comment="Execution Time in Milliseconds"/>
+        <column xsi:type="int" name="rows_returned" unsigned="true" nullable="true" comment="Rows Returned"/>
+        <column xsi:type="int" name="admin_user_id" unsigned="true" nullable="false" comment="Admin User ID"/>
+        <column xsi:type="timestamp" name="created_at" nullable="false" default="CURRENT_TIMESTAMP"
+                comment="Created At"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="log_id"/>
+        </constraint>
+        <index referenceId="MEETANSHI_AIREPORTING_QUERY_LOG_ADMIN_USER_ID" indexType="btree">
+            <column name="admin_user_id"/>
+        </index>
+        <index referenceId="MEETANSHI_AIREPORTING_QUERY_LOG_STATUS" indexType="btree">
+            <column name="status"/>
+        </index>
+    </table>
+
+</schema>

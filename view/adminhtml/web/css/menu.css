@@ -1,0 +1,24 @@
+/**
+ * Meetanshi AIReporting — Admin Menu Icons
+ */
+
+/* Override Magento's default dashboard icon for our Dashboard menu item */
+.admin__menu #menu-meetanshi-aireporting-dashboard.item-dashboard > a:before {
+    content: '' !important;
+    display: none !important;
+}
+
+/* Remove any other default Magento icons from our menu items */
+#menu-meetanshi-aireporting-dashboard > a:before,
+#menu-meetanshi-aireporting-query > a:before,
+#menu-meetanshi-aireporting-saved-reports > a:before,
+#menu-meetanshi-aireporting-reports > a:before,
+#menu-meetanshi-aireporting-reports-sales > a:before,
+#menu-meetanshi-aireporting-reports-customer > a:before,
+#menu-meetanshi-aireporting-reports-product > a:before,
+#menu-meetanshi-aireporting-reports-inventory > a:before {
+    content: '' !important;
+    display: none !important;
+}
+
+

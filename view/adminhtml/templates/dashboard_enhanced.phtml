@@ -1,0 +1,539 @@
+<?php
+/**
+ * Meetanshi AIReporting — Enhanced Dashboard Template
+ *
+ * @var \Meetanshi\AIReporting\Block\Adminhtml\Dashboard $block
+ */
+$dashboardData = $block->getDashboardData('last_6_months');
+$kpis = $dashboardData['kpis'];
+?>
+<?php if (!$block->isEnabled()): ?>
+    <div class="message message-warning">
+        <?= $block->escapeHtml(__('Meetanshi AI Reporting is disabled. Please enable it in Stores > Configuration > Meetanshi > AI Reporting.')) ?>
+    </div>
+<?php else: ?>
+
+<div class="meetanshi-aireporting-wrap ai-dashboard-enhanced">
+
+    <!-- Enhanced Header with Filters -->
+    <div class="ai-dashboard-header">
+        <div class="ai-header-left">
+            <p class="ai-subtitle"><?= $block->escapeHtml(__('Magento Store Performance Insights')) ?></p>
+        </div>
+        <div class="ai-header-right">
+            <select id="ai-date-range" class="ai-date-filter">
+                <option value="today"><?= $block->escapeHtml(__('Today')) ?></option>
+                <option value="yesterday"><?= $block->escapeHtml(__('Yesterday')) ?></option>
+                <option value="last_7_days"><?= $block->escapeHtml(__('Last 7 Days')) ?></option>
+                <option value="last_30_days"><?= $block->escapeHtml(__('Last 30 Days')) ?></option>
+                <option value="last_3_months"><?= $block->escapeHtml(__('Last 3 Months')) ?></option>
+                <option value="last_6_months" selected><?= $block->escapeHtml(__('Last 6 Months')) ?></option>
+                <option value="last_year"><?= $block->escapeHtml(__('Last Year')) ?></option>
+                <option value="this_month"><?= $block->escapeHtml(__('This Month')) ?></option>
+                <option value="this_year"><?= $block->escapeHtml(__('This Year')) ?></option>
+                <option value="custom"><?= $block->escapeHtml(__('Custom Range')) ?></option>
+            </select>
+            
+            <div id="ai-custom-date-range" class="ai-custom-date-range" style="display:none;">
+                <input type="date" id="ai-start-date" class="ai-date-input" />
+                <span class="ai-date-separator">to</span>
+                <input type="date" id="ai-end-date" class="ai-date-input" />
+                <button id="ai-apply-custom-range" class="ai-btn ai-btn-sm ai-btn-secondary">
+                    <?= $block->escapeHtml(__('Apply')) ?>
+                </button>
+            </div>
+            
+            <button id="ai-export-btn" class="ai-btn ai-btn-primary">
+                <span class="ai-icon">📥</span>
+                <?= $block->escapeHtml(__('Export')) ?>
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="ai-dashboard-loading" class="ai-dashboard-loading" style="display:none;">
+        <div class="ai-spinner"></div>
+        <span><?= $block->escapeHtml(__('Refreshing dashboard...')) ?></span>
+    </div>
+
+    <!-- Enhanced KPI Cards with Trends -->
+    <div class="ai-kpi-grid-enhanced">
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-icon ai-kpi-icon-revenue">💰</div>
+            <div class="ai-kpi-content">
+                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Total Revenue')) ?></div>
+                <div class="ai-kpi-value" id="kpi-revenue">
+                    $<?= number_format($kpis['total_revenue'], 2) ?>
+                </div>
+                <div class="ai-kpi-trend <?= $kpis['total_revenue_change'] >= 0 ? 'ai-trend-up' : 'ai-trend-down' ?>" id="kpi-revenue-trend">
+                    <span class="ai-trend-icon"><?= $kpis['total_revenue_change'] >= 0 ? '↑' : '↓' ?></span>
+                    <span class="ai-trend-value"><?= abs($kpis['total_revenue_change']) ?>%</span>
+                    <span class="ai-trend-label"><?= $block->escapeHtml(__('vs last period')) ?></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-icon ai-kpi-icon-orders">📦</div>
+            <div class="ai-kpi-content">
+                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Total Orders')) ?></div>
+                <div class="ai-kpi-value" id="kpi-orders">
+                    <?= number_format($kpis['total_orders']) ?>
+                </div>
+                <div class="ai-kpi-trend <?= $kpis['total_orders_change'] >= 0 ? 'ai-trend-up' : 'ai-trend-down' ?>" id="kpi-orders-trend">
+                    <span class="ai-trend-icon"><?= $kpis['total_orders_change'] >= 0 ? '↑' : '↓' ?></span>
+                    <span class="ai-trend-value"><?= abs($kpis['total_orders_change']) ?>%</span>
+                    <span class="ai-trend-label"><?= $block->escapeHtml(__('vs last period')) ?></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-icon ai-kpi-icon-customers">👥</div>
+            <div class="ai-kpi-content">
+                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Active Customers')) ?></div>
+                <div class="ai-kpi-value" id="kpi-customers">
+                    <?= number_format($kpis['active_customers']) ?>
+                </div>
+                <div class="ai-kpi-trend <?= $kpis['active_customers_change'] >= 0 ? 'ai-trend-up' : 'ai-trend-down' ?>" id="kpi-customers-trend">
+                    <span class="ai-trend-icon"><?= $kpis['active_customers_change'] >= 0 ? '↑' : '↓' ?></span>
+                    <span class="ai-trend-value"><?= abs($kpis['active_customers_change']) ?>%</span>
+                    <span class="ai-trend-label"><?= $block->escapeHtml(__('vs last period')) ?></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-kpi-card">
+            <div class="ai-kpi-icon ai-kpi-icon-aov">💳</div>
+            <div class="ai-kpi-content">
+                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Avg Order Value')) ?></div>
+                <div class="ai-kpi-value" id="kpi-aov">
+                    $<?= number_format($kpis['avg_order_value'], 2) ?>
+                </div>
+                <div class="ai-kpi-trend <?= $kpis['avg_order_value_change'] >= 0 ? 'ai-trend-up' : 'ai-trend-down' ?>" id="kpi-aov-trend">
+                    <span class="ai-trend-icon"><?= $kpis['avg_order_value_change'] >= 0 ? '↑' : '↓' ?></span>
+                    <span class="ai-trend-value"><?= abs($kpis['avg_order_value_change']) ?>%</span>
+                    <span class="ai-trend-label"><?= $block->escapeHtml(__('vs last period')) ?></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-kpi-card ai-kpi-card-secondary">
+            <div class="ai-kpi-icon">📊</div>
+            <div class="ai-kpi-content">
+                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Products Sold')) ?></div>
+                <div class="ai-kpi-value" id="kpi-products-sold">
+                    <?= number_format($kpis['products_sold']) ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-kpi-card ai-kpi-card-warning">
+            <div class="ai-kpi-icon">⚠️</div>
+            <div class="ai-kpi-content">
+                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Low Stock')) ?></div>
+                <div class="ai-kpi-value" id="kpi-low-stock">
+                    <?= number_format($kpis['low_stock']) ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-kpi-card ai-kpi-card-danger">
+            <div class="ai-kpi-icon">🚫</div>
+            <div class="ai-kpi-content">
+                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Out of Stock')) ?></div>
+                <div class="ai-kpi-value" id="kpi-out-of-stock">
+                    <?= number_format($kpis['out_of_stock']) ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="ai-charts-container">
+        
+        <!-- Row 1: Revenue Trend & Orders by Status -->
+        <div class="ai-charts-row">
+            <div class="ai-chart-card ai-chart-wide">
+                <div class="ai-chart-card-header">
+                    <h3><?= $block->escapeHtml(__('Revenue & Orders Trend')) ?></h3>
+                </div>
+                <canvas id="chart-revenue-trend" height="80"></canvas>
+            </div>
+
+            <div class="ai-chart-card">
+                <div class="ai-chart-card-header">
+                    <h3><?= $block->escapeHtml(__('Orders by Status')) ?></h3>
+                </div>
+                <canvas id="chart-orders-status" height="180"></canvas>
+            </div>
+        </div>
+
+        <!-- Row 2: Customer Segments & Revenue by Day of Week -->
+        <div class="ai-charts-row">
+            <div class="ai-chart-card">
+                <div class="ai-chart-card-header">
+                    <h3><?= $block->escapeHtml(__('Customer Segments')) ?></h3>
+                </div>
+                <canvas id="chart-customer-segments" height="180"></canvas>
+            </div>
+
+            <div class="ai-chart-card ai-chart-wide">
+                <div class="ai-chart-card-header">
+                    <h3><?= $block->escapeHtml(__('Revenue by Day of Week')) ?></h3>
+                </div>
+                <canvas id="chart-revenue-dow" height="80"></canvas>
+            </div>
+        </div>
+
+        <!-- Row 3: Stock Distribution & Revenue by Category -->
+        <div class="ai-charts-row">
+            <div class="ai-chart-card">
+                <div class="ai-chart-card-header">
+                    <h3><?= $block->escapeHtml(__('Stock Distribution')) ?></h3>
+                </div>
+                <canvas id="chart-stock-dist" height="180"></canvas>
+            </div>
+
+            <div class="ai-chart-card ai-chart-wide">
+                <div class="ai-chart-card-header">
+                    <h3><?= $block->escapeHtml(__('Revenue by Category')) ?></h3>
+                </div>
+                <canvas id="chart-revenue-category" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Products Table -->
+    <div class="ai-table-card">
+        <div class="ai-chart-card-header">
+            <h3><?= $block->escapeHtml(__('Top 10 Products by Revenue')) ?></h3>
+        </div>
+        <table class="ai-table" id="top-products-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th><?= $block->escapeHtml(__('Product')) ?></th>
+                    <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                    <th><?= $block->escapeHtml(__('Qty Sold')) ?></th>
+                    <th><?= $block->escapeHtml(__('Revenue')) ?></th>
+                    <th><?= $block->escapeHtml(__('Avg Price')) ?></th>
+                    <th><?= $block->escapeHtml(__('Orders')) ?></th>
+                </tr>
+            </thead>
+            <tbody id="top-products-tbody">
+                <?php foreach ($dashboardData['top_products'] as $i => $product): ?>
+                <tr>
+                    <td><?= $i + 1 ?></td>
+                    <td><?= $block->escapeHtml($product['product_name']) ?></td>
+                    <td class="ai-text-muted"><?= $block->escapeHtml($product['sku']) ?></td>
+                    <td><?= number_format($product['qty_sold']) ?></td>
+                    <td><strong class="ai-text-green">$<?= number_format($product['revenue'], 2) ?></strong></td>
+                    <td>$<?= number_format($product['avg_price'], 2) ?></td>
+                    <td><?= $product['order_count'] ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+require(['jquery', 'chartjs'], function($, Chart) {
+    'use strict';
+
+    const REFRESH_URL = '<?= $block->escapeJs($block->getRefreshDataUrl()) ?>';
+    const EXPORT_URL = '<?= $block->escapeJs($block->getExportUrl()) ?>';
+    const FORM_KEY = '<?= $block->escapeJs($block->getFormKey()) ?>';
+
+    let dashboardCharts = {};
+    let currentData = <?= /* @noEscape */ json_encode($dashboardData) ?>;
+
+    // Initialize charts
+    initializeCharts(currentData);
+
+    // Date range filter
+    $('#ai-date-range').on('change', function() {
+        const range = $(this).val();
+        if (range === 'custom') {
+            $('#ai-custom-date-range').show();
+        } else {
+            $('#ai-custom-date-range').hide();
+            refreshDashboard(range);
+        }
+    });
+
+    // Custom date range
+    $('#ai-apply-custom-range').on('click', function() {
+        const start = $('#ai-start-date').val();
+        const end = $('#ai-end-date').val();
+        if (start && end) {
+            refreshDashboard('custom', start, end);
+        } else {
+            alert('<?= $block->escapeJs(__('Please select both start and end dates')) ?>');
+        }
+    });
+
+    // Export button
+    $('#ai-export-btn').on('click', function() {
+        const range = $('#ai-date-range').val();
+        const start = $('#ai-start-date').val();
+        const end = $('#ai-end-date').val();
+        
+        let url = EXPORT_URL + '?format=csv&date_range=' + range + '&form_key=' + FORM_KEY;
+        if (range === 'custom' && start && end) {
+            url += '&custom_start=' + start + '&custom_end=' + end;
+        }
+        
+        window.location.href = url;
+    });
+
+    function refreshDashboard(dateRange, customStart, customEnd) {
+        $('#ai-dashboard-loading').show();
+        
+        $.ajax({
+            url: REFRESH_URL,
+            type: 'POST',
+            data: {
+                date_range: dateRange,
+                custom_start: customStart,
+                custom_end: customEnd,
+                form_key: FORM_KEY
+            },
+            dataType: 'json',
+            success: function(response) {
+                $('#ai-dashboard-loading').hide();
+                if (response.success) {
+                    currentData = response.data;
+                    updateDashboard(response.data);
+                } else {
+                    alert('<?= $block->escapeJs(__('Failed to refresh dashboard')) ?>');
+                }
+            },
+            error: function() {
+                $('#ai-dashboard-loading').hide();
+                alert('<?= $block->escapeJs(__('Request failed')) ?>');
+            }
+        });
+    }
+
+    function updateDashboard(data) {
+        // Update KPIs
+        updateKpis(data.kpis);
+        
+        // Update charts
+        updateCharts(data);
+        
+        // Update table
+        updateTopProductsTable(data.top_products);
+    }
+
+    function updateKpis(kpis) {
+        $('#kpi-revenue').text('$' + formatNumber(kpis.total_revenue, 2));
+        updateTrend('#kpi-revenue-trend', kpis.total_revenue_change);
+        
+        $('#kpi-orders').text(formatNumber(kpis.total_orders));
+        updateTrend('#kpi-orders-trend', kpis.total_orders_change);
+        
+        $('#kpi-customers').text(formatNumber(kpis.active_customers));
+        updateTrend('#kpi-customers-trend', kpis.active_customers_change);
+        
+        $('#kpi-aov').text('$' + formatNumber(kpis.avg_order_value, 2));
+        updateTrend('#kpi-aov-trend', kpis.avg_order_value_change);
+        
+        $('#kpi-products-sold').text(formatNumber(kpis.products_sold));
+        $('#kpi-low-stock').text(formatNumber(kpis.low_stock));
+        $('#kpi-out-of-stock').text(formatNumber(kpis.out_of_stock));
+    }
+
+    function updateTrend(selector, change) {
+        const $trend = $(selector);
+        const isPositive = change >= 0;
+        
+        $trend.removeClass('ai-trend-up ai-trend-down')
+              .addClass(isPositive ? 'ai-trend-up' : 'ai-trend-down');
+        
+        $trend.find('.ai-trend-icon').text(isPositive ? '↑' : '↓');
+        $trend.find('.ai-trend-value').text(Math.abs(change) + '%');
+    }
+
+    function formatNumber(num, decimals = 0) {
+        return parseFloat(num).toLocaleString(undefined, {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        });
+    }
+
+    function initializeCharts(data) {
+        // Revenue Trend Chart
+        dashboardCharts.revenueTrend = createRevenueTrendChart(data.revenue_trend);
+        
+        // Orders by Status Chart
+        dashboardCharts.ordersStatus = createOrdersStatusChart(data.orders_by_status);
+        
+        // Customer Segments Chart
+        dashboardCharts.customerSegments = createCustomerSegmentsChart(data.customer_segments);
+        
+        // Revenue by Day of Week Chart
+        dashboardCharts.revenueDow = createRevenueDowChart(data.revenue_by_dow);
+        
+        // Stock Distribution Chart
+        dashboardCharts.stockDist = createStockDistChart(data.stock_distribution);
+        
+        // Revenue by Category Chart
+        dashboardCharts.revenueCategory = createRevenueCategoryChart(data.revenue_by_category);
+    }
+
+    function updateCharts(data) {
+        // Destroy existing charts
+        Object.values(dashboardCharts).forEach(chart => {
+            if (chart) chart.destroy();
+        });
+        
+        // Recreate charts with new data
+        initializeCharts(data);
+    }
+
+    function createRevenueTrendChart(data) {
+        return new Chart(document.getElementById('chart-revenue-trend'), {
+            type: 'line',
+            data: {
+                labels: data.map(r => r.label),
+                datasets: [
+                    {
+                        label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                        data: data.map(r => parseFloat(r.revenue)),
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99,102,241,0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '<?= $block->escapeJs(__('Orders')) ?>',
+                        data: data.map(r => parseInt(r.orders)),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16,185,129,0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: { type: 'linear', position: 'left', title: { display: true, text: 'Revenue ($)' } },
+                    y1: { type: 'linear', position: 'right', title: { display: true, text: 'Orders' }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    }
+
+    function createOrdersStatusChart(data) {
+        return new Chart(document.getElementById('chart-orders-status'), {
+            type: 'doughnut',
+            data: {
+                labels: data.map(r => r.status),
+                datasets: [{
+                    data: data.map(r => parseInt(r.orders)),
+                    backgroundColor: ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#14b8a6']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function createCustomerSegmentsChart(data) {
+        return new Chart(document.getElementById('chart-customer-segments'), {
+            type: 'bar',
+            data: {
+                labels: data.map(r => r.segment),
+                datasets: [
+                    {
+                        label: '<?= $block->escapeJs(__('Customers')) ?>',
+                        data: data.map(r => parseInt(r.customers)),
+                        backgroundColor: 'rgba(99,102,241,0.8)'
+                    },
+                    {
+                        label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                        data: data.map(r => parseFloat(r.revenue)),
+                        backgroundColor: 'rgba(16,185,129,0.8)'
+                    }
+                ]
+            },
+            options: { responsive: true }
+        });
+    }
+
+    function createRevenueDowChart(data) {
+        return new Chart(document.getElementById('chart-revenue-dow'), {
+            type: 'bar',
+            data: {
+                labels: data.map(r => r.day_name),
+                datasets: [{
+                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    data: data.map(r => parseFloat(r.revenue)),
+                    backgroundColor: ['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function createStockDistChart(data) {
+        return new Chart(document.getElementById('chart-stock-dist'), {
+            type: 'doughnut',
+            data: {
+                labels: data.map(r => r.stock_range),
+                datasets: [{
+                    data: data.map(r => parseInt(r.product_count)),
+                    backgroundColor: ['#ef4444','#f97316','#f59e0b','#10b981','#6366f1']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function createRevenueCategoryChart(data) {
+        return new Chart(document.getElementById('chart-revenue-category'), {
+            type: 'bar',
+            data: {
+                labels: data.map(r => r.category_name),
+                datasets: [{
+                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    data: data.map(r => parseFloat(r.revenue)),
+                    backgroundColor: 'rgba(16,185,129,0.8)'
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function updateTopProductsTable(products) {
+        let html = '';
+        products.forEach((product, i) => {
+            html += '<tr>';
+            html += '<td>' + (i + 1) + '</td>';
+            html += '<td>' + escapeHtml(product.product_name) + '</td>';
+            html += '<td class="ai-text-muted">' + escapeHtml(product.sku) + '</td>';
+            html += '<td>' + formatNumber(product.qty_sold) + '</td>';
+            html += '<td><strong class="ai-text-green">$' + formatNumber(product.revenue, 2) + '</strong></td>';
+            html += '<td>$' + formatNumber(product.avg_price, 2) + '</td>';
+            html += '<td>' + product.order_count + '</td>';
+            html += '</tr>';
+        });
+        $('#top-products-tbody').html(html);
+    }
+
+    function escapeHtml(text) {
+        return $('<div>').text(text).html();
+    }
+});
+</script>
+
+<?php endif; ?>

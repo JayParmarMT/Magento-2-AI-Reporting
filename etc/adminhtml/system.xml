@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <tab id="meetanshi" translate="label" sortOrder="400">
+            <label>Meetanshi</label>
+        </tab>
+
+        <section id="meetanshi_aireporting" translate="label" sortOrder="100"
+                 showInDefault="1" showInWebsite="1" showInStore="1">
+            <label>AI Reporting</label>
+            <tab>meetanshi</tab>
+            <resource>Meetanshi_AIReporting::config</resource>
+
+            <!-- General Settings -->
+            <group id="general" translate="label" sortOrder="10"
+                   showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>General Settings</label>
+
+                <field id="enabled" translate="label comment" type="select" sortOrder="10"
+                       showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable AI Reporting</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Enable or disable the Meetanshi AI Reporting module.</comment>
+                </field>
+
+                <field id="llm_provider" translate="label comment" type="select" sortOrder="20"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>LLM Provider</label>
+                    <source_model>Meetanshi\AIReporting\Model\Config\Source\LlmProvider</source_model>
+                    <comment>Select the AI language model provider. Groq is recommended for free testing.</comment>
+                </field>
+
+                <!-- ── OpenAI ─────────────────────────────────────────── -->
+                <field id="openai_api_key" translate="label comment" type="obscure" sortOrder="30"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>OpenAI API Key</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment>Get your key at https://platform.openai.com (paid)</comment>
+                    <depends><field id="llm_provider">openai</field></depends>
+                </field>
+
+                <field id="openai_model" translate="label" type="select" sortOrder="40"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>OpenAI Model</label>
+                    <source_model>Meetanshi\AIReporting\Model\Config\Source\OpenAiModel</source_model>
+                    <depends><field id="llm_provider">openai</field></depends>
+                </field>
+
+                <!-- ── Gemini ─────────────────────────────────────────── -->
+                <field id="gemini_api_key" translate="label comment" type="obscure" sortOrder="50"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Gemini API Key</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment>Get your key at https://aistudio.google.com (free tier available)</comment>
+                    <depends><field id="llm_provider">gemini</field></depends>
+                </field>
+
+                <field id="gemini_model" translate="label" type="select" sortOrder="60"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Gemini Model</label>
+                    <source_model>Meetanshi\AIReporting\Model\Config\Source\GeminiModel</source_model>
+                    <depends><field id="llm_provider">gemini</field></depends>
+                </field>
+
+                <!-- ── Groq (FREE — Recommended for testing) ─────────── -->
+                <field id="groq_api_key" translate="label comment" type="obscure" sortOrder="70"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Groq API Key</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment><![CDATA[✅ FREE — Get your key at <a href="https://console.groq.com" target="_blank">console.groq.com</a>. No credit card required. Very fast inference.]]></comment>
+                    <depends><field id="llm_provider">groq</field></depends>
+                </field>
+
+                <field id="groq_model" translate="label" type="select" sortOrder="80"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Groq Model</label>
+                    <source_model>Meetanshi\AIReporting\Model\Config\Source\GroqModel</source_model>
+                    <depends><field id="llm_provider">groq</field></depends>
+                </field>
+
+                <!-- ── Ollama (100% Free, Local) ──────────────────────── -->
+                <field id="ollama_base_url" translate="label comment" type="text" sortOrder="90"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Ollama Base URL</label>
+                    <comment><![CDATA[✅ 100% FREE — Runs on your machine. Install from <a href="https://ollama.com" target="_blank">ollama.com</a>. Default: http://localhost:11434]]></comment>
+                    <depends><field id="llm_provider">ollama</field></depends>
+                </field>
+
+                <field id="ollama_model" translate="label comment" type="text" sortOrder="100"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Ollama Model Name</label>
+                    <comment>e.g. llama3.2, mistral, codellama. Pull first: ollama pull llama3.2</comment>
+                    <depends><field id="llm_provider">ollama</field></depends>
+                </field>
+
+                <!-- ── OpenRouter (Free Models Available) ─────────────── -->
+                <field id="openrouter_api_key" translate="label comment" type="obscure" sortOrder="110"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>OpenRouter API Key</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment><![CDATA[✅ FREE models available — Get key at <a href="https://openrouter.ai" target="_blank">openrouter.ai</a>. No credit card for free-tier models.]]></comment>
+                    <depends><field id="llm_provider">openrouter</field></depends>
+                </field>
+
+                <field id="openrouter_model" translate="label" type="select" sortOrder="120"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>OpenRouter Model</label>
+                    <source_model>Meetanshi\AIReporting\Model\Config\Source\OpenRouterModel</source_model>
+                    <depends><field id="llm_provider">openrouter</field></depends>
+                </field>
+
+                <!-- ── Common Settings ────────────────────────────────── -->
+                <field id="max_tokens" translate="label comment" type="text" sortOrder="130"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Max Tokens</label>
+                    <comment>Maximum tokens for LLM response (default: 1024).</comment>
+                    <validate>validate-number validate-greater-than-zero</validate>
+                </field>
+
+                <field id="max_rows" translate="label comment" type="text" sortOrder="140"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Max Result Rows</label>
+                    <comment>Maximum number of rows returned per query (default: 500).</comment>
+                    <validate>validate-number validate-greater-than-zero</validate>
+                </field>
+
+                <field id="query_timeout" translate="label comment" type="text" sortOrder="150"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Query Timeout (seconds)</label>
+                    <comment>Maximum time allowed for a query to execute.</comment>
+                    <validate>validate-number validate-greater-than-zero</validate>
+                </field>
+            </group>
+
+            <!-- Security Settings -->
+            <group id="security" translate="label" sortOrder="20"
+                   showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Security Settings</label>
+
+                <field id="log_queries" translate="label comment" type="select" sortOrder="10"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Log All Queries</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Log all NLP queries and generated SQL for audit purposes.</comment>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

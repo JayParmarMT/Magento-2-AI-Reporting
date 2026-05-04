@@ -1,0 +1,16 @@
+.admin__menu .level-0.item-meetanshi > a:before {
+    content: '' !important;
+    font-size: 0 !important;
+    background-image: url('../images/meetanshi.svg');
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: center;
+    width: 30px;
+    height: 35px;
+    margin: 0 auto;
+    margin-bottom: 1px;
+}
+
+.text-center {
+    text-align: center;
+}

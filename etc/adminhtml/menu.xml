@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+    <menu>
+        <!-- Top-level Meetanshi menu -->
+        <add id="Meetanshi_AIReporting::meetanshi"
+             title="Meetanshi AIReporting"
+             module="Meetanshi_AIReporting"
+             sortOrder="80"
+             resource="Meetanshi_AIReporting::aireporting"/>
+
+        <!-- AI Reporting submenu -->
+        <add id="Meetanshi_AIReporting::aireporting"
+             title="AI Reporting"
+             module="Meetanshi_AIReporting"
+             sortOrder="10"
+             resource="Meetanshi_AIReporting::aireporting"
+             parent="Meetanshi_AIReporting::meetanshi"/>
+
+        <!-- Dashboard -->
+        <add id="Meetanshi_AIReporting::dashboard"
+             title="Dashboard"
+             module="Meetanshi_AIReporting"
+             sortOrder="10"
+             action="meetanshi_aireporting/dashboard/index"
+             resource="Meetanshi_AIReporting::dashboard"
+             parent="Meetanshi_AIReporting::aireporting"/>
+
+        <!-- NLP Query -->
+        <add id="Meetanshi_AIReporting::query"
+             title="Ask AI"
+             module="Meetanshi_AIReporting"
+             sortOrder="20"
+             action="meetanshi_aireporting/query/index"
+             resource="Meetanshi_AIReporting::query"
+             parent="Meetanshi_AIReporting::aireporting"/>
+
+        <!-- Saved Reports -->
+        <add id="Meetanshi_AIReporting::saved_reports"
+             title="Saved Reports"
+             module="Meetanshi_AIReporting"
+             sortOrder="30"
+             action="meetanshi_aireporting/report/saved"
+             resource="Meetanshi_AIReporting::saved_reports"
+             parent="Meetanshi_AIReporting::aireporting"/>
+
+        <!-- ── Phase 2: Pre-built Reports ─────────────────────────── -->
+        <add id="Meetanshi_AIReporting::reports"
+             title="Pre-built Reports"
+             module="Meetanshi_AIReporting"
+             sortOrder="40"
+             resource="Meetanshi_AIReporting::reports"
+             parent="Meetanshi_AIReporting::aireporting"/>
+
+        <add id="Meetanshi_AIReporting::reports_sales"
+             title="Sales &amp; Revenue"
+             module="Meetanshi_AIReporting"
+             sortOrder="10"
+             action="meetanshi_aireporting/reports/sales"
+             resource="Meetanshi_AIReporting::reports_sales"
+             parent="Meetanshi_AIReporting::reports"/>
+
+        <add id="Meetanshi_AIReporting::reports_customer"
+             title="Customer Analytics"
+             module="Meetanshi_AIReporting"
+             sortOrder="20"
+             action="meetanshi_aireporting/reports/customer"
+             resource="Meetanshi_AIReporting::reports_customer"
+             parent="Meetanshi_AIReporting::reports"/>
+
+        <add id="Meetanshi_AIReporting::reports_product"
+             title="Product Performance"
+             module="Meetanshi_AIReporting"
+             sortOrder="30"
+             action="meetanshi_aireporting/reports/product"
+             resource="Meetanshi_AIReporting::reports_product"
+             parent="Meetanshi_AIReporting::reports"/>
+
+        <add id="Meetanshi_AIReporting::reports_inventory"
+             title="Inventory"
+             module="Meetanshi_AIReporting"
+             sortOrder="40"
+             action="meetanshi_aireporting/reports/inventory"
+             resource="Meetanshi_AIReporting::reports_inventory"
+             parent="Meetanshi_AIReporting::reports"/>
+    </menu>
+</config>

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <update handle="meetanshi_aireporting_default"/>
+    <body>
+        <referenceContainer name="content">
+            <block class="Meetanshi\AIReporting\Block\Adminhtml\Query"
+                   name="meetanshi_aireporting_query"
+                   template="Meetanshi_AIReporting::query.phtml"/>
+        </referenceContainer>
+    </body>
+</page>

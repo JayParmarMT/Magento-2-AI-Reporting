@@ -1,0 +1,196 @@
+<?php
+/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Inventory $block */
+$kpi        = $block->getKpiCards();
+$lowStock   = $block->getLowStockProducts();
+$outOfStock = $block->getOutOfStockProducts();
+$stockDist  = $block->getStockDistribution();
+$demand     = $block->getDemandVsSupply();
+$turnover   = $block->getInventoryTurnover();
+?>
+<div class="meetanshi-aireporting-wrap">
+
+    <div class="ai-header">
+        <span class="ai-provider-badge">🏭 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="ai-stats-grid">
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total SKUs')) ?></div>
+            <div class="ai-stat-value"><?= number_format((int)($kpi['total_skus'] ?? 0)) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('In Stock')) ?></div>
+            <div class="ai-stat-value ai-stat-green"><?= number_format((int)($kpi['in_stock'] ?? 0)) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Out of Stock')) ?></div>
+            <div class="ai-stat-value ai-stat-red"><?= number_format((int)($kpi['out_of_stock'] ?? 0)) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Low Stock (≤10)')) ?></div>
+            <div class="ai-stat-value ai-stat-orange"><?= number_format((int)($kpi['low_stock'] ?? 0)) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Stock Value')) ?></div>
+            <div class="ai-stat-value ai-stat-blue"><?= $block->escapeHtml($block->formatCurrency((float)($kpi['total_stock_value'] ?? 0))) ?></div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="ai-charts-row">
+        <!-- Stock Distribution -->
+        <div class="ai-chart-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Stock Level Distribution')) ?></h3>
+            </div>
+            <canvas id="chart-stock-dist" height="200"></canvas>
+        </div>
+
+        <!-- Demand vs Supply -->
+        <div class="ai-chart-card ai-chart-wide">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Top Sellers: Demand vs Current Stock (Last 30 Days)')) ?></h3>
+            </div>
+            <canvas id="chart-demand-supply" height="100"></canvas>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="ai-tab-nav">
+        <button class="ai-tab-btn active" data-tab="low-stock"><?= $block->escapeHtml(__('Low Stock')) ?> <span class="ai-badge-count"><?= count($lowStock) ?></span></button>
+        <button class="ai-tab-btn" data-tab="out-of-stock"><?= $block->escapeHtml(__('Out of Stock')) ?> <span class="ai-badge-count ai-badge-count-red"><?= count($outOfStock) ?></span></button>
+        <button class="ai-tab-btn" data-tab="turnover"><?= $block->escapeHtml(__('Turnover Rate')) ?></button>
+    </div>
+
+    <!-- Low Stock Table -->
+    <div class="ai-tab-panel active" id="tab-low-stock">
+        <?php if (empty($lowStock)): ?>
+            <p style="padding:20px;color:#10b981;">✅ <?= $block->escapeHtml(__('No low stock products found.')) ?></p>
+        <?php else: ?>
+        <table class="ai-table">
+            <thead><tr>
+                <th><?= $block->escapeHtml(__('Product')) ?></th>
+                <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                <th><?= $block->escapeHtml(__('Price')) ?></th>
+                <th><?= $block->escapeHtml(__('Current Qty')) ?></th>
+                <th><?= $block->escapeHtml(__('Min Qty')) ?></th>
+                <th><?= $block->escapeHtml(__('Status')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($lowStock as $p): ?>
+            <?php $statusClass = $block->getStockStatusClass((float)$p['qty']); ?>
+            <tr>
+                <td><?= $block->escapeHtml($p['product_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
+                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['price'])) ?></td>
+                <td><strong class="<?= $p['qty'] <= 5 ? 'ai-text-red' : 'ai-text-orange' ?>"><?= (float)$p['qty'] ?></strong></td>
+                <td><?= (float)$p['min_qty'] ?></td>
+                <td><span class="ai-badge <?= $block->escapeHtmlAttr($statusClass) ?>"><?= $p['qty'] == 0 ? 'Out of Stock' : ($p['qty'] <= 5 ? 'Critical' : 'Low') ?></span></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
+
+    <!-- Out of Stock Table -->
+    <div class="ai-tab-panel" id="tab-out-of-stock" style="display:none;">
+        <?php if (empty($outOfStock)): ?>
+            <p style="padding:20px;color:#10b981;">✅ <?= $block->escapeHtml(__('No out of stock products.')) ?></p>
+        <?php else: ?>
+        <table class="ai-table">
+            <thead><tr>
+                <th><?= $block->escapeHtml(__('Product')) ?></th>
+                <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                <th><?= $block->escapeHtml(__('Price')) ?></th>
+                <th><?= $block->escapeHtml(__('Qty')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($outOfStock as $p): ?>
+            <tr>
+                <td><?= $block->escapeHtml($p['product_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
+                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['price'])) ?></td>
+                <td><span class="ai-badge ai-badge-red">0</span></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
+
+    <!-- Turnover Table -->
+    <div class="ai-tab-panel" id="tab-turnover" style="display:none;">
+        <table class="ai-table">
+            <thead><tr>
+                <th><?= $block->escapeHtml(__('Product')) ?></th>
+                <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                <th><?= $block->escapeHtml(__('Qty Sold (30d)')) ?></th>
+                <th><?= $block->escapeHtml(__('Current Stock')) ?></th>
+                <th><?= $block->escapeHtml(__('Turnover Rate')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($turnover as $p): ?>
+            <tr>
+                <td><?= $block->escapeHtml($p['product_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
+                <td><?= number_format((float)$p['qty_sold']) ?></td>
+                <td><?= number_format((float)$p['current_stock']) ?></td>
+                <td>
+                    <span class="ai-badge <?= (float)$p['turnover_rate'] >= 1 ? 'ai-badge-green' : 'ai-badge-blue' ?>">
+                        <?= number_format((float)$p['turnover_rate'], 2) ?>x
+                    </span>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+require(['jquery', 'chartjs'], function($, Chart) {
+    $('.ai-tab-btn').on('click', function() {
+        $('.ai-tab-btn').removeClass('active');
+        $(this).addClass('active');
+        $('.ai-tab-panel').hide();
+        $('#tab-' + $(this).data('tab')).show();
+    });
+
+    var distData = <?= /* @noEscape */ json_encode(array_values($stockDist)) ?>;
+    new Chart(document.getElementById('chart-stock-dist'), {
+        type: 'doughnut',
+        data: {
+            labels: distData.map(r => r.stock_range),
+            datasets: [{
+                data: distData.map(r => parseInt(r.product_count)),
+                backgroundColor: ['#ef4444','#f97316','#f59e0b','#10b981','#6366f1','#8b5cf6']
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    var demandData = <?= /* @noEscape */ json_encode(array_values($demand)) ?>;
+    new Chart(document.getElementById('chart-demand-supply'), {
+        type: 'bar',
+        data: {
+            labels: demandData.map(r => r.sku),
+            datasets: [
+                {
+                    label: '<?= $block->escapeJs(__('Qty Sold (30d)')) ?>',
+                    data: demandData.map(r => parseFloat(r.qty_sold_30d)),
+                    backgroundColor: 'rgba(99,102,241,0.8)'
+                },
+                {
+                    label: '<?= $block->escapeJs(__('Current Stock')) ?>',
+                    data: demandData.map(r => parseFloat(r.current_stock)),
+                    backgroundColor: 'rgba(16,185,129,0.8)'
+                }
+            ]
+        },
+        options: { responsive: true }
+    });
+});
+</script>

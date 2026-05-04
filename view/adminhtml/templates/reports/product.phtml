@@ -1,0 +1,237 @@
+<?php
+/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Product $block */
+$kpi         = $block->getKpiCards();
+$byRevenue   = $block->getBestSellersByRevenue();
+$byQty       = $block->getBestSellersByQty();
+$worst       = $block->getWorstSellers();
+$byType      = $block->getRevenueByProductType();
+$byCategory  = $block->getRevenueByCategory();
+$neverSold   = $block->getProductsNeverSold();
+?>
+<div class="meetanshi-aireporting-wrap">
+
+    <div class="ai-header">
+        <span class="ai-provider-badge">📦 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="ai-stats-grid">
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Products')) ?></div>
+            <div class="ai-stat-value"><?= (int)($kpi['total_products'] ?? 0) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('SKUs Sold')) ?></div>
+            <div class="ai-stat-value ai-stat-green"><?= (int)($kpi['total_skus_sold'] ?? 0) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Qty Sold')) ?></div>
+            <div class="ai-stat-value ai-stat-blue"><?= number_format((float)($kpi['total_qty_sold'] ?? 0)) ?></div>
+        </div>
+        <div class="ai-stat-card">
+            <div class="ai-stat-label"><?= $block->escapeHtml(__('Never Sold')) ?></div>
+            <div class="ai-stat-value ai-stat-red"><?= count($neverSold) ?>+</div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="ai-charts-row">
+        <!-- Top 10 by Revenue Bar -->
+        <div class="ai-chart-card ai-chart-wide">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Top 10 Products by Revenue')) ?></h3>
+            </div>
+            <canvas id="chart-top-revenue" height="100"></canvas>
+        </div>
+
+        <!-- Revenue by Product Type -->
+        <div class="ai-chart-card">
+            <div class="ai-chart-card-header">
+                <h3><?= $block->escapeHtml(__('Revenue by Product Type')) ?></h3>
+            </div>
+            <canvas id="chart-product-type" height="180"></canvas>
+        </div>
+    </div>
+
+    <!-- Revenue by Category -->
+    <?php if (!empty($byCategory)): ?>
+    <div class="ai-chart-card" style="margin-bottom:20px;">
+        <div class="ai-chart-card-header">
+            <h3><?= $block->escapeHtml(__('Revenue by Category')) ?></h3>
+        </div>
+        <canvas id="chart-category" height="60"></canvas>
+    </div>
+    <?php endif; ?>
+
+    <!-- Tabs for product tables -->
+    <div class="ai-tab-nav">
+        <button class="ai-tab-btn active" data-tab="by-revenue"><?= $block->escapeHtml(__('By Revenue')) ?></button>
+        <button class="ai-tab-btn" data-tab="by-qty"><?= $block->escapeHtml(__('By Quantity')) ?></button>
+        <button class="ai-tab-btn" data-tab="worst"><?= $block->escapeHtml(__('Worst Sellers')) ?></button>
+        <button class="ai-tab-btn" data-tab="never-sold"><?= $block->escapeHtml(__('Never Sold')) ?></button>
+    </div>
+
+    <!-- By Revenue -->
+    <div class="ai-tab-panel active" id="tab-by-revenue">
+        <table class="ai-table">
+            <thead><tr>
+                <th>#</th>
+                <th><?= $block->escapeHtml(__('Product')) ?></th>
+                <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                <th><?= $block->escapeHtml(__('Qty Sold')) ?></th>
+                <th><?= $block->escapeHtml(__('Revenue')) ?></th>
+                <th><?= $block->escapeHtml(__('Avg Price')) ?></th>
+                <th><?= $block->escapeHtml(__('Orders')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($byRevenue as $i => $p): ?>
+            <tr>
+                <td><?= $i + 1 ?></td>
+                <td><?= $block->escapeHtml($p['product_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
+                <td><?= number_format((float)$p['total_qty_sold']) ?></td>
+                <td><strong class="ai-text-green"><?= $block->escapeHtml($block->formatCurrency((float)$p['total_revenue'])) ?></strong></td>
+                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['avg_price'])) ?></td>
+                <td><?= (int)$p['order_count'] ?></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- By Qty -->
+    <div class="ai-tab-panel" id="tab-by-qty" style="display:none;">
+        <table class="ai-table">
+            <thead><tr>
+                <th>#</th>
+                <th><?= $block->escapeHtml(__('Product')) ?></th>
+                <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                <th><?= $block->escapeHtml(__('Qty Sold')) ?></th>
+                <th><?= $block->escapeHtml(__('Revenue')) ?></th>
+                <th><?= $block->escapeHtml(__('Orders')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($byQty as $i => $p): ?>
+            <tr>
+                <td><?= $i + 1 ?></td>
+                <td><?= $block->escapeHtml($p['product_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
+                <td><strong class="ai-text-blue"><?= number_format((float)$p['total_qty_sold']) ?></strong></td>
+                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['total_revenue'])) ?></td>
+                <td><?= (int)$p['order_count'] ?></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Worst Sellers -->
+    <div class="ai-tab-panel" id="tab-worst" style="display:none;">
+        <table class="ai-table">
+            <thead><tr>
+                <th><?= $block->escapeHtml(__('Product')) ?></th>
+                <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                <th><?= $block->escapeHtml(__('Qty Sold')) ?></th>
+                <th><?= $block->escapeHtml(__('Revenue')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($worst as $p): ?>
+            <tr>
+                <td><?= $block->escapeHtml($p['product_name']) ?></td>
+                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
+                <td><?= number_format((float)$p['total_qty_sold']) ?></td>
+                <td class="ai-text-red"><?= $block->escapeHtml($block->formatCurrency((float)$p['total_revenue'])) ?></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Never Sold -->
+    <div class="ai-tab-panel" id="tab-never-sold" style="display:none;">
+        <?php if (empty($neverSold)): ?>
+            <p style="padding:20px;color:#6b7280;"><?= $block->escapeHtml(__('All products have been sold at least once.')) ?></p>
+        <?php else: ?>
+        <table class="ai-table">
+            <thead><tr>
+                <th><?= $block->escapeHtml(__('Product ID')) ?></th>
+                <th><?= $block->escapeHtml(__('SKU')) ?></th>
+                <th><?= $block->escapeHtml(__('Type')) ?></th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($neverSold as $p): ?>
+            <tr>
+                <td><?= (int)$p['entity_id'] ?></td>
+                <td><?= $block->escapeHtml($p['sku']) ?></td>
+                <td><?= $block->escapeHtml($p['type_id']) ?></td>
+            </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
+    </div>
+
+</div>
+
+<script>
+require(['jquery', 'chartjs'], function($, Chart) {
+    // Tab switching
+    $('.ai-tab-btn').on('click', function() {
+        $('.ai-tab-btn').removeClass('active');
+        $(this).addClass('active');
+        $('.ai-tab-panel').hide();
+        $('#tab-' + $(this).data('tab')).show();
+    });
+
+    // Top 10 by Revenue
+    var top10 = <?= /* @noEscape */ json_encode(array_values(array_slice($byRevenue, 0, 10))) ?>;
+    new Chart(document.getElementById('chart-top-revenue'), {
+        type: 'bar',
+        data: {
+            labels: top10.map(r => r.sku),
+            datasets: [{
+                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                data: top10.map(r => parseFloat(r.total_revenue)),
+                backgroundColor: 'rgba(99,102,241,0.8)',
+                borderColor: 'rgba(99,102,241,1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // Product Type Pie
+    var typeData = <?= /* @noEscape */ json_encode(array_values($byType)) ?>;
+    new Chart(document.getElementById('chart-product-type'), {
+        type: 'pie',
+        data: {
+            labels: typeData.map(r => r.product_type),
+            datasets: [{
+                data: typeData.map(r => parseFloat(r.total_revenue)),
+                backgroundColor: ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6']
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    <?php if (!empty($byCategory)): ?>
+    var catData = <?= /* @noEscape */ json_encode(array_values($byCategory)) ?>;
+    new Chart(document.getElementById('chart-category'), {
+        type: 'bar',
+        data: {
+            labels: catData.map(r => r.category_name),
+            datasets: [{
+                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                data: catData.map(r => parseFloat(r.total_revenue)),
+                backgroundColor: 'rgba(16,185,129,0.8)'
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+    <?php endif; ?>
+});
+</script>

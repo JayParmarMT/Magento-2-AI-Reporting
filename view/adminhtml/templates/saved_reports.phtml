@@ -1,0 +1,89 @@
+<?php
+/**
+ * Meetanshi AIReporting — Saved Reports Template
+ *
+ * @var \Meetanshi\AIReporting\Block\Adminhtml\SavedReports $block
+ */
+$reports = $block->getSavedReports();
+?>
+<div class="meetanshi-aireporting-wrap">
+
+    <div class="ai-header">
+        <a href="<?= $block->escapeUrl($block->getQueryUrl()) ?>" class="ai-btn ai-btn-primary">
+            + <?= $block->escapeHtml(__('New Query')) ?>
+        </a>
+    </div>
+
+    <?php if ($reports->getSize() === 0): ?>
+        <div class="ai-empty-state">
+            <p><?= $block->escapeHtml(__('No saved reports yet. Go to "Ask AI" to create your first report.')) ?></p>
+            <a href="<?= $block->escapeUrl($block->getQueryUrl()) ?>" class="ai-btn ai-btn-primary">
+                <?= $block->escapeHtml(__('Ask AI Now')) ?>
+            </a>
+        </div>
+    <?php else: ?>
+        <table class="ai-table ai-saved-table">
+            <thead>
+                <tr>
+                    <th><?= $block->escapeHtml(__('Title')) ?></th>
+                    <th><?= $block->escapeHtml(__('NLP Query')) ?></th>
+                    <th><?= $block->escapeHtml(__('Chart Type')) ?></th>
+                    <th><?= $block->escapeHtml(__('Created')) ?></th>
+                    <th><?= $block->escapeHtml(__('Actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($reports as $report): ?>
+                    <tr>
+                        <td><strong><?= $block->escapeHtml($report->getTitle()) ?></strong></td>
+                        <td class="ai-nlp-cell"><?= $block->escapeHtml($report->getNlpQuery()) ?></td>
+                        <td>
+                            <span class="ai-chart-badge ai-chart-badge--<?= $block->escapeHtmlAttr($report->getChartType()) ?>">
+                                <?= $block->escapeHtml(ucfirst($report->getChartType())) ?>
+                            </span>
+                        </td>
+                        <td><?= $block->escapeHtml($report->getData('created_at')) ?></td>
+                        <td>
+                            <button class="ai-btn ai-btn-sm ai-run-saved"
+                                    data-sql="<?= $block->escapeHtmlAttr($report->getSqlQuery()) ?>"
+                                    data-chart="<?= $block->escapeHtmlAttr($report->getChartType()) ?>"
+                                    data-nlp="<?= $block->escapeHtmlAttr($report->getNlpQuery()) ?>">
+                                ▶ <?= $block->escapeHtml(__('Run')) ?>
+                            </button>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endif; ?>
+
+</div>
+
+<script>
+require(['jquery'], function ($) {
+    'use strict';
+
+    // Handle Run button click on saved reports
+    $(document).on('click', '.ai-run-saved', function () {
+        const $btn = $(this);
+        const sql = $btn.data('sql');
+        const chart = $btn.data('chart');
+        const nlp = $btn.data('nlp');
+
+        if (!sql) {
+            alert('<?= $block->escapeJs(__('No SQL query found for this report.')) ?>');
+            return;
+        }
+
+        // Store the data in sessionStorage to pass to the query page
+        sessionStorage.setItem('ai_run_saved_report', JSON.stringify({
+            sql: sql,
+            chart: chart,
+            nlp: nlp
+        }));
+
+        // Redirect to the query page
+        window.location.href = '<?= $block->escapeJs($block->getQueryUrl()) ?>';
+    });
+});
+</script>

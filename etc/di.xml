@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!-- Configure the LLM Provider Pool with registered providers -->
+    <type name="Meetanshi\AIReporting\Model\LLM\ProviderPool">
+        <arguments>
+            <argument name="providers" xsi:type="array">
+                <item name="openai"      xsi:type="object">Meetanshi\AIReporting\Model\LLM\OpenAIProvider</item>
+                <item name="gemini"      xsi:type="object">Meetanshi\AIReporting\Model\LLM\GeminiProvider</item>
+                <item name="groq"        xsi:type="object">Meetanshi\AIReporting\Model\LLM\GroqProvider</item>
+                <item name="ollama"      xsi:type="object">Meetanshi\AIReporting\Model\LLM\OllamaProvider</item>
+                <item name="openrouter"  xsi:type="object">Meetanshi\AIReporting\Model\LLM\OpenRouterProvider</item>
+            </argument>
+        </arguments>
+    </type>
+
+</config>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+<svg version="1.1" id="Layer_1" xmlns:sketch="http://www.bohemiancoding.com/sketch/ns"
+	 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"  width="800px" height="800px"
+	 viewBox="0 0 65 55" enable-background="new 0 0 65 55" xml:space="preserve">
+<title>Line-chart-increase</title>
+<desc>Created with Sketch.</desc>
+<g id="Page-1" sketch:type="MSPage">
+	<g id="Line-chart-increase" transform="translate(2.000000, 1.000000)" sketch:type="MSLayerGroup">
+		<path id="Shape" fill="none" stroke="#6B6C6E" stroke-width="2" d="M61,42.1H9.9V1c0-0.5-0.4-1-1-1h-3c-0.5,0-1,0.4-1,1v41.1h-4
+			c-0.5,0-1,0.4-1,1v3c0,0.5,0.4,1,1,1h4v4c0,0.5,0.4,1,1,1h3c0.5,0,1-0.4,1-1v-4H61c0.5,0,1-0.4,1-1v-3C62,42.5,61.5,42.1,61,42.1
+			L61,42.1z"/>
+		<path id="Shape_2_" fill="none" stroke="#6B6C6E" stroke-width="2" d="M20,30l10.5-11.5"/>
+		<path id="Shape_3_" fill="none" stroke="#6B6C6E" stroke-width="2" d="M35,18l8.5,9.5"/>
+		<path id="Shape_4_" sketch:type="MSShapeGroup" fill="none" stroke="#6B6C6E" stroke-width="2" d="M48,27l9.5-11.5"/>
+		<circle id="Oval" sketch:type="MSShapeGroup" fill="none" stroke="#6B6C6E" stroke-width="2" cx="59" cy="14" r="3">
+		</circle>
+		<circle id="Oval_1_" fill="none" stroke="#6B6C6E" stroke-width="2" cx="18" cy="32" r="3"/>
+		<circle id="Oval_2_" fill="none" stroke="#6B6C6E" stroke-width="2" cx="33" cy="16" r="3"/>
+		<path id="Shape_1_" fill="none" stroke="#6B6C6E" stroke-width="2" d="M48.9,30c0,1.6-1.3,3-3,3c-1.6,0-3-1.3-3-3c0-1.6,1.3-3,3-3
+			C47.6,27,48.9,28.3,48.9,30L48.9,30z"/>
+	</g>
+</g>
+</svg>
