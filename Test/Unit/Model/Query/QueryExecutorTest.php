@@ -11,11 +11,13 @@ declare(strict_types=1);
 
 namespace Meetanshi\AIReporting\Test\Unit\Model\Query;
 
-use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\App\DeploymentConfig;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Meetanshi\AIReporting\Exception\QueryException;
 use Meetanshi\AIReporting\Model\Config;
 use Meetanshi\AIReporting\Model\Query\QueryExecutor;
+use Meetanshi\AIReporting\Model\Query\ReadOnlyConnectionProvider;
+use Meetanshi\AIReporting\Model\Query\SqlGuard;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -23,32 +25,35 @@ use Psr\Log\LoggerInterface;
 class QueryExecutorTest extends TestCase
 {
     private QueryExecutor $executor;
-    private ResourceConnection|MockObject $resourceConnection;
     private AdapterInterface|MockObject $connection;
-    private Config|MockObject $config;
-    private LoggerInterface|MockObject $logger;
+    private array $statements = [];
 
     protected function setUp(): void
     {
-        $this->resourceConnection = $this->createMock(ResourceConnection::class);
-        $this->connection         = $this->createMock(AdapterInterface::class);
-        $this->config             = $this->createMock(Config::class);
-        $this->logger             = $this->createMock(LoggerInterface::class);
+        $this->connection = $this->createMock(AdapterInterface::class);
+        $this->connection->method('fetchOne')->willReturn('11.4.12-MariaDB');
+        $this->connection->method('query')->willReturnCallback(function (string $sql) {
+            $this->statements[] = $sql;
+            return null;
+        });
 
-        $this->resourceConnection->method('getConnection')
-            ->willReturn($this->connection);
+        $provider = $this->createMock(ReadOnlyConnectionProvider::class);
+        $provider->method('getConnection')->willReturn($this->connection);
 
-        $this->config->method('getMaxRows')
-            ->willReturn(500);
+        $deploymentConfig = $this->createMock(DeploymentConfig::class);
+        $deploymentConfig->method('get')->willReturn('');
+
+        $config = $this->createMock(Config::class);
+        $config->method('getMaxRows')->willReturn(500);
+        $config->method('getQueryTimeout')->willReturn(30);
 
         $this->executor = new QueryExecutor(
-            $this->resourceConnection,
-            $this->config,
-            $this->logger
+            $provider,
+            new SqlGuard($deploymentConfig),
+            $config,
+            $this->createMock(LoggerInterface::class)
         );
     }
-
-    // ── Successful execution ─────────────────────────────────────────────
 
     public function testExecuteReturnsColumnsRowsAndMetadata(): void
     {
@@ -56,126 +61,99 @@ class QueryExecutorTest extends TestCase
             ['email' => 'john@test.com', 'total' => '150.00'],
             ['email' => 'sarah@test.com', 'total' => '250.00'],
         ];
+        $this->connection->method('fetchAll')->willReturn($rows);
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
-
-        $result = $this->executor->execute("SELECT email, SUM(grand_total) as total FROM sales_order GROUP BY email LIMIT 10");
-
-        $this->assertArrayHasKey('columns', $result);
-        $this->assertArrayHasKey('rows', $result);
-        $this->assertArrayHasKey('row_count', $result);
-        $this->assertArrayHasKey('execution_time_ms', $result);
+        $result = $this->executor->execute('SELECT customer_email AS email, grand_total AS total FROM sales_order');
 
         $this->assertSame(['email', 'total'], $result['columns']);
-        $this->assertSame(2, $result['row_count']);
         $this->assertSame($rows, $result['rows']);
+        $this->assertSame(2, $result['row_count']);
         $this->assertIsInt($result['execution_time_ms']);
     }
 
     public function testExecuteReturnsEmptyColumnsForNoResults(): void
     {
-        $this->connection->method('fetchAll')
-            ->willReturn([]);
+        $this->connection->method('fetchAll')->willReturn([]);
 
-        $result = $this->executor->execute("SELECT * FROM sales_order WHERE entity_id = -1");
+        $result = $this->executor->execute('SELECT entity_id FROM sales_order');
 
         $this->assertSame([], $result['columns']);
         $this->assertSame(0, $result['row_count']);
     }
 
-    // ── LIMIT enforcement ────────────────────────────────────────────────
-
-    public function testExecuteAddsLimitWhenMissing(): void
+    public function testRunsInsideReadOnlyTransactionWithTimeoutAndRollsBack(): void
     {
-        $this->connection->expects($this->once())
-            ->method('fetchAll')
-            ->with($this->callback(function (string $sql) {
-                return str_contains(strtoupper($sql), 'LIMIT 500');
-            }))
-            ->willReturn([]);
+        $executed = null;
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$executed) {
+            $executed = $sql;
+            return [];
+        });
 
-        $this->executor->execute("SELECT * FROM sales_order");
+        $this->executor->execute('SELECT entity_id FROM sales_order');
+
+        $this->assertSame(
+            ['SET SESSION max_statement_time = 30', 'START TRANSACTION READ ONLY', 'ROLLBACK'],
+            $this->statements
+        );
+        $this->assertSame('SELECT entity_id FROM sales_order LIMIT 500', $executed);
     }
 
-    public function testExecuteDoesNotAddLimitWhenAlreadyPresent(): void
+    public function testRollsBackEvenWhenQueryFails(): void
     {
-        $this->connection->expects($this->once())
-            ->method('fetchAll')
-            ->with($this->callback(function (string $sql) {
-                // Should not have double LIMIT
-                return substr_count(strtoupper($sql), 'LIMIT') === 1;
-            }))
-            ->willReturn([]);
+        $this->connection->method('fetchAll')->willThrowException(new \Exception('Unknown column'));
 
-        $this->executor->execute("SELECT * FROM sales_order LIMIT 100");
+        try {
+            $this->executor->execute('SELECT nope FROM sales_order');
+            $this->fail('Expected QueryException');
+        } catch (QueryException $e) {
+            $this->assertStringContainsString('Query execution failed', $e->getMessage());
+        }
+
+        $this->assertSame('ROLLBACK', end($this->statements));
     }
 
-    public function testExecuteSkipsLimitForAggregateCountQuery(): void
+    public function testReadOnlyViolationGetsFriendlyMessage(): void
     {
-        $this->connection->expects($this->once())
-            ->method('fetchAll')
-            ->with($this->callback(function (string $sql) {
-                return !str_contains(strtoupper($sql), 'LIMIT');
-            }))
-            ->willReturn([['cnt' => '42']]);
-
-        $this->executor->execute("SELECT COUNT(*) as cnt FROM sales_order");
-    }
-
-    public function testExecuteSkipsLimitForAggregateSumQuery(): void
-    {
-        $this->connection->expects($this->once())
-            ->method('fetchAll')
-            ->with($this->callback(function (string $sql) {
-                return !str_contains(strtoupper($sql), 'LIMIT');
-            }))
-            ->willReturn([['total' => '9999.99']]);
-
-        $this->executor->execute("SELECT SUM(grand_total) as total FROM sales_order");
-    }
-
-    public function testExecuteSkipsLimitForAggregateAvgQuery(): void
-    {
-        $this->connection->expects($this->once())
-            ->method('fetchAll')
-            ->with($this->callback(function (string $sql) {
-                return !str_contains(strtoupper($sql), 'LIMIT');
-            }))
-            ->willReturn([['avg' => '125.50']]);
-
-        $this->executor->execute("SELECT AVG(grand_total) as avg FROM sales_order");
-    }
-
-    // ── Error handling ───────────────────────────────────────────────────
-
-    public function testExecuteThrowsQueryExceptionOnDbError(): void
-    {
-        $this->connection->method('fetchAll')
-            ->willThrowException(new \Exception('Table not found'));
-
-        $this->logger->expects($this->once())
-            ->method('error')
-            ->with(
-                'Meetanshi AIReporting query execution error',
-                $this->callback(function (array $context) {
-                    return isset($context['sql']) && isset($context['error']);
-                })
-            );
+        $this->connection->method('fetchAll')->willThrowException(
+            new \Exception('SQLSTATE[25006]: 1792 Cannot execute statement in a READ ONLY transaction')
+        );
 
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('Query execution failed');
+        $this->expectExceptionMessage('not allowed');
 
-        $this->executor->execute("SELECT * FROM nonexistent_table");
+        $this->executor->execute('SELECT entity_id FROM sales_order');
     }
 
-    public function testExecuteTracksExecutionTime(): void
+    public function testUnsafeSqlIsRejectedBeforeReachingTheDatabase(): void
     {
-        $this->connection->method('fetchAll')
-            ->willReturn([['id' => 1]]);
+        $this->connection->expects($this->never())->method('fetchAll');
 
-        $result = $this->executor->execute("SELECT 1 as id");
+        $this->expectException(QueryException::class);
 
-        $this->assertGreaterThanOrEqual(0, $result['execution_time_ms']);
+        $this->executor->execute("UPDATE sales_order SET status = 'hacked' LIMIT 500");
+    }
+
+    public function testLargeLimitIsCapped(): void
+    {
+        $executed = null;
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$executed) {
+            $executed = $sql;
+            return [];
+        });
+
+        $this->executor->execute('SELECT entity_id FROM sales_order LIMIT 1000000');
+
+        $this->assertSame('SELECT entity_id FROM sales_order LIMIT 500', $executed);
+    }
+
+    public function testSecretsAreRedactedFromResults(): void
+    {
+        $this->connection->method('fetchAll')->willReturn([
+            ['path' => 'payment/stripe/api_key', 'value' => 'sk_live_123'],
+        ]);
+
+        $result = $this->executor->execute("SELECT path, value FROM core_config_data WHERE path LIKE 'payment/%'");
+
+        $this->assertSame(SqlGuard::REDACTED, $result['rows'][0]['value']);
     }
 }

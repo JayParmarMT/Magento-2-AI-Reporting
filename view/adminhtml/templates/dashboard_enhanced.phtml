@@ -63,7 +63,7 @@ $kpis = $dashboardData['kpis'];
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Total Revenue')) ?></div>
                 <div class="ai-kpi-value" id="kpi-revenue">
-                    $<?= number_format($kpis['total_revenue'], 2) ?>
+                    <?= $block->escapeHtml($block->formatCurrency((float) $kpis['total_revenue'])) ?>
                 </div>
                 <div class="ai-kpi-trend <?= $kpis['total_revenue_change'] >= 0 ? 'ai-trend-up' : 'ai-trend-down' ?>" id="kpi-revenue-trend">
                     <span class="ai-trend-icon"><?= $kpis['total_revenue_change'] >= 0 ? '↑' : '↓' ?></span>
@@ -108,7 +108,7 @@ $kpis = $dashboardData['kpis'];
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Avg Order Value')) ?></div>
                 <div class="ai-kpi-value" id="kpi-aov">
-                    $<?= number_format($kpis['avg_order_value'], 2) ?>
+                    <?= $block->escapeHtml($block->formatCurrency((float) $kpis['avg_order_value'])) ?>
                 </div>
                 <div class="ai-kpi-trend <?= $kpis['avg_order_value_change'] >= 0 ? 'ai-trend-up' : 'ai-trend-down' ?>" id="kpi-aov-trend">
                     <span class="ai-trend-icon"><?= $kpis['avg_order_value_change'] >= 0 ? '↑' : '↓' ?></span>
@@ -228,8 +228,8 @@ $kpis = $dashboardData['kpis'];
                     <td><?= $block->escapeHtml($product['product_name']) ?></td>
                     <td class="ai-text-muted"><?= $block->escapeHtml($product['sku']) ?></td>
                     <td><?= number_format($product['qty_sold']) ?></td>
-                    <td><strong class="ai-text-green">$<?= number_format($product['revenue'], 2) ?></strong></td>
-                    <td>$<?= number_format($product['avg_price'], 2) ?></td>
+                    <td><strong class="ai-text-green"><?= $block->escapeHtml($block->formatCurrency((float) $product['revenue'])) ?></strong></td>
+                    <td><?= $block->escapeHtml($block->formatCurrency((float) $product['avg_price'])) ?></td>
                     <td><?= $product['order_count'] ?></td>
                 </tr>
                 <?php endforeach; ?>
@@ -246,9 +246,10 @@ require(['jquery', 'chartjs'], function($, Chart) {
     const REFRESH_URL = '<?= $block->escapeJs($block->getRefreshDataUrl()) ?>';
     const EXPORT_URL = '<?= $block->escapeJs($block->getExportUrl()) ?>';
     const FORM_KEY = '<?= $block->escapeJs($block->getFormKey()) ?>';
+    const CURRENCY = '<?= $block->escapeJs($block->getCurrencySymbol()) ?>';
 
     let dashboardCharts = {};
-    let currentData = <?= /* @noEscape */ json_encode($dashboardData) ?>;
+    let currentData = <?= /* @noEscape */ json_encode($dashboardData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
     // Initialize charts
     initializeCharts(currentData);
@@ -330,7 +331,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
     }
 
     function updateKpis(kpis) {
-        $('#kpi-revenue').text('$' + formatNumber(kpis.total_revenue, 2));
+        $('#kpi-revenue').text(CURRENCY + formatNumber(kpis.total_revenue, 2));
         updateTrend('#kpi-revenue-trend', kpis.total_revenue_change);
         
         $('#kpi-orders').text(formatNumber(kpis.total_orders));
@@ -339,7 +340,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
         $('#kpi-customers').text(formatNumber(kpis.active_customers));
         updateTrend('#kpi-customers-trend', kpis.active_customers_change);
         
-        $('#kpi-aov').text('$' + formatNumber(kpis.avg_order_value, 2));
+        $('#kpi-aov').text(CURRENCY + formatNumber(kpis.avg_order_value, 2));
         updateTrend('#kpi-aov-trend', kpis.avg_order_value_change);
         
         $('#kpi-products-sold').text(formatNumber(kpis.products_sold));
@@ -402,7 +403,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
                 labels: data.map(r => r.label),
                 datasets: [
                     {
-                        label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                        label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                         data: data.map(r => parseFloat(r.revenue)),
                         borderColor: '#6366f1',
                         backgroundColor: 'rgba(99,102,241,0.1)',
@@ -427,7 +428,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
                 responsive: true,
                 interaction: { mode: 'index', intersect: false },
                 scales: {
-                    y: { type: 'linear', position: 'left', title: { display: true, text: 'Revenue ($)' } },
+                    y: { type: 'linear', position: 'left', title: { display: true, text: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>' } },
                     y1: { type: 'linear', position: 'right', title: { display: true, text: 'Orders' }, grid: { drawOnChartArea: false } }
                 }
             }
@@ -460,7 +461,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
                         backgroundColor: 'rgba(99,102,241,0.8)'
                     },
                     {
-                        label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                        label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                         data: data.map(r => parseFloat(r.revenue)),
                         backgroundColor: 'rgba(16,185,129,0.8)'
                     }
@@ -476,7 +477,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
             data: {
                 labels: data.map(r => r.day_name),
                 datasets: [{
-                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                     data: data.map(r => parseFloat(r.revenue)),
                     backgroundColor: ['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff']
                 }]
@@ -505,7 +506,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
             data: {
                 labels: data.map(r => r.category_name),
                 datasets: [{
-                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                     data: data.map(r => parseFloat(r.revenue)),
                     backgroundColor: 'rgba(16,185,129,0.8)'
                 }]
@@ -522,8 +523,8 @@ require(['jquery', 'chartjs'], function($, Chart) {
             html += '<td>' + escapeHtml(product.product_name) + '</td>';
             html += '<td class="ai-text-muted">' + escapeHtml(product.sku) + '</td>';
             html += '<td>' + formatNumber(product.qty_sold) + '</td>';
-            html += '<td><strong class="ai-text-green">$' + formatNumber(product.revenue, 2) + '</strong></td>';
-            html += '<td>$' + formatNumber(product.avg_price, 2) + '</td>';
+            html += '<td><strong class="ai-text-green">' + CURRENCY + formatNumber(product.revenue, 2) + '</strong></td>';
+            html += '<td>' + CURRENCY + formatNumber(product.avg_price, 2) + '</td>';
             html += '<td>' + product.order_count + '</td>';
             html += '</tr>';
         });

@@ -20,6 +20,7 @@
                 <item name="groq"        xsi:type="object">Meetanshi\AIReporting\Model\LLM\GroqProvider</item>
                 <item name="ollama"      xsi:type="object">Meetanshi\AIReporting\Model\LLM\OllamaProvider</item>
                 <item name="openrouter"  xsi:type="object">Meetanshi\AIReporting\Model\LLM\OpenRouterProvider</item>
+                <item name="claude"      xsi:type="object">Meetanshi\AIReporting\Model\LLM\ClaudeProvider</item>
             </argument>
         </arguments>
     </type>

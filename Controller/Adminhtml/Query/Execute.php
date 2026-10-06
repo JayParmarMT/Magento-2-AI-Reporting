@@ -13,27 +13,36 @@ namespace Meetanshi\AIReporting\Controller\Adminhtml\Query;
 
 use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
-use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\Controller\Result\JsonFactory;
-use Magento\Framework\Serialize\Serializer\Json;
+use Magento\Framework\Exception\LocalizedException;
 use Meetanshi\AIReporting\Model\Config;
-use Meetanshi\AIReporting\Model\Query\NlpToSql;
 use Meetanshi\AIReporting\Model\Query\QueryExecutor;
+use Meetanshi\AIReporting\Model\Query\QueryRunner;
+use Meetanshi\AIReporting\Model\Query\QueryTokenStorage;
 use Meetanshi\AIReporting\Model\QueryLogFactory;
 use Meetanshi\AIReporting\Model\ResourceModel\QueryLog as QueryLogResource;
+use Meetanshi\AIReporting\Model\ResourceModel\SavedReport as SavedReportResource;
+use Meetanshi\AIReporting\Model\SavedReportFactory;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Runs either a natural-language question (converted to SQL by the LLM) or one of the
+ * current admin's saved reports (by report_id). Raw SQL from the browser is never accepted.
+ */
 class Execute extends Action
 {
     public function __construct(
         Context $context,
         private readonly JsonFactory $resultJsonFactory,
-        private readonly NlpToSql $nlpToSql,
+        private readonly QueryRunner $queryRunner,
         private readonly QueryExecutor $queryExecutor,
         private readonly Config $config,
         private readonly QueryLogFactory $queryLogFactory,
         private readonly QueryLogResource $queryLogResource,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly SavedReportFactory $savedReportFactory,
+        private readonly SavedReportResource $savedReportResource,
+        private readonly QueryTokenStorage $queryTokenStorage
     ) {
         parent::__construct($context);
     }
@@ -51,9 +60,9 @@ class Execute extends Action
         }
 
         $nlpQuery = trim((string) $this->getRequest()->getParam('query', ''));
-        $directSql = trim((string) $this->getRequest()->getParam('sql', ''));
+        $reportId = (int) $this->getRequest()->getParam('report_id', 0);
 
-        if (empty($nlpQuery) && empty($directSql)) {
+        if ($nlpQuery === '' && $reportId <= 0) {
             return $resultJson->setData(['success' => false, 'message' => __('Please enter a query.')]);
         }
 
@@ -63,20 +72,28 @@ class Execute extends Action
         $errorMsg  = '';
 
         try {
-            // If direct SQL is provided (from saved report), use it directly
-            if (!empty($directSql)) {
-                $sqlQuery = $directSql;
+            if ($reportId > 0) {
+                // Saved report: SQL comes from the database, and only the owner may run it
+                $report = $this->savedReportFactory->create();
+                $this->savedReportResource->load($report, $reportId);
+                if (!$report->getId() || $report->getAdminUserId() !== $this->getAdminUserId()) {
+                    throw new LocalizedException(__('Saved report not found.'));
+                }
+                $nlpQuery    = $report->getNlpQuery();
+                $sqlQuery    = $report->getSqlQuery();
+                $queryResult = $this->queryExecutor->execute($sqlQuery);
             } else {
-                // Step 1: Convert NLP to SQL via LLM
-                $sqlQuery = $this->nlpToSql->convert($nlpQuery);
+                // Convert NLP to SQL via LLM and execute it (validated, row-limited, read-only,
+                // with one automatic correction if the database rejects the SQL)
+                $run         = $this->queryRunner->run($nlpQuery);
+                $sqlQuery    = $run['sql'];
+                $queryResult = $run['result'];
             }
-
-            // Step 2: Execute the SQL
-            $queryResult = $this->queryExecutor->execute($sqlQuery);
 
             $response = [
                 'success'           => true,
                 'sql_query'         => $sqlQuery,
+                'query_token'       => $this->queryTokenStorage->remember($nlpQuery, $sqlQuery),
                 'columns'           => $queryResult['columns'],
                 'rows'              => $queryResult['rows'],
                 'row_count'         => $queryResult['row_count'],
@@ -109,6 +126,13 @@ class Execute extends Action
         return $resultJson->setData($response);
     }
 
+    private function getAdminUserId(): int
+    {
+        $user = $this->_auth ? $this->_auth->getUser() : null;
+
+        return $user ? (int) $user->getId() : 0;
+    }
+
     private function logQuery(
         string $nlpQuery,
         string $sqlQuery,
@@ -127,7 +151,7 @@ class Execute extends Action
                 'error_message'     => $errorMsg ?: null,
                 'execution_time_ms' => $executionTimeMs,
                 'rows_returned'     => $rowsReturned,
-                'admin_user_id'     => (int) $this->_auth->getUser()->getId()
+                'admin_user_id'     => $this->getAdminUserId()
             ]);
             $this->queryLogResource->save($log);
         } catch (\Exception $e) {

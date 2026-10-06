@@ -20,10 +20,11 @@ class SavedReportTest extends TestCase
 
     protected function setUp(): void
     {
-        // We test the getter methods directly by setting data on the model.
-        // AbstractModel requires ObjectManager in production, but for unit tests
-        // we can instantiate with reflection to test pure logic.
-        $this->model = new class extends SavedReport {
+        // Test the getters on a model built with mocked framework dependencies
+        $this->model = new class (
+            $this->createMock(\Magento\Framework\Model\Context::class),
+            $this->createMock(\Magento\Framework\Registry::class)
+        ) extends SavedReport {
             // Override _construct to avoid ResourceModel dependency in unit tests
             protected function _construct(): void
             {
@@ -89,9 +90,7 @@ class SavedReportTest extends TestCase
         $this->assertSame('table', $this->model->getChartType());
     }
 
-    /**
-     * @dataProvider validChartTypeProvider
-     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('validChartTypeProvider')]
     public function testGetChartTypeAcceptsAllValidTypes(string $type): void
     {
         $this->model->setData('chart_type', $type);

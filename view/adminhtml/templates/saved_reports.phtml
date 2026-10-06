@@ -45,7 +45,7 @@ $reports = $block->getSavedReports();
                         <td><?= $block->escapeHtml($report->getData('created_at')) ?></td>
                         <td>
                             <button class="ai-btn ai-btn-sm ai-run-saved"
-                                    data-sql="<?= $block->escapeHtmlAttr($report->getSqlQuery()) ?>"
+                                    data-report-id="<?= (int) $report->getId() ?>"
                                     data-chart="<?= $block->escapeHtmlAttr($report->getChartType()) ?>"
                                     data-nlp="<?= $block->escapeHtmlAttr($report->getNlpQuery()) ?>">
                                 ▶ <?= $block->escapeHtml(__('Run')) ?>
@@ -66,18 +66,18 @@ require(['jquery'], function ($) {
     // Handle Run button click on saved reports
     $(document).on('click', '.ai-run-saved', function () {
         const $btn = $(this);
-        const sql = $btn.data('sql');
+        const reportId = parseInt($btn.data('report-id'), 10);
         const chart = $btn.data('chart');
         const nlp = $btn.data('nlp');
 
-        if (!sql) {
-            alert('<?= $block->escapeJs(__('No SQL query found for this report.')) ?>');
+        if (!reportId) {
+            alert('<?= $block->escapeJs(__('This report could not be found.')) ?>');
             return;
         }
 
-        // Store the data in sessionStorage to pass to the query page
+        // Pass only the report id; the server loads the SQL itself
         sessionStorage.setItem('ai_run_saved_report', JSON.stringify({
-            sql: sql,
+            report_id: reportId,
             chart: chart,
             nlp: nlp
         }));

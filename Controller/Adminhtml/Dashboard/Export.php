@@ -29,7 +29,6 @@ class Export extends Action
     public function execute()
     {
         try {
-            $format = $this->getRequest()->getParam('format', 'csv');
             $dateRange = $this->getRequest()->getParam('date_range', 'last_6_months');
             $customStart = $this->getRequest()->getParam('custom_start');
             $customEnd = $this->getRequest()->getParam('custom_end');
@@ -41,12 +40,8 @@ class Export extends Action
             // Fetch data
             $data = $block->getDashboardData($dateRange, $customStart, $customEnd);
             
-            if ($format === 'csv') {
-                return $this->exportToCsv($data, $dateRange);
-            }
-            
-            // Default to CSV if format not supported
-            return $this->exportToCsv($data, $dateRange);
+            // CSV is the only supported format
+            return $this->exportToCsv($data, (string) $dateRange, $block);
             
         } catch (\Exception $e) {
             $this->messageManager->addErrorMessage(__('Export failed: %1', $e->getMessage()));
@@ -54,9 +49,13 @@ class Export extends Action
         }
     }
 
-    private function exportToCsv(array $data, string $dateRange): \Magento\Framework\App\ResponseInterface
-    {
-        $fileName = 'dashboard_report_' . $dateRange . '_' . date('Y-m-d') . '.csv';
+    private function exportToCsv(
+        array $data,
+        string $dateRange,
+        \Meetanshi\AIReporting\Block\Adminhtml\Dashboard $block
+    ): \Magento\Framework\App\ResponseInterface {
+        $fileName = 'dashboard_report_' . preg_replace('/[^a-z0-9_]/', '', strtolower($dateRange))
+            . '_' . date('Y-m-d') . '.csv';
         
         $csv = [];
         
@@ -64,16 +63,17 @@ class Export extends Action
         $csv[] = ['AI Analytics Dashboard Report'];
         $csv[] = ['Generated:', date('Y-m-d H:i:s')];
         $csv[] = ['Date Range:', $dateRange];
+        $csv[] = ['Currency:', $data['currency_code'] ?? ''];
         $csv[] = ['Period:', $data['date_range']['start'] . ' to ' . $data['date_range']['end']];
         $csv[] = [];
         
         // KPIs
         $csv[] = ['KEY PERFORMANCE INDICATORS'];
         $csv[] = ['Metric', 'Value', 'Change (%)'];
-        $csv[] = ['Total Revenue', '$' . number_format($data['kpis']['total_revenue'], 2), $data['kpis']['total_revenue_change'] . '%'];
+        $csv[] = ['Total Revenue', $block->formatCurrency((float) $data['kpis']['total_revenue']), $data['kpis']['total_revenue_change'] . '%'];
         $csv[] = ['Total Orders', $data['kpis']['total_orders'], $data['kpis']['total_orders_change'] . '%'];
         $csv[] = ['Active Customers', $data['kpis']['active_customers'], $data['kpis']['active_customers_change'] . '%'];
-        $csv[] = ['Avg Order Value', '$' . number_format($data['kpis']['avg_order_value'], 2), $data['kpis']['avg_order_value_change'] . '%'];
+        $csv[] = ['Avg Order Value', $block->formatCurrency((float) $data['kpis']['avg_order_value']), $data['kpis']['avg_order_value_change'] . '%'];
         $csv[] = ['Products Sold', $data['kpis']['products_sold'], ''];
         $csv[] = ['Low Stock Items', $data['kpis']['low_stock'], ''];
         $csv[] = ['Out of Stock Items', $data['kpis']['out_of_stock'], ''];
@@ -88,8 +88,8 @@ class Export extends Action
                 $product['product_name'],
                 $product['sku'],
                 $product['qty_sold'],
-                '$' . number_format($product['revenue'], 2),
-                '$' . number_format($product['avg_price'], 2),
+                $block->formatCurrency((float) $product['revenue']),
+                $block->formatCurrency((float) $product['avg_price']),
                 $product['order_count']
             ];
         }
@@ -102,7 +102,7 @@ class Export extends Action
             $csv[] = [
                 $status['status'],
                 $status['orders'],
-                '$' . number_format($status['revenue'], 2)
+                $block->formatCurrency((float) $status['revenue'])
             ];
         }
         $csv[] = [];
@@ -114,7 +114,7 @@ class Export extends Action
             $csv[] = [
                 $segment['segment'],
                 $segment['customers'],
-                '$' . number_format($segment['revenue'], 2)
+                $block->formatCurrency((float) $segment['revenue'])
             ];
         }
         $csv[] = [];

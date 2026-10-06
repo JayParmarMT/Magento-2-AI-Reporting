@@ -49,10 +49,12 @@
                     <depends><field id="llm_provider">openai</field></depends>
                 </field>
 
-                <field id="openai_model" translate="label" type="select" sortOrder="40"
+                <field id="openai_model" translate="label comment" type="select" sortOrder="40"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>OpenAI Model</label>
                     <source_model>Meetanshi\AIReporting\Model\Config\Source\OpenAiModel</source_model>
+                    <frontend_model>Meetanshi\AIReporting\Block\Adminhtml\System\Config\ModelField</frontend_model>
+                    <comment>Save your API key first, then click "Fetch Latest Models" to load the live list.</comment>
                     <depends><field id="llm_provider">openai</field></depends>
                 </field>
 
@@ -65,10 +67,12 @@
                     <depends><field id="llm_provider">gemini</field></depends>
                 </field>
 
-                <field id="gemini_model" translate="label" type="select" sortOrder="60"
+                <field id="gemini_model" translate="label comment" type="select" sortOrder="60"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Gemini Model</label>
                     <source_model>Meetanshi\AIReporting\Model\Config\Source\GeminiModel</source_model>
+                    <frontend_model>Meetanshi\AIReporting\Block\Adminhtml\System\Config\ModelField</frontend_model>
+                    <comment>Save your API key first, then click "Fetch Latest Models" to load the live list.</comment>
                     <depends><field id="llm_provider">gemini</field></depends>
                 </field>
 
@@ -81,10 +85,12 @@
                     <depends><field id="llm_provider">groq</field></depends>
                 </field>
 
-                <field id="groq_model" translate="label" type="select" sortOrder="80"
+                <field id="groq_model" translate="label comment" type="select" sortOrder="80"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Groq Model</label>
                     <source_model>Meetanshi\AIReporting\Model\Config\Source\GroqModel</source_model>
+                    <frontend_model>Meetanshi\AIReporting\Block\Adminhtml\System\Config\ModelField</frontend_model>
+                    <comment>Save your API key first, then click "Fetch Latest Models" to load the live list.</comment>
                     <depends><field id="llm_provider">groq</field></depends>
                 </field>
 
@@ -99,7 +105,15 @@
                 <field id="ollama_model" translate="label comment" type="text" sortOrder="100"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Ollama Model Name</label>
-                    <comment>e.g. llama3.2, mistral, codellama. Pull first: ollama pull llama3.2</comment>
+                    <comment><![CDATA[Must exactly match a name from <code>ollama list</code> (e.g. qwen2.5-coder:3b, llama3.2). Pull it first: <code>ollama pull &lt;model&gt;</code>. The model must fit in the server's free RAM/VRAM.]]></comment>
+                    <depends><field id="llm_provider">ollama</field></depends>
+                </field>
+
+                <field id="ollama_timeout" translate="label comment" type="text" sortOrder="105"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Ollama Request Timeout (seconds)</label>
+                    <comment>Local models on CPU are slow and the first request also loads the model. Keep it below the web server timeout (Apache: 300). Default: 240.</comment>
+                    <validate>validate-number validate-greater-than-zero</validate>
                     <depends><field id="llm_provider">ollama</field></depends>
                 </field>
 
@@ -112,11 +126,31 @@
                     <depends><field id="llm_provider">openrouter</field></depends>
                 </field>
 
-                <field id="openrouter_model" translate="label" type="select" sortOrder="120"
+                <field id="openrouter_model" translate="label comment" type="select" sortOrder="120"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>OpenRouter Model</label>
                     <source_model>Meetanshi\AIReporting\Model\Config\Source\OpenRouterModel</source_model>
+                    <frontend_model>Meetanshi\AIReporting\Block\Adminhtml\System\Config\ModelField</frontend_model>
+                    <comment>Click "Fetch Latest Models" to load the live list (API key optional for free models).</comment>
                     <depends><field id="llm_provider">openrouter</field></depends>
+                </field>
+
+                <!-- ── Anthropic Claude ───────────────────────────────── -->
+                <field id="claude_api_key" translate="label comment" type="obscure" sortOrder="125"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Claude API Key</label>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                    <comment><![CDATA[Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> (paid).]]></comment>
+                    <depends><field id="llm_provider">claude</field></depends>
+                </field>
+
+                <field id="claude_model" translate="label comment" type="select" sortOrder="126"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Claude Model</label>
+                    <source_model>Meetanshi\AIReporting\Model\Config\Source\ClaudeModel</source_model>
+                    <frontend_model>Meetanshi\AIReporting\Block\Adminhtml\System\Config\ModelField</frontend_model>
+                    <comment>Save your API key first, then click "Fetch Latest Models" to load the live list.</comment>
+                    <depends><field id="llm_provider">claude</field></depends>
                 </field>
 
                 <!-- ── Common Settings ────────────────────────────────── -->
@@ -152,6 +186,13 @@
                     <label>Log All Queries</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <comment>Log all NLP queries and generated SQL for audit purposes.</comment>
+                </field>
+
+                <field id="share_results_with_llm" translate="label comment" type="select" sortOrder="20"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Send Query Results to AI Provider</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment><![CDATA[Chat answers are written by the AI from the query results, which can include customer names, emails and addresses. When set to <strong>No</strong>, only your question and the database schema are sent; the chat shows a summary built on your server instead. Enable only if your AI provider's data terms allow it (Ollama runs locally).]]></comment>
                 </field>
             </group>
         </section>

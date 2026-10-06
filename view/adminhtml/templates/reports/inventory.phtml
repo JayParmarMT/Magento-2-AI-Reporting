@@ -1,11 +1,11 @@
 <?php
 /** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Inventory $block */
-$kpi        = $block->getKpiCards();
-$lowStock   = $block->getLowStockProducts();
-$outOfStock = $block->getOutOfStockProducts();
-$stockDist  = $block->getStockDistribution();
-$demand     = $block->getDemandVsSupply();
-$turnover   = $block->getInventoryTurnover();
+$kpi          = $block->getKpiCards();
+$lowStock     = $block->getLowStockProducts();
+$outOfStock   = $block->getOutOfStockProducts();
+$stockDist    = $block->getStockDistribution();
+$demandPeriod = $block->getDemandVsSupplyPerPeriod();
+$turnover     = $block->getInventoryTurnover();
 ?>
 <div class="meetanshi-aireporting-wrap">
 
@@ -13,7 +13,15 @@ $turnover   = $block->getInventoryTurnover();
         <span class="ai-provider-badge">🏭 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
     </div>
 
-    <!-- KPI Cards -->
+    <!-- Period Tabs -->
+    <div class="ai-period-tabs">
+        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
+        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
+        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
+        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
+    </div>
+
+    <!-- KPI Cards (current stock snapshot — same for every period) -->
     <div class="ai-stats-grid">
         <div class="ai-stat-card">
             <div class="ai-stat-label"><?= $block->escapeHtml(__('Total SKUs')) ?></div>
@@ -36,6 +44,7 @@ $turnover   = $block->getInventoryTurnover();
             <div class="ai-stat-value ai-stat-blue"><?= $block->escapeHtml($block->formatCurrency((float)($kpi['total_stock_value'] ?? 0))) ?></div>
         </div>
     </div>
+    <p class="ai-help-text" style="margin:-4px 0 12px;"><?= $block->escapeHtml(__('Stock figures reflect current inventory. The period tabs adjust the demand chart below.')) ?></p>
 
     <!-- Charts Row -->
     <div class="ai-charts-row">
@@ -50,7 +59,7 @@ $turnover   = $block->getInventoryTurnover();
         <!-- Demand vs Supply -->
         <div class="ai-chart-card ai-chart-wide">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Top Sellers: Demand vs Current Stock (Last 30 Days)')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Top Sellers: Demand vs Current Stock')) ?> <span id="ai-demand-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-demand-supply" height="100"></canvas>
         </div>
@@ -159,7 +168,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
         $('#tab-' + $(this).data('tab')).show();
     });
 
-    var distData = <?= /* @noEscape */ json_encode(array_values($stockDist)) ?>;
+    var distData = <?= /* @noEscape */ json_encode(array_values($stockDist), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     new Chart(document.getElementById('chart-stock-dist'), {
         type: 'doughnut',
         data: {
@@ -172,25 +181,53 @@ require(['jquery', 'chartjs'], function($, Chart) {
         options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
     });
 
-    var demandData = <?= /* @noEscape */ json_encode(array_values($demand)) ?>;
-    new Chart(document.getElementById('chart-demand-supply'), {
-        type: 'bar',
-        data: {
-            labels: demandData.map(r => r.sku),
-            datasets: [
-                {
-                    label: '<?= $block->escapeJs(__('Qty Sold (30d)')) ?>',
-                    data: demandData.map(r => parseFloat(r.qty_sold_30d)),
-                    backgroundColor: 'rgba(99,102,241,0.8)'
-                },
-                {
-                    label: '<?= $block->escapeJs(__('Current Stock')) ?>',
-                    data: demandData.map(r => parseFloat(r.current_stock)),
-                    backgroundColor: 'rgba(16,185,129,0.8)'
-                }
-            ]
-        },
-        options: { responsive: true }
+    // ── Demand vs Supply (period-aware) ────────────────────────────────────
+    var demandByPeriod = <?= /* @noEscape */ json_encode($demandPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var periodLabels = {
+        today: '<?= $block->escapeJs(__('(Today)')) ?>',
+        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
+        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
+        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
+    };
+    var demandChart = null;
+    var EMPTY_MSG = '<?= $block->escapeJs(__('No sales in this period')) ?>';
+
+    function drawEmpty(canvas) {
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.font = '14px sans-serif'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
+        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+    }
+
+    function renderDemand(period) {
+        var data = demandByPeriod[period] || [];
+        $('#ai-demand-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-demand-supply');
+        if (demandChart) { demandChart.destroy(); demandChart = null; }
+        if (!data.length) { drawEmpty(canvas); return; }
+
+        demandChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(function(r){ return r.sku; }),
+                datasets: [
+                    { label: '<?= $block->escapeJs(__('Qty Sold')) ?>', data: data.map(function(r){ return parseFloat(r.qty_sold_30d); }), backgroundColor: 'rgba(99,102,241,0.8)' },
+                    { label: '<?= $block->escapeJs(__('Current Stock')) ?>', data: data.map(function(r){ return parseFloat(r.current_stock); }), backgroundColor: 'rgba(16,185,129,0.8)' }
+                ]
+            },
+            options: { responsive: true }
+        });
+    }
+
+    // Period tabs — only the demand chart is period-sensitive (stock KPIs are current)
+    $('.ai-period-tab').on('click', function() {
+        $('.ai-period-tab').removeClass('active');
+        $(this).addClass('active');
+        renderDemand($(this).data('period'));
     });
+
+    renderDemand('month');
 });
 </script>

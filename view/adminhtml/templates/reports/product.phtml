@@ -1,12 +1,13 @@
 <?php
 /** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Product $block */
-$kpi         = $block->getKpiCards();
-$byRevenue   = $block->getBestSellersByRevenue();
-$byQty       = $block->getBestSellersByQty();
-$worst       = $block->getWorstSellers();
-$byType      = $block->getRevenueByProductType();
-$byCategory  = $block->getRevenueByCategory();
-$neverSold   = $block->getProductsNeverSold();
+$kpi          = $block->getKpiCards();
+$byRevenue    = $block->getBestSellersByRevenue();
+$byQty        = $block->getBestSellersByQty();
+$worst        = $block->getWorstSellers();
+$byCategory   = $block->getRevenueByCategory();
+$neverSold    = $block->getProductsNeverSold();
+$topRevPeriod = $block->getBestSellersByRevenuePerPeriod();
+$typePeriod   = $block->getRevenueByProductTypePerPeriod();
 ?>
 <div class="meetanshi-aireporting-wrap">
 
@@ -14,24 +15,38 @@ $neverSold   = $block->getProductsNeverSold();
         <span class="ai-provider-badge">📦 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="ai-stats-grid">
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Products')) ?></div>
-            <div class="ai-stat-value"><?= (int)($kpi['total_products'] ?? 0) ?></div>
+    <!-- Period Tabs -->
+    <div class="ai-period-tabs">
+        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
+        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
+        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
+        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
+    </div>
+
+    <!-- KPI Cards (per period) -->
+    <div class="ai-stats-grid" id="ai-kpi-grid">
+        <?php foreach (['today','week','month','year'] as $period): ?>
+        <div class="ai-kpi-panel" data-period="<?= $period ?>" style="<?= $period !== 'month' ? 'display:none' : '' ?>">
+            <div class="ai-stats-grid">
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Products')) ?></div>
+                    <div class="ai-stat-value"><?= (int)($kpi[$period]['total_products'] ?? 0) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('SKUs Sold')) ?></div>
+                    <div class="ai-stat-value ai-stat-green"><?= (int)($kpi[$period]['total_skus_sold'] ?? 0) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Qty Sold')) ?></div>
+                    <div class="ai-stat-value ai-stat-blue"><?= number_format((float)($kpi[$period]['total_qty_sold'] ?? 0)) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Never Sold')) ?></div>
+                    <div class="ai-stat-value ai-stat-red"><?= (int)($kpi[$period]['never_sold'] ?? 0) ?></div>
+                </div>
+            </div>
         </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('SKUs Sold')) ?></div>
-            <div class="ai-stat-value ai-stat-green"><?= (int)($kpi['total_skus_sold'] ?? 0) ?></div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Qty Sold')) ?></div>
-            <div class="ai-stat-value ai-stat-blue"><?= number_format((float)($kpi['total_qty_sold'] ?? 0)) ?></div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Never Sold')) ?></div>
-            <div class="ai-stat-value ai-stat-red"><?= count($neverSold) ?>+</div>
-        </div>
+        <?php endforeach; ?>
     </div>
 
     <!-- Charts Row -->
@@ -39,7 +54,7 @@ $neverSold   = $block->getProductsNeverSold();
         <!-- Top 10 by Revenue Bar -->
         <div class="ai-chart-card ai-chart-wide">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Top 10 Products by Revenue')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Top 10 Products by Revenue')) ?> <span id="ai-toprev-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-top-revenue" height="100"></canvas>
         </div>
@@ -47,7 +62,7 @@ $neverSold   = $block->getProductsNeverSold();
         <!-- Revenue by Product Type -->
         <div class="ai-chart-card">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue by Product Type')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Revenue by Product Type')) ?> <span id="ai-ptype-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-product-type" height="180"></canvas>
         </div>
@@ -183,43 +198,91 @@ require(['jquery', 'chartjs'], function($, Chart) {
         $('#tab-' + $(this).data('tab')).show();
     });
 
-    // Top 10 by Revenue
-    var top10 = <?= /* @noEscape */ json_encode(array_values(array_slice($byRevenue, 0, 10))) ?>;
-    new Chart(document.getElementById('chart-top-revenue'), {
-        type: 'bar',
-        data: {
-            labels: top10.map(r => r.sku),
-            datasets: [{
-                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                data: top10.map(r => parseFloat(r.total_revenue)),
-                backgroundColor: 'rgba(99,102,241,0.8)',
-                borderColor: 'rgba(99,102,241,1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            plugins: { legend: { display: false } }
-        }
+    // ── Per-period data ────────────────────────────────────────────────────
+    var topRevByPeriod = <?= /* @noEscape */ json_encode($topRevPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var typeByPeriod   = <?= /* @noEscape */ json_encode($typePeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+    var periodLabels = {
+        today: '<?= $block->escapeJs(__('(Today)')) ?>',
+        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
+        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
+        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
+    };
+
+    var topRevChart = null, typeChart = null;
+    var EMPTY_MSG = '<?= $block->escapeJs(__('No data in this period')) ?>';
+
+    function drawEmpty(canvas) {
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.font = '14px sans-serif'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
+        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+    }
+
+    function renderTopRev(period) {
+        var data = topRevByPeriod[period] || [];
+        $('#ai-toprev-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-top-revenue');
+        if (topRevChart) { topRevChart.destroy(); topRevChart = null; }
+        if (!data.length) { drawEmpty(canvas); return; }
+
+        topRevChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(function(r){ return r.sku; }),
+                datasets: [{
+                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    data: data.map(function(r){ return parseFloat(r.total_revenue); }),
+                    backgroundColor: 'rgba(99,102,241,0.8)',
+                    borderColor: 'rgba(99,102,241,1)',
+                    borderWidth: 1
+                }]
+            },
+            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function renderType(period) {
+        var data = typeByPeriod[period] || [];
+        $('#ai-ptype-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-product-type');
+        if (typeChart) { typeChart.destroy(); typeChart = null; }
+        if (!data.length) { drawEmpty(canvas); return; }
+
+        typeChart = new Chart(canvas, {
+            type: 'pie',
+            data: {
+                labels: data.map(function(r){ return r.product_type; }),
+                datasets: [{
+                    data: data.map(function(r){ return parseFloat(r.total_revenue); }),
+                    backgroundColor: ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function renderPeriodCharts(period) {
+        renderTopRev(period);
+        renderType(period);
+    }
+
+    // Period tabs — update KPI panels AND the period-aware charts
+    $('.ai-period-tab').on('click', function() {
+        $('.ai-period-tab').removeClass('active');
+        $(this).addClass('active');
+        var period = $(this).data('period');
+        $('.ai-kpi-panel').hide();
+        $('.ai-kpi-panel[data-period="' + period + '"]').show();
+        renderPeriodCharts(period);
     });
 
-    // Product Type Pie
-    var typeData = <?= /* @noEscape */ json_encode(array_values($byType)) ?>;
-    new Chart(document.getElementById('chart-product-type'), {
-        type: 'pie',
-        data: {
-            labels: typeData.map(r => r.product_type),
-            datasets: [{
-                data: typeData.map(r => parseFloat(r.total_revenue)),
-                backgroundColor: ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6']
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-    });
+    renderPeriodCharts('month');
 
     <?php if (!empty($byCategory)): ?>
-    var catData = <?= /* @noEscape */ json_encode(array_values($byCategory)) ?>;
+    var catData = <?= /* @noEscape */ json_encode(array_values($byCategory), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     new Chart(document.getElementById('chart-category'), {
         type: 'bar',
         data: {

@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace Meetanshi\AIReporting\Test\Unit\Model\Report;
 
-use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Meetanshi\AIReporting\Model\Report\InventoryReport;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -19,176 +18,157 @@ use PHPUnit\Framework\TestCase;
 
 class InventoryReportTest extends TestCase
 {
+    use ReportContextTrait;
+
     private InventoryReport $report;
     private AdapterInterface|MockObject $connection;
 
     protected function setUp(): void
     {
-        $resourceConnection = $this->createMock(ResourceConnection::class);
-        $this->connection   = $this->createMock(AdapterInterface::class);
-
-        $resourceConnection->method('getConnection')
-            ->willReturn($this->connection);
-
-        $this->report = new InventoryReport($resourceConnection);
+        $this->connection = $this->createMock(AdapterInterface::class);
+        $this->report     = new InventoryReport($this->createReportContext($this->connection));
     }
 
     // ── getKpiCards ──────────────────────────────────────────────────────
 
     public function testGetKpiCardsReturnsAllMetrics(): void
     {
-        $this->connection->method('fetchOne')
-            ->willReturnOnConsecutiveCalls('100', '85', '10', '5', '125000.00');
+        $this->connection->method('fetchRow')->willReturn(
+            ['total_skus' => '100', 'in_stock' => '85', 'out_of_stock' => '15', 'low_stock' => '5']
+        );
+        $this->connection->method('fetchOne')->willReturn('125000.00');
 
         $result = $this->report->getKpiCards();
 
-        $this->assertArrayHasKey('total_skus', $result);
-        $this->assertArrayHasKey('in_stock', $result);
-        $this->assertArrayHasKey('out_of_stock', $result);
-        $this->assertArrayHasKey('low_stock', $result);
-        $this->assertArrayHasKey('total_stock_value', $result);
-
         $this->assertSame('100', $result['total_skus']);
         $this->assertSame('85', $result['in_stock']);
-        $this->assertSame('10', $result['out_of_stock']);
+        $this->assertSame('15', $result['out_of_stock']);
+        $this->assertSame('5', $result['low_stock']);
+        $this->assertSame('125000.00', $result['total_stock_value']);
+    }
+
+    public function testKpisOnlyCountStockManagedQtyTypes(): void
+    {
+        $captured = '';
+        $this->connection->method('fetchRow')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [];
+        });
+
+        $this->report->getKpiCards();
+
+        $this->assertStringContainsString("e.type_id IN ('simple', 'virtual')", $captured);
+        $this->assertStringContainsString('si.use_config_manage_stock = 1', $captured);
+        $this->assertStringContainsString('cataloginventory_stock_item', $captured);
+        $this->assertStringNotContainsString('inventory_source_item', $captured);
+    }
+
+    public function testKpisUseMsiSourceItemsWhenMsiEnabled(): void
+    {
+        $connection = $this->createMock(AdapterInterface::class);
+        $report     = new InventoryReport($this->createReportContext($connection, 'UTC', true));
+        $captured   = '';
+        $connection->method('fetchRow')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [];
+        });
+
+        $report->getKpiCards();
+
+        $this->assertStringContainsString('inventory_source_item', $captured);
+        $this->assertStringContainsString('src.enabled = 1', $captured);
+        $this->assertStringContainsString('SUM(isi.quantity)', $captured);
     }
 
     // ── getLowStockProducts ──────────────────────────────────────────────
 
     public function testGetLowStockProductsReturnsExpectedStructure(): void
     {
-        $rows = [
-            [
-                'entity_id'    => '5',
-                'sku'          => 'TEST-MOUSE-001',
-                'product_name' => 'Ergonomic Wireless Mouse',
-                'qty'          => '3',
-                'min_qty'      => '0',
-                'is_in_stock'  => '1',
-                'price'        => '79.99',
-            ],
-        ];
+        $this->connection->method('fetchAll')->willReturn([[
+            'entity_id' => '1', 'sku' => 'LAPTOP-001', 'product_name' => 'Laptop',
+            'qty' => '3', 'min_qty' => '0', 'is_in_stock' => '1', 'price' => '899.99',
+        ]]);
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getLowStockProducts();
 
-        $result = $this->report->getLowStockProducts(10, 30);
-
-        $this->assertCount(1, $result);
         $this->assertSame('3', $result[0]['qty']);
         $this->assertArrayHasKey('product_name', $result[0]);
         $this->assertArrayHasKey('price', $result[0]);
     }
 
-    public function testGetLowStockProductsReturnsEmptyForNoData(): void
+    public function testGetLowStockProductsBindsThreshold(): void
     {
-        $this->connection->method('fetchAll')
-            ->willReturn([]);
+        $bind = null;
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql, array $b) use (&$bind) {
+            $bind = $b;
+            return [];
+        });
 
-        $result = $this->report->getLowStockProducts();
-        $this->assertSame([], $result);
+        $this->assertSame([], $this->report->getLowStockProducts(7, 5));
+        $this->assertSame([7], $bind);
     }
 
     // ── getOutOfStockProducts ────────────────────────────────────────────
 
     public function testGetOutOfStockProductsReturnsExpectedStructure(): void
     {
-        $rows = [
-            [
-                'entity_id'    => '12',
-                'sku'          => 'TEST-CAMERA-001',
-                'product_name' => 'Mirrorless Camera Kit',
-                'qty'          => '0',
-                'price'        => '1299.99',
-            ],
-        ];
+        $this->connection->method('fetchAll')->willReturn([
+            ['entity_id' => '5', 'sku' => 'CAMERA-001', 'product_name' => 'Camera', 'qty' => '0', 'price' => '1299.99'],
+        ]);
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getOutOfStockProducts();
 
-        $result = $this->report->getOutOfStockProducts(30);
-
-        $this->assertCount(1, $result);
         $this->assertSame('0', $result[0]['qty']);
     }
 
     // ── getStockDistribution ─────────────────────────────────────────────
 
-    public function testGetStockDistributionReturnsAllRanges(): void
+    public function testGetStockDistributionReturnsAllRangesZeroFilled(): void
     {
-        $rows = [
-            ['stock_range' => 'Out of Stock',    'product_count' => '10'],
-            ['stock_range' => '1-5 (Critical)',   'product_count' => '5'],
-            ['stock_range' => '6-10 (Low)',       'product_count' => '8'],
-            ['stock_range' => '11-50 (Medium)',   'product_count' => '30'],
-            ['stock_range' => '51-100 (Good)',    'product_count' => '25'],
-            ['stock_range' => '100+ (High)',      'product_count' => '22'],
-        ];
-
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $this->connection->method('fetchAll')->willReturn([
+            ['stock_range' => 'Out of Stock', 'product_count' => '5'],
+            ['stock_range' => '100+ (High)', 'product_count' => '35'],
+        ]);
 
         $result = $this->report->getStockDistribution();
 
         $this->assertCount(6, $result);
-        $ranges = array_column($result, 'stock_range');
-        $this->assertContains('Out of Stock', $ranges);
-        $this->assertContains('100+ (High)', $ranges);
+        $this->assertSame('Out of Stock', $result[0]['stock_range']);
+        $this->assertSame(5, $result[0]['product_count']);
+        $this->assertSame(0, $result[1]['product_count']);
+        $this->assertSame(35, $result[5]['product_count']);
     }
 
     // ── getDemandVsSupply ────────────────────────────────────────────────
 
-    public function testGetDemandVsSupplyReturnsExpectedStructure(): void
+    public function testGetDemandVsSupplyMatchesStockByProductId(): void
     {
-        $rows = [
-            [
-                'sku'           => 'TEST-PHONE-001',
-                'product_name'  => 'SmartPhone X Pro',
-                'qty_sold_30d'  => '20',
-                'current_stock' => '5',
-                'is_in_stock'   => '1',
-                'stock_status'  => 'CRITICAL',
-            ],
-            [
-                'sku'           => 'TEST-CABLE-001',
-                'product_name'  => 'Braided USB-C Cable 2m',
-                'qty_sold_30d'  => '10',
-                'current_stock' => '100',
-                'is_in_stock'   => '1',
-                'stock_status'  => 'OK',
-            ],
-        ];
+        $captured = '';
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [
+                ['sku' => 'LAPTOP-001', 'qty_sold_30d' => '20', 'current_stock' => '3', 'stock_status' => 'CRITICAL'],
+                ['sku' => 'CABLE-001', 'qty_sold_30d' => '10', 'current_stock' => '100', 'stock_status' => 'OK'],
+            ];
+        });
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getDemandVsSupply();
 
-        $result = $this->report->getDemandVsSupply(15);
-
-        $this->assertCount(2, $result);
         $this->assertSame('CRITICAL', $result[0]['stock_status']);
         $this->assertSame('OK', $result[1]['stock_status']);
+        $this->assertStringContainsString('s.product_id = oi.product_id', $captured);
     }
 
     // ── getInventoryTurnover ─────────────────────────────────────────────
 
     public function testGetInventoryTurnoverReturnsExpectedStructure(): void
     {
-        $rows = [
-            [
-                'sku'           => 'TEST-CHARGER-001',
-                'product_name'  => 'USB-C Fast Charger 65W',
-                'qty_sold'      => '30',
-                'current_stock' => '10',
-                'turnover_rate' => '3.00',
-            ],
-        ];
+        $this->connection->method('fetchAll')->willReturn([
+            ['sku' => 'LAPTOP-001', 'product_name' => 'Laptop', 'qty_sold' => '30', 'current_stock' => '10', 'turnover_rate' => '3.00'],
+        ]);
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getInventoryTurnover();
 
-        $result = $this->report->getInventoryTurnover(20);
-
-        $this->assertCount(1, $result);
         $this->assertSame('3.00', $result[0]['turnover_rate']);
         $this->assertArrayHasKey('qty_sold', $result[0]);
         $this->assertArrayHasKey('current_stock', $result[0]);
@@ -196,10 +176,8 @@ class InventoryReportTest extends TestCase
 
     public function testGetInventoryTurnoverReturnsEmptyForNoData(): void
     {
-        $this->connection->method('fetchAll')
-            ->willReturn([]);
+        $this->connection->method('fetchAll')->willReturn([]);
 
-        $result = $this->report->getInventoryTurnover();
-        $this->assertSame([], $result);
+        $this->assertSame([], $this->report->getInventoryTurnover());
     }
 }

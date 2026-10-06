@@ -11,7 +11,6 @@ declare(strict_types=1);
 
 namespace Meetanshi\AIReporting\Test\Unit\Model\Report;
 
-use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Meetanshi\AIReporting\Model\Report\ProductReport;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -19,114 +18,82 @@ use PHPUnit\Framework\TestCase;
 
 class ProductReportTest extends TestCase
 {
+    use ReportContextTrait;
+
     private ProductReport $report;
     private AdapterInterface|MockObject $connection;
 
     protected function setUp(): void
     {
-        $resourceConnection = $this->createMock(ResourceConnection::class);
-        $this->connection   = $this->createMock(AdapterInterface::class);
-
-        $resourceConnection->method('getConnection')
-            ->willReturn($this->connection);
-
-        $this->report = new ProductReport($resourceConnection);
+        $this->connection = $this->createMock(AdapterInterface::class);
+        $this->report     = new ProductReport($this->createReportContext($this->connection));
     }
 
     // ── getKpiCards ──────────────────────────────────────────────────────
 
     public function testGetKpiCardsReturnsAllMetrics(): void
     {
-        $this->connection->method('fetchOne')
-            ->willReturnOnConsecutiveCalls('100', '80', '15', '50', '250');
+        $this->connection->method('fetchRow')->willReturnOnConsecutiveCalls(
+            ['total_products' => '100', 'simple_products' => '80', 'configurable' => '15'],
+            ['total_skus_sold' => '50', 'total_qty_sold' => '250'],
+            ['total_products' => '100', 'simple_products' => '80', 'configurable' => '15'],
+            ['total_skus_sold' => '50', 'total_qty_sold' => '250'],
+            ['total_products' => '100', 'simple_products' => '80', 'configurable' => '15'],
+            ['total_skus_sold' => '50', 'total_qty_sold' => '250'],
+            ['total_products' => '100', 'simple_products' => '80', 'configurable' => '15'],
+            ['total_skus_sold' => '50', 'total_qty_sold' => '250']
+        );
 
         $result = $this->report->getKpiCards();
 
-        $this->assertArrayHasKey('total_products', $result);
-        $this->assertArrayHasKey('simple_products', $result);
-        $this->assertArrayHasKey('configurable', $result);
-        $this->assertArrayHasKey('total_skus_sold', $result);
-        $this->assertArrayHasKey('total_qty_sold', $result);
-
-        $this->assertSame('100', $result['total_products']);
-        $this->assertSame('80', $result['simple_products']);
+        $this->assertSame(100, $result['today']['total_products']);
+        $this->assertSame(80, $result['today']['simple_products']);
+        $this->assertSame(15, $result['today']['configurable']);
+        $this->assertSame(50, $result['today']['total_skus_sold']);
+        $this->assertSame(250, $result['today']['total_qty_sold']);
     }
 
-    // ── getBestSellersByRevenue ───────────────────────────────────────────
+    // ── best / worst sellers ─────────────────────────────────────────────
 
-    public function testGetBestSellersByRevenueReturnsExpectedStructure(): void
+    public function testBestSellersUseTopLevelItemsWithNetRevenueAndQty(): void
     {
-        $rows = [
-            [
-                'product_id'     => '1',
-                'sku'            => 'TEST-LAPTOP-001',
-                'product_name'   => 'ProBook Laptop 15"',
-                'total_qty_sold' => '25',
-                'total_revenue'  => '22499.75',
-                'avg_price'      => '899.99',
-                'order_count'    => '20',
-            ],
-        ];
+        $captured = '';
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [[
+                'product_id' => '1', 'sku' => 'LAPTOP-001', 'product_name' => 'Laptop',
+                'total_qty_sold' => '10', 'total_revenue' => '8999.90', 'avg_price' => '899.99', 'order_count' => '8',
+            ]];
+        });
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getBestSellersByRevenue();
 
-        $result = $this->report->getBestSellersByRevenue(20);
-
-        $this->assertCount(1, $result);
-        $this->assertSame('TEST-LAPTOP-001', $result[0]['sku']);
-        $this->assertArrayHasKey('total_revenue', $result[0]);
-        $this->assertArrayHasKey('avg_price', $result[0]);
+        $this->assertSame('LAPTOP-001', $result[0]['sku']);
+        $this->assertStringContainsString('oi.parent_item_id IS NULL', $captured);
+        $this->assertStringContainsString('base_discount_amount', $captured);
+        $this->assertStringContainsString('qty_refunded', $captured);
+        $this->assertStringContainsString('ORDER BY total_revenue DESC', $captured);
     }
 
-    // ── getBestSellersByQty ──────────────────────────────────────────────
-
-    public function testGetBestSellersByQtyReturnsExpectedStructure(): void
+    public function testGetBestSellersByQtyOrdersByQuantity(): void
     {
-        $rows = [
-            [
-                'product_id'     => '10',
-                'sku'            => 'TEST-CHARGER-001',
-                'product_name'   => 'USB-C Fast Charger 65W',
-                'total_qty_sold' => '50',
-                'total_revenue'  => '1999.50',
-                'order_count'    => '40',
-            ],
-        ];
+        $captured = '';
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [['sku' => 'CABLE-001', 'total_qty_sold' => '50']];
+        });
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getBestSellersByQty();
 
-        $result = $this->report->getBestSellersByQty(20);
-
-        $this->assertCount(1, $result);
         $this->assertSame('50', $result[0]['total_qty_sold']);
-    }
-
-    // ── getWorstSellers ──────────────────────────────────────────────────
-
-    public function testGetWorstSellersReturnsExpectedStructure(): void
-    {
-        $rows = [
-            ['sku' => 'TEST-CAMERA-001', 'product_name' => 'Mirrorless Camera Kit', 'total_qty_sold' => '1', 'total_revenue' => '1299.99'],
-        ];
-
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
-
-        $result = $this->report->getWorstSellers(10);
-
-        $this->assertCount(1, $result);
-        $this->assertSame('1', $result[0]['total_qty_sold']);
+        $this->assertStringContainsString('ORDER BY total_qty_sold DESC', $captured);
     }
 
     public function testGetWorstSellersReturnsEmptyForNoData(): void
     {
-        $this->connection->method('fetchAll')
-            ->willReturn([]);
+        $this->connection->method('fetchAll')->willReturn([]);
 
-        $result = $this->report->getWorstSellers();
-        $this->assertSame([], $result);
+        $this->assertSame([], $this->report->getWorstSellers());
     }
 
     // ── getRevenueByProductType ──────────────────────────────────────────
@@ -134,85 +101,72 @@ class ProductReportTest extends TestCase
     public function testGetRevenueByProductTypeReturnsExpectedStructure(): void
     {
         $rows = [
-            ['product_type' => 'simple',       'order_count' => '40', 'total_qty' => '100', 'total_revenue' => '15000.00'],
-            ['product_type' => 'configurable', 'order_count' => '10', 'total_qty' => '20',  'total_revenue' => '5000.00'],
+            ['product_type' => 'simple', 'order_count' => '40', 'total_qty' => '100', 'total_revenue' => '15000.00'],
+            ['product_type' => 'configurable', 'order_count' => '10', 'total_qty' => '20', 'total_revenue' => '5000.00'],
         ];
+        $this->connection->method('fetchAll')->willReturn($rows);
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
-
-        $result = $this->report->getRevenueByProductType();
-
-        $this->assertCount(2, $result);
-        $types = array_column($result, 'product_type');
-        $this->assertContains('simple', $types);
+        $this->assertSame($rows, $this->report->getRevenueByProductType());
     }
 
     // ── getTopProductsTrend ──────────────────────────────────────────────
 
     public function testGetTopProductsTrendReturnsEmptyWhenNoTopSkus(): void
     {
-        $this->connection->method('fetchCol')
-            ->willReturn([]);
+        $this->connection->method('fetchCol')->willReturn([]);
 
-        $result = $this->report->getTopProductsTrend();
-        $this->assertSame([], $result);
+        $this->assertSame([], $this->report->getTopProductsTrend());
     }
 
-    public function testGetTopProductsTrendReturnsMonthlyData(): void
+    public function testGetTopProductsTrendQuotesSkusSafely(): void
     {
-        $this->connection->method('fetchCol')
-            ->willReturn(['TEST-LAPTOP-001', 'TEST-PHONE-001']);
-
-        $rows = [
-            ['sku' => 'TEST-LAPTOP-001', 'product_name' => 'ProBook Laptop', 'month' => '2026-01', 'label' => 'Jan 2026', 'qty_sold' => '5', 'revenue' => '4499.95'],
-            ['sku' => 'TEST-PHONE-001',  'product_name' => 'SmartPhone X',   'month' => '2026-01', 'label' => 'Jan 2026', 'qty_sold' => '8', 'revenue' => '5599.92'],
-        ];
-
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $this->connection->method('fetchCol')->willReturn(["SKU'1", 'SKU-2']);
+        $this->connection->method('quoteInto')->willReturn("oi.sku IN ('SKU\\'1', 'SKU-2')");
+        $captured = '';
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [['sku' => 'SKU-2', 'month' => '2026-05', 'revenue' => '100.00']];
+        });
 
         $result = $this->report->getTopProductsTrend();
 
-        $this->assertCount(2, $result);
-        $this->assertArrayHasKey('month', $result[0]);
-        $this->assertArrayHasKey('revenue', $result[0]);
+        $this->assertSame('2026-05', $result[0]['month']);
+        $this->assertStringContainsString("oi.sku IN ('SKU\\'1', 'SKU-2')", $captured);
     }
 
     // ── getProductsNeverSold ─────────────────────────────────────────────
 
-    public function testGetProductsNeverSoldReturnsExpectedStructure(): void
+    public function testGetProductsNeverSoldIgnoresCancelledOrders(): void
     {
-        $rows = [
-            ['entity_id' => '99', 'sku' => 'UNSOLD-001', 'type_id' => 'simple'],
-            ['entity_id' => '98', 'sku' => 'UNSOLD-002', 'type_id' => 'simple'],
-        ];
+        $captured = '';
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [['entity_id' => '99', 'sku' => 'NEVER-SOLD', 'type_id' => 'simple']];
+        });
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getProductsNeverSold();
 
-        $result = $this->report->getProductsNeverSold(20);
-
-        $this->assertCount(2, $result);
-        $this->assertArrayHasKey('sku', $result[0]);
-        $this->assertArrayHasKey('type_id', $result[0]);
+        $this->assertSame('NEVER-SOLD', $result[0]['sku']);
+        $this->assertStringContainsString('NOT EXISTS', $captured);
+        $this->assertStringContainsString("o.state NOT IN ('canceled','pending_payment')", $captured);
     }
 
     // ── getRevenueByCategory ─────────────────────────────────────────────
 
-    public function testGetRevenueByCategoryReturnsExpectedStructure(): void
+    public function testGetRevenueByCategoryExcludesRootsAndUsesLookedUpAttribute(): void
     {
-        $rows = [
-            ['category_name' => 'Electronics', 'order_count' => '30', 'total_qty' => '50', 'total_revenue' => '25000.00'],
-            ['category_name' => 'Accessories', 'order_count' => '20', 'total_qty' => '40', 'total_revenue' => '3000.00'],
-        ];
+        $this->connection->method('fetchOne')->willReturn('45');
+        $captured = '';
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [['category_name' => 'Electronics', 'order_count' => '30', 'total_qty' => '80', 'total_revenue' => '25000.00']];
+        });
 
-        $this->connection->method('fetchAll')
-            ->willReturn($rows);
+        $result = $this->report->getRevenueByCategory();
 
-        $result = $this->report->getRevenueByCategory(15);
-
-        $this->assertCount(2, $result);
         $this->assertSame('Electronics', $result[0]['category_name']);
+        $this->assertStringContainsString('ce.level >= 2', $captured);
+        $this->assertStringContainsString('cv.attribute_id = 45', $captured);
+        $this->assertStringContainsString('cv.store_id = 0', $captured);
     }
 }

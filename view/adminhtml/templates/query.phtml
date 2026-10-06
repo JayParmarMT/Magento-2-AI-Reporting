@@ -20,6 +20,12 @@
         </span>
     </div>
 
+    <!-- ═══ Two-Column Layout ═══ -->
+    <div class="ai-page-columns">
+
+    <!-- ═══ LEFT COLUMN: Query & Results ═══ -->
+    <div class="ai-col-left">
+
     <!-- Query Input -->
     <div class="ai-query-box">
         <div class="ai-input-row">
@@ -125,6 +131,13 @@
             </table>
         </div>
 
+        <!-- No Data Message -->
+        <div id="ai-no-data" class="ai-no-data" style="display:none;">
+            <div class="ai-no-data-icon">📭</div>
+            <div class="ai-no-data-title"><?= $block->escapeHtml(__('No results found')) ?></div>
+            <div class="ai-no-data-text"><?= $block->escapeHtml(__('There is no data for this query yet. Try a different question or a wider date range.')) ?></div>
+        </div>
+
         <!-- Actions -->
         <div class="ai-actions">
             <button id="ai-download-csv" class="ai-btn ai-btn-secondary">
@@ -155,6 +168,69 @@
         </div>
     </div>
 
+    </div><!-- /.ai-col-left -->
+
+    <!-- ═══ RIGHT COLUMN: Chat with AI ═══ -->
+    <div class="ai-col-right">
+        <div class="ai-chat-panel">
+            <div class="ai-chat-header">
+                <div class="ai-chat-header-left">
+                    <span class="ai-chat-avatar">🤖</span>
+                    <div>
+                        <h3><?= $block->escapeHtml(__('Chat with AI')) ?></h3>
+                        <span class="ai-chat-subtitle"><?= $block->escapeHtml(__('Ask anything about your store data')) ?></span>
+                    </div>
+                </div>
+                <button id="ai-chat-clear" class="ai-btn ai-btn-sm ai-btn-secondary" title="<?= $block->escapeHtmlAttr(__('Clear chat')) ?>">
+                    🗑️
+                </button>
+            </div>
+
+            <div id="ai-chat-messages" class="ai-chat-messages">
+                <!-- Welcome message -->
+                <div class="ai-chat-msg ai-chat-msg-bot">
+                    <div class="ai-chat-msg-avatar">🤖</div>
+                    <div class="ai-chat-msg-bubble">
+                        <p><?= $block->escapeHtml(__('Hi! I\'m your AI store assistant. Ask me anything about your sales, orders, customers, products, inventory, store settings, or any installed extension (including third-party modules) and I\'ll look it up for you.')) ?></p>
+                        <div class="ai-chat-quick-actions">
+                            <button class="ai-chat-quick-btn" data-msg="What is today's total revenue?">💰 <?= $block->escapeHtml(__("Today's revenue")) ?></button>
+                            <button class="ai-chat-quick-btn" data-msg="How many orders were placed this week?">📦 <?= $block->escapeHtml(__('Orders this week')) ?></button>
+                            <button class="ai-chat-quick-btn" data-msg="Who are the top 5 customers by spending?">👥 <?= $block->escapeHtml(__('Top customers')) ?></button>
+                            <button class="ai-chat-quick-btn" data-msg="Which products are running low on stock?">📉 <?= $block->escapeHtml(__('Low stock alerts')) ?></button>
+                            <button class="ai-chat-quick-btn" data-msg="Show me the sales trend for the last 7 days">📊 <?= $block->escapeHtml(__('Sales trend')) ?></button>
+                            <button class="ai-chat-quick-btn" data-msg="What is the repeat purchase rate?">🔄 <?= $block->escapeHtml(__('Repeat buyers')) ?></button>
+                            <button class="ai-chat-quick-btn" data-msg="Which third-party extensions are installed?">🧩 <?= $block->escapeHtml(__('Installed extensions')) ?></button>
+                            <button class="ai-chat-quick-btn" data-msg="Which cache, session and search backends does the store use?">⚙️ <?= $block->escapeHtml(__('Store setup')) ?></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ai-chat-typing" class="ai-chat-typing" style="display:none;">
+                <div class="ai-chat-msg-avatar">🤖</div>
+                <div class="ai-chat-typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+
+            <div class="ai-chat-input-area">
+                <input type="text"
+                       id="ai-chat-input"
+                       class="ai-chat-input"
+                       placeholder="<?= $block->escapeHtmlAttr(__('Ask about sales, customers, settings, extensions...')) ?>"
+                       autocomplete="off" />
+                <button id="ai-chat-send" class="ai-chat-send-btn" title="<?= $block->escapeHtmlAttr(__('Send')) ?>">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div><!-- /.ai-col-right -->
+
+    </div><!-- /.ai-page-columns -->
+
 </div>
 
 <script>
@@ -163,10 +239,13 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
 
     const EXECUTE_URL  = '<?= $block->escapeJs($block->getQueryExecuteUrl()) ?>';
     const SAVE_URL     = '<?= $block->escapeJs($block->getSaveReportUrl()) ?>';
+    const CHAT_URL     = '<?= $block->escapeJs($block->getChatSendUrl()) ?>';
     const FORM_KEY     = '<?= $block->escapeJs($block->getFormKey()) ?>';
 
     let currentSql     = '';
     let currentNlp     = '';
+    let currentToken   = '';  // server-issued reference to the last executed query (used to save it)
+    const CHART_TYPES  = ['table', 'bar', 'line', 'pie'];
     let currentColumns = [];
     let currentRows    = [];
     let chartInstance  = null;
@@ -190,14 +269,13 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
                     $('#ai-nlp-query').val(data.nlp);
                 }
                 
-                // Execute the saved SQL directly
-                if (data.sql) {
-                    currentNlp = data.nlp || '';
-                    currentSql = data.sql;
-                    activeChart = data.chart || 'table';
-                    
-                    // Execute the SQL query directly
-                    executeSavedQuery(data.sql, data.chart);
+                // Run the saved report by id (the server loads its SQL)
+                const reportId = parseInt(data.report_id, 10);
+                if (reportId > 0) {
+                    currentNlp  = data.nlp || '';
+                    activeChart = CHART_TYPES.indexOf(data.chart) !== -1 ? data.chart : 'table';
+
+                    executeSavedQuery(reportId, activeChart);
                 }
             } catch (e) {
                 console.error('Failed to parse saved report data:', e);
@@ -205,8 +283,8 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
         }
     });
 
-    // ── Execute Saved Query (direct SQL execution) ─────────────────────────
-    function executeSavedQuery(sql, chartType) {
+    // ── Execute Saved Report (by id) ───────────────────────────────────────
+    function executeSavedQuery(reportId, chartType) {
         showLoading(true);
         hideError();
         $('#ai-results').hide();
@@ -214,12 +292,13 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
         $.ajax({
             url: EXECUTE_URL,
             type: 'POST',
-            data: { sql: sql, form_key: FORM_KEY },
+            data: { report_id: reportId, form_key: FORM_KEY },
             dataType: 'json',
             success: function (response) {
                 showLoading(false);
                 if (response.success) {
-                    currentSql     = sql;
+                    currentSql     = response.sql_query;
+                    currentToken   = response.query_token || '';
                     currentColumns = response.columns;
                     currentRows    = response.rows;
 
@@ -390,6 +469,7 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
                 showLoading(false);
                 if (response.success) {
                     currentSql     = response.sql_query;
+                    currentToken   = response.query_token || '';
                     currentColumns = response.columns;
                     currentRows    = response.rows;
 
@@ -410,8 +490,48 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
         });
     }
 
+    // ── Does the result actually contain data worth showing? ───────────────
+    function hasMeaningfulData(columns, rows) {
+        if (!columns || columns.length === 0 || !rows || rows.length === 0) {
+            return false;
+        }
+        // A single-row aggregate (e.g. SUM/COUNT) with all null/empty cells means "no data".
+        // Treat the whole result as empty only if every cell in every row is null/empty.
+        for (let i = 0; i < rows.length; i++) {
+            for (let j = 0; j < columns.length; j++) {
+                const v = rows[i][columns[j]];
+                if (v !== null && v !== undefined && String(v).trim() !== '') {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // ── Toggle the result view controls / actions on/off ───────────────────
+    function toggleResultControls(show) {
+        const disp = show ? '' : 'none';
+        $('.ai-chart-controls').css('display', disp);
+        $('.ai-actions').css('display', disp);
+        if (!show) {
+            $('#ai-axis-controls').hide();
+        }
+    }
+
     // ── Render: Table or Chart ─────────────────────────────────────────────
     function renderView(type) {
+        // Friendly empty state — hide table/chart/controls and show a message
+        if (!hasMeaningfulData(currentColumns, currentRows)) {
+            $('#ai-chart-container').hide();
+            $('#ai-table-container').hide();
+            $('#ai-no-data').show();
+            toggleResultControls(false);
+            return;
+        }
+
+        $('#ai-no-data').hide();
+        toggleResultControls(true);
+
         if (type === 'table') {
             $('#ai-chart-container').hide();
             $('#ai-table-container').show();
@@ -574,10 +694,9 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
             url: SAVE_URL,
             type: 'POST',
             data: {
-                title:      title,
-                nlp_query:  currentNlp,
-                sql_query:  currentSql,
-                chart_type: activeChart,
+                title:       title,
+                query_token: currentToken,
+                chart_type:  activeChart,
                 form_key:   FORM_KEY
             },
             dataType: 'json',
@@ -642,6 +761,182 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
             '#3b82f6','#ef4444','#14b8a6','#f97316','#84cc16'
         ];
         return Array.from({ length: count }, (_, i) => palette[i % palette.length]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ═══ CHAT WITH AI ══════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════
+
+    let chatBusy = false;
+
+    // ── Send on Enter ──────────────────────────────────────────────────────
+    $('#ai-chat-input').on('keypress', function (e) {
+        if (e.which === 13 && !chatBusy) { sendChatMessage(); }
+    });
+
+    // ── Send button ────────────────────────────────────────────────────────
+    $('#ai-chat-send').on('click', function () {
+        if (!chatBusy) { sendChatMessage(); }
+    });
+
+    // ── Quick action buttons ───────────────────────────────────────────────
+    $(document).on('click', '.ai-chat-quick-btn', function () {
+        const msg = $(this).data('msg');
+        $('#ai-chat-input').val(msg);
+        sendChatMessage();
+    });
+
+    // ── Clear chat ─────────────────────────────────────────────────────────
+    $('#ai-chat-clear').on('click', function () {
+        const $messages = $('#ai-chat-messages');
+        // Keep only the first welcome message
+        $messages.find('.ai-chat-msg').not(':first').remove();
+        $('#ai-chat-input').val('').focus();
+    });
+
+    // ── Send message ───────────────────────────────────────────────────────
+    function sendChatMessage() {
+        const message = $('#ai-chat-input').val().trim();
+        if (!message || chatBusy) return;
+
+        chatBusy = true;
+        $('#ai-chat-input').val('');
+        $('#ai-chat-send').prop('disabled', true);
+
+        // Add user message
+        appendChatMessage('user', message);
+
+        // Show typing indicator
+        $('#ai-chat-typing').show();
+        scrollChatToBottom();
+
+        $.ajax({
+            url: CHAT_URL,
+            type: 'POST',
+            data: { message: message, form_key: FORM_KEY },
+            dataType: 'json',
+            timeout: 120000,
+            success: function (response) {
+                $('#ai-chat-typing').hide();
+                chatBusy = false;
+                $('#ai-chat-send').prop('disabled', false);
+
+                if (response.success) {
+                    appendChatMessage('bot', response.answer, {
+                        sql: response.sql,
+                        rows: response.rows,
+                        time_ms: response.time_ms
+                    });
+                } else {
+                    appendChatMessage('bot', '❌ ' + (response.message || 'Something went wrong. Please try again.'));
+                }
+            },
+            error: function (xhr) {
+                $('#ai-chat-typing').hide();
+                chatBusy = false;
+                $('#ai-chat-send').prop('disabled', false);
+
+                let errMsg = 'Request failed. Please try again.';
+                if (xhr.status === 0) {
+                    errMsg = 'Network error — check your connection.';
+                } else if (xhr.status === 504 || xhr.statusText === 'timeout') {
+                    errMsg = 'The request timed out. Try a simpler question.';
+                }
+                appendChatMessage('bot', '❌ ' + errMsg);
+            }
+        });
+
+        $('#ai-chat-input').focus();
+    }
+
+    // ── Append message to chat ─────────────────────────────────────────────
+    function appendChatMessage(role, content, meta) {
+        const isBot = role === 'bot';
+        const avatar = isBot ? '🤖' : '👤';
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        let html = '<div class="ai-chat-msg ai-chat-msg-' + role + '">';
+        html += '<div class="ai-chat-msg-avatar">' + avatar + '</div>';
+        html += '<div class="ai-chat-msg-bubble">';
+
+        if (isBot) {
+            // Parse markdown-like formatting
+            html += '<div class="ai-chat-msg-text">' + formatBotMessage(content) + '</div>';
+
+            // Meta info (SQL, rows, time) — only for answers that ran a query
+            if (meta && meta.sql) {
+                html += '<div class="ai-chat-meta">';
+                if (meta.rows !== undefined) {
+                    html += '<span class="ai-chat-meta-item">📊 ' + meta.rows + ' rows</span>';
+                }
+                if (meta.time_ms !== undefined) {
+                    html += '<span class="ai-chat-meta-item">⏱️ ' + meta.time_ms + 'ms</span>';
+                }
+                if (meta.sql) {
+                    html += '<button type="button" class="ai-chat-sql-toggle">Show SQL ▼</button>';
+                    html += '<pre class="ai-chat-sql-code" style="display:none;">' + escHtml(meta.sql) + '</pre>';
+                }
+                html += '</div>';
+            }
+        } else {
+            html += '<div class="ai-chat-msg-text">' + escHtml(content) + '</div>';
+        }
+
+        html += '<div class="ai-chat-msg-time">' + time + '</div>';
+        html += '</div></div>';
+
+        $('#ai-chat-messages').append(html);
+        scrollChatToBottom();
+    }
+
+    // Show/hide the SQL under a chat answer (delegated handler; no inline onclick, CSP-friendly)
+    $(document).on('click', '.ai-chat-sql-toggle', function () {
+        const $code = $(this).next('.ai-chat-sql-code');
+        $code.toggle();
+        $(this).text($code.is(':visible') ? 'Hide SQL ▲' : 'Show SQL ▼');
+    });
+
+    // ── Format bot message (basic markdown) ────────────────────────────────
+    function formatBotMessage(text) {
+        // Escape HTML first
+        let html = escHtml(text);
+
+        // Headings: ### text
+        html = html.replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>');
+
+        // Bold: **text**
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+        // Italic: *text* or _text_ (only as whole words, so names like sales_order_item stay intact)
+        html = html.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/gm, '$1<em>$2</em>');
+        html = html.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,;:!?]|$)/gm, '$1<em>$2</em>');
+
+        // Inline code: `text`
+        html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+
+        // Bullet points (- or *) and numbered lists; each run of consecutive items becomes one list
+        html = html.replace(/^\s*[\-\*]\s+(.+)$/gm, '<li>$1</li>');
+        html = html.replace(/^\s*\d+\.\s+(.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(?:^<li>.*<\/li>$\n?)+/gm, function (list) {
+            return '<ul>' + list.replace(/\n/g, '') + '</ul>';
+        });
+
+        // Line breaks
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = html.replace(/\n/g, '<br>');
+
+        // Wrap in paragraph if not already
+        if (!html.startsWith('<')) {
+            html = '<p>' + html + '</p>';
+        }
+
+        return html;
+    }
+
+    // ── Scroll chat to bottom ──────────────────────────────────────────────
+    function scrollChatToBottom() {
+        const $container = $('#ai-chat-messages');
+        $container.scrollTop($container[0].scrollHeight);
     }
 });
 </script>

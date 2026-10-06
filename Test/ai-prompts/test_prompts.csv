@@ -1,0 +1,101 @@
+id,category,subcategory,prompt,expected_type
+1,sales,basic,"Show me total revenue today",aggregate
+2,sales,basic,"What is today's total sales amount?",aggregate
+3,sales,basic,"How many orders were placed today?",aggregate
+4,sales,basic,"Show today's order count",aggregate
+5,sales,basic,"What is the total revenue this week?",aggregate
+6,sales,basic,"How many orders this week?",aggregate
+7,sales,basic,"Show me this month's revenue",aggregate
+8,sales,basic,"What is the total sales this month?",aggregate
+9,sales,basic,"How many orders were placed this month?",aggregate
+10,sales,basic,"Show me this year's total revenue",aggregate
+11,sales,basic,"What is the total number of orders this year?",aggregate
+12,sales,basic,"Show me yesterday's revenue",aggregate
+13,sales,basic,"How many orders were placed yesterday?",aggregate
+14,sales,basic,"What was the revenue last week?",aggregate
+15,sales,basic,"Show me last month's total sales",aggregate
+16,sales,basic,"What was the revenue last month?",aggregate
+17,sales,basic,"How many orders last month?",aggregate
+18,sales,basic,"Show me revenue for the last 7 days",aggregate
+19,sales,basic,"What is the total sales in the last 30 days?",aggregate
+20,sales,basic,"Show me revenue for the last 90 days",aggregate
+21,sales,basic,"What is the total revenue for the last 6 months?",aggregate
+22,sales,basic,"Show me the total revenue for the last 12 months",aggregate
+23,sales,basic,"What is the all-time total revenue?",aggregate
+24,sales,basic,"Show me the total number of orders ever placed",aggregate
+25,sales,basic,"What is the average order value today?",aggregate
+26,sales,basic,"Show me the average order value this week",aggregate
+27,sales,basic,"What is the average order value this month?",aggregate
+28,sales,basic,"Show me the average order value this year",aggregate
+29,sales,basic,"What is the average order value for the last 30 days?",aggregate
+30,sales,basic,"Show me the average order value for the last 12 months",aggregate
+31,sales,basic,"What is the overall average order value?",aggregate
+32,sales,basic,"What is the highest order amount ever?",aggregate
+33,sales,basic,"Show me the largest single order",list
+34,sales,basic,"What is the smallest order amount?",aggregate
+35,sales,basic,"Show me the lowest value order",list
+36,sales,basic,"What is the median order value?",aggregate
+37,sales,basic,"Show me total tax collected today",aggregate
+38,sales,basic,"What is the total tax collected this month?",aggregate
+39,sales,basic,"Show me total tax collected this year",aggregate
+40,sales,basic,"What is the total shipping revenue today?",aggregate
+41,sales,basic,"Show me total shipping charges this month",aggregate
+42,sales,basic,"What is the total shipping revenue this year?",aggregate
+43,sales,basic,"Show me total discount amount given today",aggregate
+44,sales,basic,"What is the total discount given this month?",aggregate
+45,sales,basic,"Show me total discounts for the last 30 days",aggregate
+46,sales,basic,"What is the total discount amount this year?",aggregate
+47,sales,basic,"How much revenue was generated in January 2026?",aggregate
+48,sales,basic,"Show me February 2026 sales",aggregate
+49,sales,basic,"What was the revenue in March 2026?",aggregate
+50,sales,basic,"Show me April 2026 total sales",aggregate
+51,sales,trends,"Show me monthly revenue for the last 12 months",trend
+52,sales,trends,"Show me daily revenue for the last 30 days",trend
+53,sales,trends,"Show me weekly revenue for the last 3 months",trend
+54,sales,trends,"What is the revenue trend by month?",trend
+55,sales,trends,"Show me daily sales trend for this month",trend
+56,sales,trends,"Compare this month's revenue with last month",comparison
+57,sales,trends,"Show me month-over-month revenue growth",trend
+58,sales,trends,"What is the revenue growth rate this year?",aggregate
+59,sales,trends,"Show me revenue by quarter this year",trend
+60,sales,trends,"Compare Q1 vs Q2 revenue",comparison
+61,sales,trends,"Show me year-over-year revenue comparison",comparison
+62,sales,trends,"What was the best revenue day this month?",list
+63,sales,trends,"Show me the top 5 highest revenue days",list
+64,sales,trends,"What was the worst revenue day this month?",list
+65,sales,trends,"Show me the lowest revenue days in the last 30 days",list
+66,sales,trends,"Which day of the week generates the most revenue?",list
+67,sales,trends,"Show me revenue by day of week",list
+68,sales,trends,"What is the average revenue per day of week?",list
+69,sales,trends,"Which hour of the day has the most orders?",list
+70,sales,trends,"Show me orders by hour of day",list
+71,sales,trends,"What is the peak ordering time?",list
+72,sales,trends,"Show me revenue by time of day",list
+73,sales,trends,"Which month had the highest revenue this year?",list
+74,sales,trends,"Show me the best performing month",list
+75,sales,trends,"Which month had the lowest revenue?",list
+76,sales,trends,"Show me the worst performing month this year",list
+77,sales,trends,"What is the average daily revenue this month?",aggregate
+78,sales,trends,"Show me average daily revenue for the last 90 days",aggregate
+79,sales,trends,"What is the average weekly revenue?",aggregate
+80,sales,trends,"Show me the revenue run rate for this year",aggregate
+81,sales,trends,"What is the projected annual revenue based on current trends?",aggregate
+82,sales,trends,"Show me cumulative revenue by month this year",trend
+83,sales,trends,"What is the running total of revenue by day this month?",trend
+84,sales,trends,"Show me revenue variance by month",trend
+85,sales,trends,"What is the standard deviation of daily revenue?",aggregate
+86,sales,trends,"Show me the 7-day moving average of revenue",trend
+87,sales,trends,"What is the 30-day moving average of daily orders?",trend
+88,sales,trends,"Show me revenue per order by month",trend
+89,sales,trends,"What is the trend of average order value over time?",trend
+90,sales,trends,"Show me AOV by month for the last 12 months",trend
+91,sales,trends,"Is the average order value increasing or decreasing?",trend
+92,sales,trends,"Show me the revenue split between weekdays and weekends",comparison
+93,sales,trends,"What percentage of revenue comes from weekends?",aggregate
+94,sales,trends,"Show me weekend vs weekday order comparison",comparison
+95,sales,trends,"What is the revenue for each week this year?",trend
+96,sales,trends,"Show me the first week of each month's revenue",trend
+97,sales,trends,"What is the last 7 days revenue compared to the previous 7 days?",comparison
+98,sales,trends,"Show me this week vs last week revenue",comparison
+99,sales,trends,"Compare this month revenue to same month last year",comparison
+100,sales,trends,"Show me seasonal revenue patterns",trend

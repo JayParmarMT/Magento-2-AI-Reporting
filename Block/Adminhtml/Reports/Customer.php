@@ -5,12 +5,14 @@ namespace Meetanshi\AIReporting\Block\Adminhtml\Reports;
 use Magento\Backend\Block\Template;
 use Magento\Backend\Block\Template\Context;
 use Meetanshi\AIReporting\Model\Report\CustomerReport;
+use Meetanshi\AIReporting\Model\Report\ReportContext;
 
 class Customer extends Template
 {
     public function __construct(
         Context $context,
         private readonly CustomerReport $customerReport,
+        private readonly ReportContext $reportContext,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -20,8 +22,10 @@ class Customer extends Template
     public function getTopCustomers(): array          { return $this->customerReport->getTopCustomersBySpend(20); }
     public function getRfmSegmentation(): array       { return $this->customerReport->getRfmSegmentation(50); }
     public function getNewVsReturning(): array        { return $this->customerReport->getNewVsReturning(); }
+    public function getNewVsReturningPerPeriod(): array { return $this->customerReport->getNewVsReturningPerPeriod(); }
     public function getCustomerAcquisition(): array   { return $this->customerReport->getCustomerAcquisition(); }
     public function getClvDistribution(): array       { return $this->customerReport->getClvDistribution(); }
+    public function getClvDistributionPerPeriod(): array { return $this->customerReport->getClvDistributionPerPeriod(); }
     public function getRepeatPurchaseRate(): array    { return $this->customerReport->getRepeatPurchaseRate(); }
 
     public function getRfmLabel(int $r, int $f, int $m): string
@@ -49,6 +53,6 @@ class Customer extends Template
 
     public function formatCurrency(float $amount): string
     {
-        return '$' . number_format($amount, 2);
+        return $this->reportContext->formatPrice($amount);
     }
 }

@@ -40,6 +40,11 @@ class Query extends Template
         return $this->getUrl('meetanshi_aireporting/report/save');
     }
 
+    public function getChatSendUrl(): string
+    {
+        return $this->getUrl('meetanshi_aireporting/chat/send');
+    }
+
     public function getLlmProvider(): string
     {
         return $this->config->getLlmProvider();

@@ -1,9 +1,12 @@
 <?php
 /** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Sales $block */
-$kpi      = $block->getKpiCards();
-$monthly  = $block->getRevenueByMonth();
-$daily    = $block->getRevenueByDay();
-$statuses = $block->getOrdersByStatus();
+$kpi           = $block->getKpiCards();
+$monthly       = $block->getRevenueByMonth();
+$daily         = $block->getRevenueByDay();
+$statuses      = $block->getOrdersByStatus();
+$statusPeriod  = $block->getOrdersByStatusPerPeriod();
+$revSeries     = $block->getRevenueTimeSeriesPerPeriod();
+$dowPeriod     = $block->getRevenueByDayOfWeekPerPeriod();
 $shipping = $block->getRevenueByShipping();
 $coupons  = $block->getCouponUsage();
 $regions  = $block->getRevenueByRegion();
@@ -53,10 +56,10 @@ $dow      = $block->getRevenueByDayOfWeek();
 
     <!-- Charts Row 1 -->
     <div class="ai-charts-row">
-        <!-- Revenue by Month -->
+        <!-- Revenue Trend (period-aware) -->
         <div class="ai-chart-card ai-chart-wide">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue by Month (Last 12 Months)')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Revenue Trend')) ?> <span id="ai-revenue-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-revenue-monthly" height="80"></canvas>
         </div>
@@ -64,7 +67,7 @@ $dow      = $block->getRevenueByDayOfWeek();
         <!-- Orders by Status -->
         <div class="ai-chart-card">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Orders by Status')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Orders by Status')) ?> <span id="ai-status-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-order-status" height="180"></canvas>
         </div>
@@ -72,10 +75,10 @@ $dow      = $block->getRevenueByDayOfWeek();
 
     <!-- Charts Row 2 -->
     <div class="ai-charts-row">
-        <!-- Revenue by Day (last 30) -->
+        <!-- Daily Revenue (period-aware) -->
         <div class="ai-chart-card ai-chart-wide">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Daily Revenue (Last 30 Days)')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Daily Revenue')) ?> <span id="ai-daily-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-revenue-daily" height="80"></canvas>
         </div>
@@ -83,7 +86,7 @@ $dow      = $block->getRevenueByDayOfWeek();
         <!-- Revenue by Day of Week -->
         <div class="ai-chart-card">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue by Day of Week')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Revenue by Day of Week')) ?> <span id="ai-dow-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-dow" height="180"></canvas>
         </div>
@@ -178,99 +181,172 @@ $dow      = $block->getRevenueByDayOfWeek();
 
 <script>
 require(['jquery', 'chartjs'], function($, Chart) {
-    // Period tabs
+
+    // ── Per-period datasets (preloaded for all 4 periods) ──────────────────
+    var statusByPeriod  = <?= /* @noEscape */ json_encode($statusPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var revByPeriod     = <?= /* @noEscape */ json_encode($revSeries, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var dowByPeriod     = <?= /* @noEscape */ json_encode($dowPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+    var periodLabels = {
+        today: '<?= $block->escapeJs(__('(Today)')) ?>',
+        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
+        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
+        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
+    };
+    var statusColors = ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#ec4899','#0ea5e9'];
+    var dowColors    = ['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff'];
+
+    var statusChart = null, revenueChart = null, dailyChart = null, dowChart = null;
+
+    var EMPTY_MSG = '<?= $block->escapeJs(__('No data in this period')) ?>';
+
+    function drawEmpty(canvas) {
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.font = '14px sans-serif';
+        ctx.fillStyle = '#9ca3af';
+        ctx.textAlign = 'center';
+        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+    }
+
+    // ── Orders by Status (doughnut) ────────────────────────────────────────
+    function renderStatusChart(period) {
+        var data = statusByPeriod[period] || [];
+        $('#ai-status-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-order-status');
+        if (statusChart) { statusChart.destroy(); statusChart = null; }
+        if (!data.length) { drawEmpty(canvas); return; }
+
+        statusChart = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: data.map(function(r){ return r.status; }),
+                datasets: [{
+                    data: data.map(function(r){ return parseInt(r.orders); }),
+                    backgroundColor: statusColors
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    // ── Revenue Trend (bar + orders line) ──────────────────────────────────
+    function renderRevenueChart(period) {
+        var data = revByPeriod[period] || [];
+        $('#ai-revenue-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-revenue-monthly');
+        if (revenueChart) { revenueChart.destroy(); revenueChart = null; }
+        var hasData = data.some(function(r){ return parseFloat(r.revenue) > 0 || parseInt(r.orders) > 0; });
+        if (!data.length || !hasData) { drawEmpty(canvas); return; }
+
+        revenueChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(function(r){ return r.label; }),
+                datasets: [
+                    {
+                        label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                        data: data.map(function(r){ return parseFloat(r.revenue); }),
+                        backgroundColor: 'rgba(99,102,241,0.8)',
+                        borderColor: 'rgba(99,102,241,1)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '<?= $block->escapeJs(__('Orders')) ?>',
+                        data: data.map(function(r){ return parseInt(r.orders); }),
+                        type: 'line',
+                        borderColor: 'rgba(16,185,129,1)',
+                        backgroundColor: 'rgba(16,185,129,0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        yAxisID: 'y1',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Revenue ($)' } },
+                    y1: { type: 'linear', position: 'right', title: { display: true, text: 'Orders' }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    }
+
+    // ── Daily/period Revenue (line) ────────────────────────────────────────
+    function renderDailyChart(period) {
+        var data = revByPeriod[period] || [];
+        $('#ai-daily-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-revenue-daily');
+        if (dailyChart) { dailyChart.destroy(); dailyChart = null; }
+        var hasData = data.some(function(r){ return parseFloat(r.revenue) > 0; });
+        if (!data.length || !hasData) { drawEmpty(canvas); return; }
+
+        dailyChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: data.map(function(r){ return r.label; }),
+                datasets: [{
+                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    data: data.map(function(r){ return parseFloat(r.revenue); }),
+                    borderColor: 'rgba(99,102,241,1)',
+                    backgroundColor: 'rgba(99,102,241,0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+    }
+
+    // ── Revenue by Day of Week (bar) ───────────────────────────────────────
+    function renderDowChart(period) {
+        var data = dowByPeriod[period] || [];
+        $('#ai-dow-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-dow');
+        if (dowChart) { dowChart.destroy(); dowChart = null; }
+        var hasData = data.some(function(r){ return parseFloat(r.revenue) > 0; });
+        if (!data.length || !hasData) { drawEmpty(canvas); return; }
+
+        dowChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(function(r){ return r.day_name; }),
+                datasets: [{
+                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
+                    data: data.map(function(r){ return parseFloat(r.revenue); }),
+                    backgroundColor: dowColors
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+    }
+
+    // ── Render all charts for a given period ───────────────────────────────
+    function renderAllCharts(period) {
+        renderRevenueChart(period);
+        renderStatusChart(period);
+        renderDailyChart(period);
+        renderDowChart(period);
+    }
+
+    // Period tabs — update KPI panels AND every chart
     $('.ai-period-tab').on('click', function() {
         $('.ai-period-tab').removeClass('active');
         $(this).addClass('active');
         var period = $(this).data('period');
         $('.ai-kpi-panel').hide();
         $('.ai-kpi-panel[data-period="' + period + '"]').show();
+        renderAllCharts(period);
     });
 
-    // Monthly Revenue Chart
-    var monthlyData = <?= /* @noEscape */ json_encode(array_values($monthly)) ?>;
-    new Chart(document.getElementById('chart-revenue-monthly'), {
-        type: 'bar',
-        data: {
-            labels: monthlyData.map(r => r.label),
-            datasets: [
-                {
-                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                    data: monthlyData.map(r => parseFloat(r.revenue)),
-                    backgroundColor: 'rgba(99,102,241,0.8)',
-                    borderColor: 'rgba(99,102,241,1)',
-                    borderWidth: 1,
-                    yAxisID: 'y'
-                },
-                {
-                    label: '<?= $block->escapeJs(__('Orders')) ?>',
-                    data: monthlyData.map(r => parseInt(r.orders)),
-                    type: 'line',
-                    borderColor: 'rgba(16,185,129,1)',
-                    backgroundColor: 'rgba(16,185,129,0.1)',
-                    borderWidth: 2,
-                    fill: false,
-                    yAxisID: 'y1',
-                    tension: 0.4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            interaction: { mode: 'index', intersect: false },
-            scales: {
-                y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Revenue ($)' } },
-                y1: { type: 'linear', position: 'right', title: { display: true, text: 'Orders' }, grid: { drawOnChartArea: false } }
-            }
-        }
-    });
-
-    // Order Status Pie
-    var statusData = <?= /* @noEscape */ json_encode(array_values($statuses)) ?>;
-    new Chart(document.getElementById('chart-order-status'), {
-        type: 'doughnut',
-        data: {
-            labels: statusData.map(r => r.status),
-            datasets: [{
-                data: statusData.map(r => parseInt(r.orders)),
-                backgroundColor: ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#14b8a6']
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-    });
-
-    // Daily Revenue Line
-    var dailyData = <?= /* @noEscape */ json_encode(array_values($daily)) ?>;
-    new Chart(document.getElementById('chart-revenue-daily'), {
-        type: 'line',
-        data: {
-            labels: dailyData.map(r => r.label),
-            datasets: [{
-                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                data: dailyData.map(r => parseFloat(r.revenue)),
-                borderColor: 'rgba(99,102,241,1)',
-                backgroundColor: 'rgba(99,102,241,0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { display: false } } }
-    });
-
-    // Day of Week Bar
-    var dowData = <?= /* @noEscape */ json_encode(array_values($dow)) ?>;
-    new Chart(document.getElementById('chart-dow'), {
-        type: 'bar',
-        data: {
-            labels: dowData.map(r => r.day_name),
-            datasets: [{
-                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                data: dowData.map(r => parseFloat(r.revenue)),
-                backgroundColor: ['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff']
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { display: false } } }
-    });
+    // Initial render — "This Month" is the active tab on load
+    renderAllCharts('month');
 });
 </script>

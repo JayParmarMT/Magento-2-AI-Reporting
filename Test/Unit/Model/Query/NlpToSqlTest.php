@@ -11,15 +11,28 @@ declare(strict_types=1);
 
 namespace Meetanshi\AIReporting\Test\Unit\Model\Query;
 
+use Magento\Framework\App\DeploymentConfig;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\DB\Adapter\AdapterInterface;
+use Meetanshi\AIReporting\Exception\DirectAnswerException;
 use Meetanshi\AIReporting\Exception\LlmException;
 use Meetanshi\AIReporting\Model\LLM\ProviderInterface;
 use Meetanshi\AIReporting\Model\LLM\ProviderPool;
 use Meetanshi\AIReporting\Model\Query\NlpToSql;
+use Meetanshi\AIReporting\Model\Query\SqlGuard;
+use Meetanshi\AIReporting\Model\Schema\ModuleCatalog;
+use Meetanshi\AIReporting\Model\Schema\SchemaCatalog;
+use Meetanshi\AIReporting\Test\Unit\Model\Report\ReportContextTrait;
+use Meetanshi\AIReporting\Test\Unit\Model\Schema\SchemaCatalogTrait;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class NlpToSqlTest extends TestCase
 {
+    use ReportContextTrait;
+    use SchemaCatalogTrait;
+
     private NlpToSql $nlpToSql;
     private ProviderPool|MockObject $providerPool;
     private ProviderInterface|MockObject $provider;
@@ -32,7 +45,59 @@ class NlpToSqlTest extends TestCase
         $this->providerPool->method('getActiveProvider')
             ->willReturn($this->provider);
 
-        $this->nlpToSql = new NlpToSql($this->providerPool);
+        $this->nlpToSql = $this->createNlpToSql(
+            $this->createStub(SchemaCatalog::class),
+            $this->createStub(ModuleCatalog::class)
+        );
+    }
+
+    private function createNlpToSql(SchemaCatalog $schemaCatalog, ModuleCatalog $moduleCatalog): NlpToSql
+    {
+        $resourceConnection = $this->createStub(ResourceConnection::class);
+        $resourceConnection->method('getConnection')->willReturn($this->createStub(AdapterInterface::class));
+
+        return new NlpToSql(
+            $this->providerPool,
+            $resourceConnection,
+            $this->createReportContext($this->createMock(AdapterInterface::class), 'America/Chicago'),
+            new SqlGuard($this->createMock(DeploymentConfig::class)),
+            $schemaCatalog,
+            $moduleCatalog
+        );
+    }
+
+    /**
+     * NlpToSql over the fixture store schema; the question mentioning "size chart" names Acme_SizeChart,
+     * and Meetanshi_Eattachment adds a column to sales_order.
+     */
+    private function createNlpToSqlForStore(): NlpToSql
+    {
+        $moduleCatalog = $this->createStub(ModuleCatalog::class);
+        $moduleCatalog->method('detect')->willReturnCallback(
+            static fn (string $question) => str_contains(strtolower($question), 'size chart') ? ['Acme_SizeChart'] : []
+        );
+        $moduleCatalog->method('getOwnedTables')->willReturn(['meetanshi_sizechart']);
+        $moduleCatalog->method('getTableOwner')->willReturnCallback(
+            static fn (string $table) => $table === 'meetanshi_sizechart' ? 'Acme_SizeChart' : 'Magento_Sales'
+        );
+        $moduleCatalog->method('isThirdParty')->willReturnCallback(static fn (string $module) => !str_starts_with($module, 'Magento_'));
+        $moduleCatalog->method('getThirdPartyColumns')->willReturn([
+            'sales_order' => ['eattachment_email_sent' => 'Meetanshi_Eattachment'],
+        ]);
+
+        return $this->createNlpToSql($this->createSchemaCatalog(self::storeSchema()), $moduleCatalog);
+    }
+
+    private function capturePrompt(NlpToSql $nlpToSql, string $question, string $reply = 'SELECT 1'): string
+    {
+        $prompt = '';
+        $this->provider->method('complete')->willReturnCallback(function (string $text) use (&$prompt, $reply) {
+            $prompt = $text;
+            return $reply;
+        });
+        $nlpToSql->convert($question);
+
+        return $prompt;
     }
 
     // ── Successful conversions ───────────────────────────────────────────
@@ -83,9 +148,7 @@ class NlpToSqlTest extends TestCase
 
     // ── Security: blocked statements ─────────────────────────────────────
 
-    /**
-     * @dataProvider forbiddenStatementProvider
-     */
+    #[DataProvider('forbiddenStatementProvider')]
     public function testConvertBlocksForbiddenStatements(string $sql, string $keyword): void
     {
         $this->provider->method('complete')
@@ -158,5 +221,152 @@ class NlpToSqlTest extends TestCase
             ->willReturn("SELECT sku, SUM(qty_ordered) as qty FROM sales_order_item GROUP BY sku ORDER BY qty DESC LIMIT 10");
 
         $this->nlpToSql->convert('What are the top selling products?');
+    }
+
+    public function testPromptIncludesStoreTimezoneCurrencyAndSalesRules(): void
+    {
+        $this->provider->expects($this->once())
+            ->method('complete')
+            ->with($this->callback(function (string $prompt) {
+                return str_contains($prompt, 'STORE FACTS')
+                    && str_contains($prompt, 'Store timezone: America/Chicago')
+                    && str_contains($prompt, 'base currency USD')
+                    && str_contains($prompt, "state IN ('canceled','pending_payment')")
+                    && !str_contains($prompt, 'price attribute_id = 75');
+            }))
+            ->willReturn('SELECT 1');
+
+        $this->nlpToSql->convert('Revenue today');
+    }
+
+    // ── Plain-text answers and replies wrapped in prose ─────────────────
+
+    public function testDirectAnswerIsRaisedForNonDataQuestions(): void
+    {
+        $this->provider->method('complete')
+            ->willReturn("ANSWER: Go to System > Index Management, or run bin/magento indexer:reindex.");
+
+        try {
+            $this->nlpToSql->convert('How do I reindex?');
+            $this->fail('A direct answer was expected.');
+        } catch (DirectAnswerException $e) {
+            $this->assertSame('Go to System > Index Management, or run bin/magento indexer:reindex.', $e->getAnswer());
+        }
+    }
+
+    #[DataProvider('wrappedQueryProvider')]
+    public function testQueryIsTakenOutOfSurroundingProse(string $reply): void
+    {
+        $this->provider->method('complete')->willReturn($reply);
+
+        $this->assertSame('SELECT COUNT(*) AS orders FROM sales_order', $this->nlpToSql->convert('How many orders?'));
+    }
+
+    public static function wrappedQueryProvider(): array
+    {
+        return [
+            'intro line'        => ["Here is the query:\nSELECT COUNT(*) AS orders FROM sales_order"],
+            'intro on one line' => ["SQL: SELECT COUNT(*) AS orders FROM sales_order"],
+            'explanation after' => ["SELECT COUNT(*) AS orders FROM sales_order;\n\nThis query counts every order."],
+            'fenced in prose'   => ["Sure!\n```sql\nSELECT COUNT(*) AS orders FROM sales_order\n```\nHope it helps."],
+        ];
+    }
+
+    public function testSecondStatementAfterTheQueryIsStillRejected(): void
+    {
+        $this->provider->method('complete')->willReturn("SELECT entity_id FROM sales_order;\nDROP TABLE sales_order");
+
+        $this->expectException(LlmException::class);
+        $this->expectExceptionMessage('Security violation');
+
+        $this->nlpToSql->convert('orders');
+    }
+
+    public function testWriteStatementBeforeASelectIsStillRejected(): void
+    {
+        $this->provider->method('complete')->willReturn("DELETE FROM sales_order\nWHERE entity_id IN (\nSELECT 1)");
+
+        $this->expectException(LlmException::class);
+        $this->expectExceptionMessage('Security violation');
+
+        $this->nlpToSql->convert('orders');
+    }
+
+    // ── Live schema: any table of the store, third-party modules ─────────
+
+    public function testPromptIncludesTablesOfTheModuleTheQuestionNames(): void
+    {
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'How many size charts are enabled?');
+
+        $this->assertStringContainsString('═══ MORE TABLES FROM THIS STORE', $prompt);
+        $this->assertStringContainsString(
+            '- meetanshi_sizechart (sizechart_id, title, status, created_at) -- Size Chart [module Acme_SizeChart]',
+            $prompt
+        );
+    }
+
+    public function testPromptIncludesCoreTablesOutsideTheStaticSchema(): void
+    {
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'Which products have back in stock alerts?');
+
+        $this->assertStringContainsString('- product_alert_stock (', $prompt);
+    }
+
+    public function testPromptPointsOutColumnsModulesAddToCoreTables(): void
+    {
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'How many orders had the email attachment sent?');
+
+        $this->assertStringContainsString(
+            '- sales_order also has: eattachment_email_sent [added by module Meetanshi_Eattachment]',
+            $prompt
+        );
+    }
+
+    public function testPromptForCoreQuestionsAddsNoExtraTables(): void
+    {
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'What is today revenue?');
+
+        $this->assertStringNotContainsString('═══ MORE TABLES FROM THIS STORE', $prompt);
+    }
+
+    public function testStaticSchemaKeepsOnlyColumnsAndTablesThisStoreHas(): void
+    {
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'Revenue today');
+
+        // Adobe Commerce: EAV value tables use row_id, not entity_id
+        $this->assertStringContainsString('- catalog_product_entity_varchar (value_id, attribute_id, store_id, value)', $prompt);
+        // Tables missing from the store are not offered
+        $this->assertStringNotContainsString('- wishlist_item (', $prompt);
+        $this->assertStringContainsString('- sales_order (entity_id, increment_id', $prompt);
+    }
+
+    public function testRepairShowsRealColumnsAndSimilarTables(): void
+    {
+        $nlpToSql = $this->createNlpToSqlForStore();
+        $prompt   = $this->capturePrompt($nlpToSql, 'warm up');
+
+        $this->provider = $this->createMock(ProviderInterface::class);
+        $this->provider->expects($this->once())->method('complete')
+            ->with($this->callback(function (string $text) use (&$prompt) {
+                $prompt = $text;
+                return true;
+            }))
+            ->willReturn('SELECT track_number FROM sales_shipment_track');
+        $this->providerPool = $this->createStub(ProviderPool::class);
+        $this->providerPool->method('getActiveProvider')->willReturn($this->provider);
+        $nlpToSql = $this->createNlpToSqlForStore();
+
+        $nlpToSql->repair(
+            'tracking numbers',
+            'SELECT o.tracking FROM sales_order o JOIN sales_shipment_tracking t ON t.order_id = o.entity_id',
+            "Table 'm249.sales_shipment_tracking' doesn't exist"
+        );
+
+        $this->assertStringContainsString('Actual columns of the tables involved', $prompt);
+        $this->assertStringContainsString('- sales_order (entity_id, increment_id,', $prompt);
+        $this->assertStringContainsString(
+            '- sales_shipment_tracking does NOT exist in this database. Existing tables with similar names: sales_shipment_track',
+            $prompt
+        );
     }
 }

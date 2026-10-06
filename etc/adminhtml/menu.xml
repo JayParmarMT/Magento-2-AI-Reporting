@@ -92,5 +92,14 @@
              action="meetanshi_aireporting/reports/inventory"
              resource="Meetanshi_AIReporting::reports_inventory"
              parent="Meetanshi_AIReporting::reports"/>
+
+        <!-- Configuration (deep-links to Stores > Configuration > Meetanshi > AI Reporting) -->
+        <add id="Meetanshi_AIReporting::configuration"
+             title="Configuration"
+             module="Meetanshi_AIReporting"
+             sortOrder="50"
+             action="adminhtml/system_config/edit/section/meetanshi_aireporting"
+             resource="Meetanshi_AIReporting::config"
+             parent="Meetanshi_AIReporting::aireporting"/>
     </menu>
 </config>

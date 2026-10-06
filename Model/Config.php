@@ -27,12 +27,16 @@ class Config
     private const XML_PATH_GROQ_MODEL           = 'meetanshi_aireporting/general/groq_model';
     private const XML_PATH_OLLAMA_URL           = 'meetanshi_aireporting/general/ollama_base_url';
     private const XML_PATH_OLLAMA_MODEL         = 'meetanshi_aireporting/general/ollama_model';
+    private const XML_PATH_OLLAMA_TIMEOUT       = 'meetanshi_aireporting/general/ollama_timeout';
     private const XML_PATH_OPENROUTER_KEY       = 'meetanshi_aireporting/general/openrouter_api_key';
     private const XML_PATH_OPENROUTER_MODEL     = 'meetanshi_aireporting/general/openrouter_model';
+    private const XML_PATH_CLAUDE_KEY           = 'meetanshi_aireporting/general/claude_api_key';
+    private const XML_PATH_CLAUDE_MODEL         = 'meetanshi_aireporting/general/claude_model';
     private const XML_PATH_MAX_TOKENS           = 'meetanshi_aireporting/general/max_tokens';
     private const XML_PATH_MAX_ROWS             = 'meetanshi_aireporting/general/max_rows';
     private const XML_PATH_QUERY_TIMEOUT        = 'meetanshi_aireporting/general/query_timeout';
     private const XML_PATH_LOG_QUERIES          = 'meetanshi_aireporting/security/log_queries';
+    private const XML_PATH_SHARE_RESULTS        = 'meetanshi_aireporting/security/share_results_with_llm';
 
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig,
@@ -122,6 +126,17 @@ class Config
         );
     }
 
+    /**
+     * Whether query result rows may be sent to the LLM provider (Chat answers).
+     */
+    public function isResultSharingEnabled(): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_SHARE_RESULTS,
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
     // ── Groq ──────────────────────────────────────────────────────────────
 
     public function getGroqApiKey(): string
@@ -159,6 +174,18 @@ class Config
         ) ?: 'llama3.2');
     }
 
+    /**
+     * HTTP timeout for Ollama (seconds). Local models need longer than hosted APIs:
+     * the first request also loads the model into memory.
+     */
+    public function getOllamaTimeout(): int
+    {
+        return max(10, (int) ($this->scopeConfig->getValue(
+            self::XML_PATH_OLLAMA_TIMEOUT,
+            ScopeInterface::SCOPE_STORE
+        ) ?: 240));
+    }
+
     // ── OpenRouter ────────────────────────────────────────────────────────
 
     public function getOpenRouterApiKey(): string
@@ -176,5 +203,24 @@ class Config
             self::XML_PATH_OPENROUTER_MODEL,
             ScopeInterface::SCOPE_STORE
         ) ?: 'meta-llama/llama-3.1-8b-instruct:free');
+    }
+
+    // ── Claude (Anthropic) ────────────────────────────────────────────────
+
+    public function getClaudeApiKey(): string
+    {
+        $encrypted = (string) $this->scopeConfig->getValue(
+            self::XML_PATH_CLAUDE_KEY,
+            ScopeInterface::SCOPE_STORE
+        );
+        return $encrypted ? $this->encryptor->decrypt($encrypted) : '';
+    }
+
+    public function getClaudeModel(): string
+    {
+        return (string) ($this->scopeConfig->getValue(
+            self::XML_PATH_CLAUDE_MODEL,
+            ScopeInterface::SCOPE_STORE
+        ) ?: 'claude-3-5-haiku-latest');
     }
 }

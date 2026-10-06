@@ -1,12 +1,11 @@
 <?php
 /** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Customer $block */
-$kpi         = $block->getKpiCards();
-$topCustomers= $block->getTopCustomers();
-$rfm         = $block->getRfmSegmentation();
-$newVsReturn = $block->getNewVsReturning();
-$acquisition = $block->getCustomerAcquisition();
-$clvDist     = $block->getClvDistribution();
-$repeatRate  = $block->getRepeatPurchaseRate();
+$kpi          = $block->getKpiCards();
+$topCustomers = $block->getTopCustomers();
+$rfm          = $block->getRfmSegmentation();
+$newVsReturn  = $block->getNewVsReturningPerPeriod();
+$clvDist      = $block->getClvDistributionPerPeriod();
+$repeatRate   = $block->getRepeatPurchaseRate();
 ?>
 <div class="meetanshi-aireporting-wrap">
 
@@ -14,24 +13,38 @@ $repeatRate  = $block->getRepeatPurchaseRate();
         <span class="ai-provider-badge">👥 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="ai-stats-grid">
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Customers')) ?></div>
-            <div class="ai-stat-value"><?= (int)($kpi['total_customers'] ?? 0) ?></div>
+    <!-- Period Tabs -->
+    <div class="ai-period-tabs">
+        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
+        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
+        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
+        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
+    </div>
+
+    <!-- KPI Cards (per period) -->
+    <div class="ai-stats-grid" id="ai-kpi-grid">
+        <?php foreach (['today','week','month','year'] as $period): ?>
+        <div class="ai-kpi-panel" data-period="<?= $period ?>" style="<?= $period !== 'month' ? 'display:none' : '' ?>">
+            <div class="ai-stats-grid">
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Customers')) ?></div>
+                    <div class="ai-stat-value"><?= (int)($kpi[$period]['total_customers'] ?? 0) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('New Customers')) ?></div>
+                    <div class="ai-stat-value ai-stat-green"><?= (int)($kpi[$period]['new_customers'] ?? 0) ?></div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Rate')) ?></div>
+                    <div class="ai-stat-value ai-stat-blue"><?= $kpi[$period]['repeat_rate'] ?? 0 ?>%</div>
+                </div>
+                <div class="ai-stat-card">
+                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Customers w/ Orders')) ?></div>
+                    <div class="ai-stat-value ai-stat-purple"><?= (int)($kpi[$period]['customers_with_orders'] ?? 0) ?></div>
+                </div>
+            </div>
         </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('New This Month')) ?></div>
-            <div class="ai-stat-value ai-stat-green"><?= (int)($kpi['new_this_month'] ?? 0) ?></div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Rate')) ?></div>
-            <div class="ai-stat-value ai-stat-blue"><?= $repeatRate['repeat_rate'] ?? 0 ?>%</div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Customers w/ Orders')) ?></div>
-            <div class="ai-stat-value ai-stat-purple"><?= (int)($kpi['customers_with_orders'] ?? 0) ?></div>
-        </div>
+        <?php endforeach; ?>
     </div>
 
     <!-- Charts Row -->
@@ -39,7 +52,7 @@ $repeatRate  = $block->getRepeatPurchaseRate();
         <!-- New vs Returning -->
         <div class="ai-chart-card ai-chart-wide">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('New vs Returning Customers (Last 12 Months)')) ?></h3>
+                <h3><?= $block->escapeHtml(__('New vs Returning Customers')) ?> <span id="ai-nvr-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-new-vs-returning" height="80"></canvas>
         </div>
@@ -47,7 +60,7 @@ $repeatRate  = $block->getRepeatPurchaseRate();
         <!-- CLV Distribution -->
         <div class="ai-chart-card">
             <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Customer Lifetime Value Distribution')) ?></h3>
+                <h3><?= $block->escapeHtml(__('Customer Lifetime Value Distribution')) ?> <span id="ai-clv-period-label" class="ai-chart-subtitle"></span></h3>
             </div>
             <canvas id="chart-clv-dist" height="180"></canvas>
         </div>
@@ -153,38 +166,84 @@ $repeatRate  = $block->getRepeatPurchaseRate();
 
 <script>
 require(['jquery', 'chartjs'], function($, Chart) {
-    var nvr = <?= /* @noEscape */ json_encode(array_values($newVsReturn)) ?>;
-    new Chart(document.getElementById('chart-new-vs-returning'), {
-        type: 'bar',
-        data: {
-            labels: nvr.map(r => r.label),
-            datasets: [
-                {
-                    label: '<?= $block->escapeJs(__('New Customers')) ?>',
-                    data: nvr.map(r => parseInt(r.new_customers || 0)),
-                    backgroundColor: 'rgba(99,102,241,0.8)'
-                },
-                {
-                    label: '<?= $block->escapeJs(__('Returning Customers')) ?>',
-                    data: nvr.map(r => parseInt(r.returning_customers || 0)),
-                    backgroundColor: 'rgba(16,185,129,0.8)'
-                }
-            ]
-        },
-        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
+    var nvrByPeriod = <?= /* @noEscape */ json_encode($newVsReturn, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var clvByPeriod = <?= /* @noEscape */ json_encode($clvDist, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+    var periodLabels = {
+        today: '<?= $block->escapeJs(__('(Today)')) ?>',
+        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
+        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
+        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
+    };
+
+    var nvrChart = null, clvChart = null;
+    var EMPTY_MSG = '<?= $block->escapeJs(__('No data in this period')) ?>';
+
+    function drawEmpty(canvas) {
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.font = '14px sans-serif'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
+        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+    }
+
+    function renderNvr(period) {
+        var data = nvrByPeriod[period] || [];
+        $('#ai-nvr-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-new-vs-returning');
+        if (nvrChart) { nvrChart.destroy(); nvrChart = null; }
+        var hasData = data.some(function(r){ return (parseInt(r.new_customers)||0) > 0 || (parseInt(r.returning_customers)||0) > 0; });
+        if (!data.length || !hasData) { drawEmpty(canvas); return; }
+
+        nvrChart = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(function(r){ return r.label; }),
+                datasets: [
+                    { label: '<?= $block->escapeJs(__('New Customers')) ?>', data: data.map(function(r){ return parseInt(r.new_customers || 0); }), backgroundColor: 'rgba(99,102,241,0.8)' },
+                    { label: '<?= $block->escapeJs(__('Returning Customers')) ?>', data: data.map(function(r){ return parseInt(r.returning_customers || 0); }), backgroundColor: 'rgba(16,185,129,0.8)' }
+                ]
+            },
+            options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
+        });
+    }
+
+    function renderClv(period) {
+        var data = clvByPeriod[period] || [];
+        $('#ai-clv-period-label').text(periodLabels[period] || '');
+        var canvas = document.getElementById('chart-clv-dist');
+        if (clvChart) { clvChart.destroy(); clvChart = null; }
+        var hasData = data.some(function(r){ return (parseInt(r.customer_count)||0) > 0; });
+        if (!data.length || !hasData) { drawEmpty(canvas); return; }
+
+        clvChart = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: data.map(function(r){ return r.clv_range; }),
+                datasets: [{
+                    data: data.map(function(r){ return parseInt(r.customer_count); }),
+                    backgroundColor: ['#e5e7eb','#a5b4fc','#818cf8','#6366f1','#4f46e5']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function renderAll(period) {
+        renderNvr(period);
+        renderClv(period);
+    }
+
+    $('.ai-period-tab').on('click', function() {
+        $('.ai-period-tab').removeClass('active');
+        $(this).addClass('active');
+        var period = $(this).data('period');
+        $('.ai-kpi-panel').hide();
+        $('.ai-kpi-panel[data-period="' + period + '"]').show();
+        renderAll(period);
     });
 
-    var clv = <?= /* @noEscape */ json_encode(array_values($clvDist)) ?>;
-    new Chart(document.getElementById('chart-clv-dist'), {
-        type: 'doughnut',
-        data: {
-            labels: clv.map(r => r.clv_range),
-            datasets: [{
-                data: clv.map(r => parseInt(r.customer_count)),
-                backgroundColor: ['#e5e7eb','#a5b4fc','#818cf8','#6366f1','#4f46e5']
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-    });
+    renderAll('month');
 });
 </script>

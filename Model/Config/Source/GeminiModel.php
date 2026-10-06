@@ -18,9 +18,11 @@ class GeminiModel implements OptionSourceInterface
     public function toOptionArray(): array
     {
         return [
-            ['value' => 'gemini-1.5-flash', 'label' => 'Gemini 1.5 Flash (Recommended)'],
-            ['value' => 'gemini-1.5-pro',   'label' => 'Gemini 1.5 Pro'],
-            ['value' => 'gemini-2.0-flash',  'label' => 'Gemini 2.0 Flash'],
+            ['value' => 'gemini-2.5-flash', 'label' => 'Gemini 2.5 Flash (Recommended)'],
+            ['value' => 'gemini-2.5-pro',   'label' => 'Gemini 2.5 Pro'],
+            ['value' => 'gemini-2.5-flash-lite', 'label' => 'Gemini 2.5 Flash Lite'],
+            ['value' => 'gemini-flash-latest', 'label' => 'Gemini Flash (Latest)'],
+            ['value' => 'gemini-pro-latest',   'label' => 'Gemini Pro (Latest)'],
         ];
     }
 }

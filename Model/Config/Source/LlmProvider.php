@@ -23,6 +23,7 @@ class LlmProvider implements OptionSourceInterface
             ['value' => 'openrouter',  'label' => __('OpenRouter — Free Models Available')],
             ['value' => 'gemini',      'label' => __('Google Gemini')],
             ['value' => 'openai',      'label' => __('OpenAI (ChatGPT)')],
+            ['value' => 'claude',      'label' => __('Anthropic Claude')],
         ];
     }
 }

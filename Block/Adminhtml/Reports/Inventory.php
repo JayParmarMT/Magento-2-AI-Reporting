@@ -5,12 +5,14 @@ namespace Meetanshi\AIReporting\Block\Adminhtml\Reports;
 use Magento\Backend\Block\Template;
 use Magento\Backend\Block\Template\Context;
 use Meetanshi\AIReporting\Model\Report\InventoryReport;
+use Meetanshi\AIReporting\Model\Report\ReportContext;
 
 class Inventory extends Template
 {
     public function __construct(
         Context $context,
         private readonly InventoryReport $inventoryReport,
+        private readonly ReportContext $reportContext,
         array $data = []
     ) {
         parent::__construct($context, $data);
@@ -21,6 +23,7 @@ class Inventory extends Template
     public function getOutOfStockProducts(): array { return $this->inventoryReport->getOutOfStockProducts(30); }
     public function getStockDistribution(): array  { return $this->inventoryReport->getStockDistribution(); }
     public function getDemandVsSupply(): array      { return $this->inventoryReport->getDemandVsSupply(15); }
+    public function getDemandVsSupplyPerPeriod(): array { return $this->inventoryReport->getDemandVsSupplyPerPeriod(15); }
     public function getInventoryTurnover(): array   { return $this->inventoryReport->getInventoryTurnover(20); }
 
     public function getStockStatusClass(float $qty): string
@@ -33,6 +36,6 @@ class Inventory extends Template
 
     public function formatCurrency(float $amount): string
     {
-        return '$' . number_format($amount, 2);
+        return $this->reportContext->formatPrice($amount);
     }
 }
