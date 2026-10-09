@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
 /**
- * Meetanshi AIReporting
+ * Meetanshi AIReporting — Saved AI Reports (content area only)
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -11,11 +11,20 @@
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <update handle="meetanshi_aireporting_default"/>
+    <update handle="meetanshi_aireporting_mxd"/>
+    <head>
+        <css src="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" src_type="url"/>
+        <css src="Meetanshi_AIReporting::css/saved_reports.css"/>
+    </head>
     <body>
         <referenceContainer name="content">
-            <block class="Meetanshi\AIReporting\Block\Adminhtml\SavedReports"
+            <block class="Magento\Backend\Block\Template"
                    name="meetanshi_aireporting_saved_reports"
-                   template="Meetanshi_AIReporting::saved_reports.phtml"/>
+                   template="Meetanshi_AIReporting::saved_reports.phtml">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">Meetanshi\AIReporting\ViewModel\SavedReports</argument>
+                </arguments>
+            </block>
         </referenceContainer>
     </body>
 </page>

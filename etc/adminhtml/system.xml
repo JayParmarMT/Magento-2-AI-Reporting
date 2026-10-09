@@ -170,8 +170,15 @@
 
                 <field id="query_timeout" translate="label comment" type="text" sortOrder="150"
                        showInDefault="1" showInWebsite="0" showInStore="0">
-                    <label>Query Timeout (seconds)</label>
-                    <comment>Maximum time allowed for a query to execute.</comment>
+                    <label>Database Query Timeout (seconds)</label>
+                    <comment>Maximum time a report query may run on the database.</comment>
+                    <validate>validate-number validate-greater-than-zero</validate>
+                </field>
+
+                <field id="llm_timeout" translate="label comment" type="text" sortOrder="160"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>AI Request Timeout (seconds)</label>
+                    <comment>How long to wait for the AI provider to answer (default: 120). Models that think before answering need longer than a database query. Ollama uses its own timeout above.</comment>
                     <validate>validate-number validate-greater-than-zero</validate>
                 </field>
             </group>
@@ -181,11 +188,17 @@
                    showInDefault="1" showInWebsite="0" showInStore="0">
                 <label>Security Settings</label>
 
+                <field id="readonly_connection" translate="label" type="text" sortOrder="5"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Database User for AI Queries</label>
+                    <frontend_model>Meetanshi\AIReporting\Block\Adminhtml\System\Config\ReadOnlyConnectionStatus</frontend_model>
+                </field>
+
                 <field id="log_queries" translate="label comment" type="select" sortOrder="10"
                        showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Log All Queries</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
-                    <comment>Log all NLP queries and generated SQL for audit purposes.</comment>
+                    <comment>Log every Ask AI and Chat question with the generated SQL, for audit purposes.</comment>
                 </field>
 
                 <field id="share_results_with_llm" translate="label comment" type="select" sortOrder="20"

@@ -1,6 +1,7 @@
 <?php
 /**
  * Meetanshi AIReporting — Enhanced Dashboard Template
+ * Magento AI Reports Redesign Theme (Indigo & Slate)
  *
  * @var \Meetanshi\AIReporting\Block\Adminhtml\Dashboard $block
  */
@@ -18,7 +19,11 @@ $kpis = $dashboardData['kpis'];
     <!-- Enhanced Header with Filters -->
     <div class="ai-dashboard-header">
         <div class="ai-header-left">
-            <p class="ai-subtitle"><?= $block->escapeHtml(__('Magento Store Performance Insights')) ?></p>
+            <h2>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-svg-icon"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
+                <?= $block->escapeHtml(__('Executive AI Dashboard')) ?>
+            </h2>
+            <p class="ai-subtitle"><?= $block->escapeHtml(__('Magento Store Performance Insights & Predictive Telemetry')) ?></p>
         </div>
         <div class="ai-header-right">
             <select id="ai-date-range" class="ai-date-filter">
@@ -38,14 +43,14 @@ $kpis = $dashboardData['kpis'];
                 <input type="date" id="ai-start-date" class="ai-date-input" />
                 <span class="ai-date-separator">to</span>
                 <input type="date" id="ai-end-date" class="ai-date-input" />
-                <button id="ai-apply-custom-range" class="ai-btn ai-btn-sm ai-btn-secondary">
+                <button id="ai-apply-custom-range" class="ai-btn ai-btn-sm ai-btn-primary">
                     <?= $block->escapeHtml(__('Apply')) ?>
                 </button>
             </div>
             
             <button id="ai-export-btn" class="ai-btn ai-btn-primary">
-                <span class="ai-icon">📥</span>
-                <?= $block->escapeHtml(__('Export')) ?>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-svg-icon" style="margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <?= $block->escapeHtml(__('Export CSV')) ?>
             </button>
         </div>
     </div>
@@ -53,13 +58,16 @@ $kpis = $dashboardData['kpis'];
     <!-- Loading Overlay -->
     <div id="ai-dashboard-loading" class="ai-dashboard-loading" style="display:none;">
         <div class="ai-spinner"></div>
-        <span><?= $block->escapeHtml(__('Refreshing dashboard...')) ?></span>
+        <span><?= $block->escapeHtml(__('Refreshing AI analytics...')) ?></span>
     </div>
 
-    <!-- Enhanced KPI Cards with Trends -->
+    <!-- Enhanced KPI Cards with Vector SVG Icons -->
     <div class="ai-kpi-grid-enhanced">
+        <!-- Revenue Card -->
         <div class="ai-kpi-card">
-            <div class="ai-kpi-icon ai-kpi-icon-revenue">💰</div>
+            <div class="ai-kpi-icon ai-kpi-icon-revenue">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Total Revenue')) ?></div>
                 <div class="ai-kpi-value" id="kpi-revenue">
@@ -73,8 +81,11 @@ $kpis = $dashboardData['kpis'];
             </div>
         </div>
 
+        <!-- Orders Card -->
         <div class="ai-kpi-card">
-            <div class="ai-kpi-icon ai-kpi-icon-orders">📦</div>
+            <div class="ai-kpi-icon ai-kpi-icon-orders">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Total Orders')) ?></div>
                 <div class="ai-kpi-value" id="kpi-orders">
@@ -88,8 +99,11 @@ $kpis = $dashboardData['kpis'];
             </div>
         </div>
 
+        <!-- Active Customers Card -->
         <div class="ai-kpi-card">
-            <div class="ai-kpi-icon ai-kpi-icon-customers">👥</div>
+            <div class="ai-kpi-icon ai-kpi-icon-customers">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0284C7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Active Customers')) ?></div>
                 <div class="ai-kpi-value" id="kpi-customers">
@@ -103,8 +117,11 @@ $kpis = $dashboardData['kpis'];
             </div>
         </div>
 
+        <!-- Avg Order Value Card -->
         <div class="ai-kpi-card">
-            <div class="ai-kpi-icon ai-kpi-icon-aov">💳</div>
+            <div class="ai-kpi-icon ai-kpi-icon-aov">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9333EA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </div>
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Avg Order Value')) ?></div>
                 <div class="ai-kpi-value" id="kpi-aov">
@@ -118,8 +135,11 @@ $kpis = $dashboardData['kpis'];
             </div>
         </div>
 
+        <!-- Products Sold Card -->
         <div class="ai-kpi-card ai-kpi-card-secondary">
-            <div class="ai-kpi-icon">📊</div>
+            <div class="ai-kpi-icon ai-kpi-icon-products">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Products Sold')) ?></div>
                 <div class="ai-kpi-value" id="kpi-products-sold">
@@ -128,18 +148,11 @@ $kpis = $dashboardData['kpis'];
             </div>
         </div>
 
-        <div class="ai-kpi-card ai-kpi-card-warning">
-            <div class="ai-kpi-icon">⚠️</div>
-            <div class="ai-kpi-content">
-                <div class="ai-kpi-label"><?= $block->escapeHtml(__('Low Stock')) ?></div>
-                <div class="ai-kpi-value" id="kpi-low-stock">
-                    <?= number_format($kpis['low_stock']) ?>
-                </div>
-            </div>
-        </div>
-
+        <!-- Out of Stock Card -->
         <div class="ai-kpi-card ai-kpi-card-danger">
-            <div class="ai-kpi-icon">🚫</div>
+            <div class="ai-kpi-icon ai-kpi-icon-danger">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
             <div class="ai-kpi-content">
                 <div class="ai-kpi-label"><?= $block->escapeHtml(__('Out of Stock')) ?></div>
                 <div class="ai-kpi-value" id="kpi-out-of-stock">
@@ -251,10 +264,8 @@ require(['jquery', 'chartjs'], function($, Chart) {
     let dashboardCharts = {};
     let currentData = <?= /* @noEscape */ json_encode($dashboardData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-    // Initialize charts
     initializeCharts(currentData);
 
-    // Date range filter
     $('#ai-date-range').on('change', function() {
         const range = $(this).val();
         if (range === 'custom') {
@@ -265,7 +276,6 @@ require(['jquery', 'chartjs'], function($, Chart) {
         }
     });
 
-    // Custom date range
     $('#ai-apply-custom-range').on('click', function() {
         const start = $('#ai-start-date').val();
         const end = $('#ai-end-date').val();
@@ -276,7 +286,6 @@ require(['jquery', 'chartjs'], function($, Chart) {
         }
     });
 
-    // Export button
     $('#ai-export-btn').on('click', function() {
         const range = $('#ai-date-range').val();
         const start = $('#ai-start-date').val();
@@ -320,13 +329,8 @@ require(['jquery', 'chartjs'], function($, Chart) {
     }
 
     function updateDashboard(data) {
-        // Update KPIs
         updateKpis(data.kpis);
-        
-        // Update charts
         updateCharts(data);
-        
-        // Update table
         updateTopProductsTable(data.top_products);
     }
 
@@ -367,32 +371,18 @@ require(['jquery', 'chartjs'], function($, Chart) {
     }
 
     function initializeCharts(data) {
-        // Revenue Trend Chart
         dashboardCharts.revenueTrend = createRevenueTrendChart(data.revenue_trend);
-        
-        // Orders by Status Chart
         dashboardCharts.ordersStatus = createOrdersStatusChart(data.orders_by_status);
-        
-        // Customer Segments Chart
         dashboardCharts.customerSegments = createCustomerSegmentsChart(data.customer_segments);
-        
-        // Revenue by Day of Week Chart
         dashboardCharts.revenueDow = createRevenueDowChart(data.revenue_by_dow);
-        
-        // Stock Distribution Chart
         dashboardCharts.stockDist = createStockDistChart(data.stock_distribution);
-        
-        // Revenue by Category Chart
         dashboardCharts.revenueCategory = createRevenueCategoryChart(data.revenue_by_category);
     }
 
     function updateCharts(data) {
-        // Destroy existing charts
         Object.values(dashboardCharts).forEach(chart => {
             if (chart) chart.destroy();
         });
-        
-        // Recreate charts with new data
         initializeCharts(data);
     }
 
@@ -405,8 +395,8 @@ require(['jquery', 'chartjs'], function($, Chart) {
                     {
                         label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                         data: data.map(r => parseFloat(r.revenue)),
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99,102,241,0.1)',
+                        borderColor: '#f25c05',
+                        backgroundColor: 'rgba(242,92,5,0.1)',
                         borderWidth: 2,
                         fill: true,
                         tension: 0.4,
@@ -442,7 +432,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
                 labels: data.map(r => r.status),
                 datasets: [{
                     data: data.map(r => parseInt(r.orders)),
-                    backgroundColor: ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#14b8a6']
+                    backgroundColor: ['#10b981','#f25c05','#f59e0b','#ef4444','#8b5cf6','#0284c7']
                 }]
             },
             options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
@@ -458,12 +448,12 @@ require(['jquery', 'chartjs'], function($, Chart) {
                     {
                         label: '<?= $block->escapeJs(__('Customers')) ?>',
                         data: data.map(r => parseInt(r.customers)),
-                        backgroundColor: 'rgba(99,102,241,0.8)'
+                        backgroundColor: 'rgba(242,92,5,0.85)'
                     },
                     {
                         label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                         data: data.map(r => parseFloat(r.revenue)),
-                        backgroundColor: 'rgba(16,185,129,0.8)'
+                        backgroundColor: 'rgba(16,185,129,0.85)'
                     }
                 ]
             },
@@ -479,7 +469,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
                 datasets: [{
                     label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                     data: data.map(r => parseFloat(r.revenue)),
-                    backgroundColor: ['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff']
+                    backgroundColor: ['#f25c05','#f97316','#fb923c','#fdba74','#fed7aa','#ffedd5','#fff7ed']
                 }]
             },
             options: { responsive: true, plugins: { legend: { display: false } } }
@@ -493,7 +483,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
                 labels: data.map(r => r.stock_range),
                 datasets: [{
                     data: data.map(r => parseInt(r.product_count)),
-                    backgroundColor: ['#ef4444','#f97316','#f59e0b','#10b981','#6366f1']
+                    backgroundColor: ['#ef4444','#f97316','#f59e0b','#10b981','#f25c05']
                 }]
             },
             options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
@@ -508,7 +498,7 @@ require(['jquery', 'chartjs'], function($, Chart) {
                 datasets: [{
                     label: '<?= $block->escapeJs(__('Revenue (%1)', $block->getCurrencySymbol())) ?>',
                     data: data.map(r => parseFloat(r.revenue)),
-                    backgroundColor: 'rgba(16,185,129,0.8)'
+                    backgroundColor: 'rgba(242,92,5,0.85)'
                 }]
             },
             options: { responsive: true, plugins: { legend: { display: false } } }

@@ -1,300 +1,340 @@
 <?php
-/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Product $block */
-$kpi          = $block->getKpiCards();
-$byRevenue    = $block->getBestSellersByRevenue();
-$byQty        = $block->getBestSellersByQty();
-$worst        = $block->getWorstSellers();
-$byCategory   = $block->getRevenueByCategory();
-$neverSold    = $block->getProductsNeverSold();
-$topRevPeriod = $block->getBestSellersByRevenuePerPeriod();
-$typePeriod   = $block->getRevenueByProductTypePerPeriod();
+/**
+ * Meetanshi AIReporting — Product Performance & Catalog Intelligence
+ *
+ * Content area only (Magento's admin menu and header are untouched). The skeleton below is
+ * filled by Meetanshi_AIReporting/js/product-report from the view model's data, on load and
+ * whenever the range changes. Shared styles in css/prebuilt_report.css, page styles in
+ * css/product_report.css.
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+
+/** @var \Magento\Backend\Block\Template $block */
+/** @var \Magento\Framework\Escaper $escaper */
+/** @var \Meetanshi\AIReporting\ViewModel\ProductPerformance $viewModel */
+$viewModel = $block->getData('view_model');
+$config    = $viewModel->getJsConfig();
+$range     = $config['data']['range'];
 ?>
-<div class="meetanshi-aireporting-wrap">
+<div class="mxd mxc mxp" data-role="mxp-root">
+    <div class="mxc-body">
 
-    <div class="ai-header">
-        <span class="ai-provider-badge">📦 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
-    </div>
+        <!-- Header -->
+        <section class="mxc-card mxc-header">
+            <div class="mxc-header__title">
+                <nav class="mxd-crumbs" aria-label="<?= $escaper->escapeHtmlAttr(__('Breadcrumb')) ?>">
+                    <span><?= $escaper->escapeHtml(__('Meetanshi Extensions')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <span><?= $escaper->escapeHtml(__('Pre-built Reports')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <strong><?= $escaper->escapeHtml(__('Product Performance')) ?></strong>
+                </nav>
+                <div class="mxc-titlerow">
+                    <h1 class="mxd-h1 mxc-h1"><?= $escaper->escapeHtml(__('Product Performance & Catalog Intelligence')) ?></h1>
+                    <div class="mxc-badges">
+                        <span class="mxc-badge mxc-badge--brand">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
+                            <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
+                        </span>
+                        <span class="mxc-badge">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">dataset</span>
+                            <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
+                        </span>
+                        <?php if ($viewModel->getStoreLabel() !== ''): ?>
+                            <span class="mxc-badge mxc-badge--slate">
+                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                                <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <p class="mxc-note">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
+                    <span>
+                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
+                        <?= $escaper->escapeHtml(__('Net item revenue after discounts and refunds · catalog and stock as of now')) ?>
+                    </span>
+                </p>
+            </div>
 
-    <!-- Period Tabs -->
-    <div class="ai-period-tabs">
-        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
-        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
-        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
-        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
-    </div>
-
-    <!-- KPI Cards (per period) -->
-    <div class="ai-stats-grid" id="ai-kpi-grid">
-        <?php foreach (['today','week','month','year'] as $period): ?>
-        <div class="ai-kpi-panel" data-period="<?= $period ?>" style="<?= $period !== 'month' ? 'display:none' : '' ?>">
-            <div class="ai-stats-grid">
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Products')) ?></div>
-                    <div class="ai-stat-value"><?= (int)($kpi[$period]['total_products'] ?? 0) ?></div>
+            <div class="mxc-header__actions">
+                <div class="mxc-rangebox">
+                    <div class="mxc-range" role="group" aria-label="<?= $escaper->escapeHtmlAttr(__('Date range')) ?>" data-role="range">
+                        <?php foreach ($viewModel->getPresetRanges() as $key => $label): ?>
+                            <button type="button" data-range="<?= $escaper->escapeHtmlAttr($key) ?>"
+                                    class="<?= $key === $range['key'] ? 'is-active' : '' ?>"><?= $escaper->escapeHtml($label) ?></button>
+                        <?php endforeach; ?>
+                        <button type="button" class="mxc-range__cal" data-role="custom-toggle" data-range="custom"
+                                aria-expanded="false" title="<?= $escaper->escapeHtmlAttr(__('Custom date range')) ?>">
+                            <span class="mxd-ico mxd-ico--md" aria-hidden="true">calendar_today</span>
+                        </button>
+                    </div>
+                    <div class="mxc-custom" data-role="custom-range" hidden>
+                        <input type="date" class="mxd-input" data-role="custom-start" aria-label="<?= $escaper->escapeHtmlAttr(__('From')) ?>">
+                        <span class="mxd-muted">–</span>
+                        <input type="date" class="mxd-input" data-role="custom-end" aria-label="<?= $escaper->escapeHtmlAttr(__('To')) ?>">
+                        <button type="button" class="mxd-btn mxd-btn--primary" data-role="custom-apply"><?= $escaper->escapeHtml(__('Apply')) ?></button>
+                    </div>
+                    <span class="mxc-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($range['label']) ?></span>
                 </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('SKUs Sold')) ?></div>
-                    <div class="ai-stat-value ai-stat-green"><?= (int)($kpi[$period]['total_skus_sold'] ?? 0) ?></div>
-                </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Qty Sold')) ?></div>
-                    <div class="ai-stat-value ai-stat-blue"><?= number_format((float)($kpi[$period]['total_qty_sold'] ?? 0)) ?></div>
-                </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Never Sold')) ?></div>
-                    <div class="ai-stat-value ai-stat-red"><?= (int)($kpi[$period]['never_sold'] ?? 0) ?></div>
+                <div class="mxc-header__buttons">
+                    <a class="mxd-btn" data-role="export-all" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
+                       title="<?= $escaper->escapeHtmlAttr(__('Every product sold in the range, with stock and velocity')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
+                        <span><?= $escaper->escapeHtml(__('CSV')) ?></span>
+                    </a>
+                    <button type="button" class="mxd-btn" data-role="print"
+                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
+                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
+                    </button>
+                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
+                        <span class="mxd-ico mxd-ico--sm mxc-ico-soft" aria-hidden="true">auto_awesome</span>
+                        <span><?= $escaper->escapeHtml(__('Ask Copilot about Catalog')) ?></span>
+                    </button>
                 </div>
             </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
+        </section>
 
-    <!-- Charts Row -->
-    <div class="ai-charts-row">
-        <!-- Top 10 by Revenue Bar -->
-        <div class="ai-chart-card ai-chart-wide">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Top 10 Products by Revenue')) ?> <span id="ai-toprev-period-label" class="ai-chart-subtitle"></span></h3>
+        <div class="mxd-error" data-role="error" hidden></div>
+
+        <div class="mxc-period mxp-period" data-role="period">
+            <!-- KPI cards -->
+            <div class="mxc-kpis" data-role="kpis"></div>
+
+            <!-- Ticker -->
+            <div class="mxc-ticker">
+                <div class="mxc-ticker__metrics" data-role="ticker"></div>
+                <div class="mxc-ticker__sql">
+                    <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">speed</span>
+                    <span class="mxd-mono" data-role="latency"></span>
+                </div>
             </div>
-            <canvas id="chart-top-revenue" height="100"></canvas>
-        </div>
 
-        <!-- Revenue by Product Type -->
-        <div class="ai-chart-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue by Product Type')) ?> <span id="ai-ptype-period-label" class="ai-chart-subtitle"></span></h3>
+            <!-- Top 10 + product types / price bands -->
+            <div class="mxc-row mxp-row">
+                <section class="mxc-card mxc-card--column">
+                    <header class="mxc-card__head mxc-card__head--split">
+                        <div>
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Top 10 Products by Revenue')) ?></h2>
+                            <p class="mxd-sub" data-role="top-sub"></p>
+                        </div>
+                        <div class="mxd-segmented" data-role="top-mode" role="group" aria-label="<?= $escaper->escapeHtmlAttr(__('Rank by')) ?>">
+                            <button type="button" class="is-active" data-mode="revenue"><?= $escaper->escapeHtml(__('Revenue ($)')) ?></button>
+                            <button type="button" data-mode="qty"><?= $escaper->escapeHtml(__('Qty Units')) ?></button>
+                        </div>
+                    </header>
+                    <div class="mxp-bars" data-role="top10"></div>
+                    <footer class="mxc-card__foot">
+                        <span data-role="benchmark"></span>
+                        <button type="button" class="mxd-link" data-role="view-all">
+                            <span data-role="view-all-label"></span>
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                        </button>
+                    </footer>
+                </section>
+
+                <div class="mxp-stack">
+                    <section class="mxc-card">
+                        <header class="mxc-card__head mxc-card__head--split">
+                            <div>
+                                <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Revenue by Product Type')) ?></h2>
+                                <p class="mxd-sub"><?= $escaper->escapeHtml(__('Net revenue share of each Magento product type')) ?></p>
+                            </div>
+                            <span class="mxc-tag"><?= $escaper->escapeHtml(__('M2 Product Type')) ?></span>
+                        </header>
+                        <div class="mxp-types">
+                            <div class="mxp-donut">
+                                <canvas data-role="type-chart"></canvas>
+                                <div class="mxp-donut__center">
+                                    <span class="mxp-donut__label"><?= $escaper->escapeHtml(__('Net Revenue')) ?></span>
+                                    <span class="mxp-donut__value" data-role="type-total"></span>
+                                </div>
+                            </div>
+                            <div class="mxp-legend" data-role="types"></div>
+                        </div>
+                    </section>
+
+                    <section class="mxc-card">
+                        <header class="mxc-card__head mxc-card__head--split">
+                            <div>
+                                <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Price Band Elasticity')) ?></h2>
+                                <p class="mxd-sub"><?= $escaper->escapeHtml(__('Units sold by realized unit price')) ?></p>
+                            </div>
+                            <span class="mxc-badge mxc-badge--brand" data-role="sweet-spot" hidden></span>
+                        </header>
+                        <div class="mxp-bands" data-role="bands"></div>
+                        <div class="mxp-signal" data-role="band-signal" hidden></div>
+                    </section>
+                </div>
             </div>
-            <canvas id="chart-product-type" height="180"></canvas>
+
+            <!-- Categories -->
+            <section class="mxc-card">
+                <header class="mxc-card__head mxc-card__head--split">
+                    <div>
+                        <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Revenue & Volume by Category Department')) ?></h2>
+                        <p class="mxd-sub"><?= $escaper->escapeHtml(__('Top categories by net revenue. A product in several categories counts in each, so shares can add up to more than 100%.')) ?></p>
+                    </div>
+                    <div class="mxc-legend">
+                        <span><i class="mxc-swatch mxc-swatch--brand"></i><?= $escaper->escapeHtml(__('Revenue share')) ?></span>
+                        <span><i class="mxc-swatch mxc-swatch--navy"></i><?= $escaper->escapeHtml(__('Units sold')) ?></span>
+                    </div>
+                </header>
+                <div class="mxp-cats" data-role="categories"></div>
+            </section>
+
+            <!-- Product table -->
+            <section class="mxc-card" data-role="table-card">
+                <header class="mxp-tablehead">
+                    <div class="mxp-tabs" role="tablist" data-role="tabs">
+                        <button type="button" role="tab" data-tab="revenue" class="is-active"><?= $escaper->escapeHtml(__('Best Sellers by Revenue')) ?> <span data-count="revenue"></span></button>
+                        <button type="button" role="tab" data-tab="qty"><?= $escaper->escapeHtml(__('Best Sellers by Quantity')) ?> <span data-count="qty"></span></button>
+                        <button type="button" role="tab" data-tab="worst"><?= $escaper->escapeHtml(__('Worst Sellers / Low Velocity')) ?> <span data-count="worst"></span></button>
+                        <button type="button" role="tab" data-tab="dead"><?= $escaper->escapeHtml(__('Never Sold / Dead Stock')) ?> <span data-count="dead"></span></button>
+                    </div>
+                    <div class="mxp-tablehead__actions">
+                        <a class="mxd-btn" data-role="promo" href="<?= $escaper->escapeUrl($config['promoUrl']) ?>" target="_blank" rel="noopener" hidden
+                           title="<?= $escaper->escapeHtmlAttr(__('Create a cart price rule to move dead stock')) ?>">
+                            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">sell</span>
+                            <span><?= $escaper->escapeHtml(__('Create Promotion')) ?></span>
+                        </a>
+                        <button type="button" class="mxd-btn" data-role="table-export"
+                                title="<?= $escaper->escapeHtmlAttr(__('Every product in this tab that matches the filters (CSV)')) ?>">
+                            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
+                            <span><?= $escaper->escapeHtml(__('Export Table CSV')) ?></span>
+                        </button>
+                    </div>
+                </header>
+                <div class="mxp-filters">
+                    <label class="mxc-search mxp-search">
+                        <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">search</span>
+                        <input type="text" class="mxd-input" data-role="search"
+                               placeholder="<?= $escaper->escapeHtmlAttr(__('Filter by SKU, product name, category...')) ?>"
+                               aria-label="<?= $escaper->escapeHtmlAttr(__('Filter products')) ?>">
+                    </label>
+                    <div class="mxp-filters__selects">
+                        <label class="mxc-selectpill">
+                            <span class="mxd-muted"><?= $escaper->escapeHtml(__('Category:')) ?></span>
+                            <select data-role="category" aria-label="<?= $escaper->escapeHtmlAttr(__('Category')) ?>">
+                                <option value=""><?= $escaper->escapeHtml(__('All Categories')) ?></option>
+                            </select>
+                            <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">arrow_drop_down</span>
+                        </label>
+                        <label class="mxc-selectpill">
+                            <span class="mxd-muted"><?= $escaper->escapeHtml(__('Stock Status:')) ?></span>
+                            <select data-role="stock" aria-label="<?= $escaper->escapeHtmlAttr(__('Stock status')) ?>">
+                                <option value=""><?= $escaper->escapeHtml(__('All Stock Levels')) ?></option>
+                                <option value="restock"><?= $escaper->escapeHtml(__('Needs Restock')) ?></option>
+                                <option value="in"><?= $escaper->escapeHtml(__('In Stock (>%1)', (int) $config['lowStockQty'])) ?></option>
+                                <option value="low"><?= $escaper->escapeHtml(__('Low Stock (1–%1)', (int) $config['lowStockQty'])) ?></option>
+                                <option value="out"><?= $escaper->escapeHtml(__('Out of Stock (0)')) ?></option>
+                                <option value="untracked"><?= $escaper->escapeHtml(__('Stock Not Tracked')) ?></option>
+                            </select>
+                            <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">arrow_drop_down</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="mxc-tablewrap">
+                    <table class="mxc-table mxp-table">
+                        <thead data-role="thead"></thead>
+                        <tbody data-role="tbody"></tbody>
+                    </table>
+                </div>
+                <footer class="mxc-pager">
+                    <span data-role="pager-info"></span>
+                    <div class="mxp-pagerright">
+                        <label class="mxp-perpage">
+                            <span><?= $escaper->escapeHtml(__('Per page:')) ?></span>
+                            <select data-role="per-page" aria-label="<?= $escaper->escapeHtmlAttr(__('Rows per page')) ?>">
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </label>
+                        <div class="mxc-pager__buttons" data-role="pager"></div>
+                    </div>
+                </footer>
+            </section>
         </div>
-    </div>
 
-    <!-- Revenue by Category -->
-    <?php if (!empty($byCategory)): ?>
-    <div class="ai-chart-card" style="margin-bottom:20px;">
-        <div class="ai-chart-card-header">
-            <h3><?= $block->escapeHtml(__('Revenue by Category')) ?></h3>
-        </div>
-        <canvas id="chart-category" height="60"></canvas>
+        <!-- Copilot summary -->
+        <section class="mxp-summary" data-role="summary">
+            <header class="mxp-summary__head">
+                <div class="mxp-summary__title">
+                    <span class="mxp-summary__logo"><span class="mxd-ico mxd-ico--md" aria-hidden="true">auto_awesome</span></span>
+                    <div>
+                        <h3 class="mxd-h3"><?= $escaper->escapeHtml(__('Meetanshi Copilot Catalog Executive Summary')) ?></h3>
+                        <p class="mxd-sub"><?= $escaper->escapeHtml(__('Rule-based reading of the figures above — no AI call')) ?></p>
+                    </div>
+                </div>
+                <div class="mxp-summary__meta">
+                    <span class="mxp-pill"><?= $escaper->escapeHtml(__('Follow-ups: %1 · %2', $config['provider'], $config['model'])) ?></span>
+                    <span class="mxp-pill mxp-pill--brand" data-role="runtime"></span>
+                </div>
+            </header>
+            <div class="mxp-summary__insight" data-role="insight"></div>
+            <div class="mxp-summary__actions">
+                <button type="button" class="mxp-action" data-role="act-restock">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">inventory</span>
+                    <span><?= $escaper->escapeHtml(__('Restock Warning for Top Sellers')) ?></span>
+                </button>
+                <button type="button" class="mxp-action" data-role="act-dead">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">sell</span>
+                    <span data-role="act-dead-label"><?= $escaper->escapeHtml(__('Plan Promotion for Dead-Stock SKUs')) ?></span>
+                </button>
+                <button type="button" class="mxp-action" data-role="act-price">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">price_change</span>
+                    <span><?= $escaper->escapeHtml(__('Price Elasticity Simulation')) ?></span>
+                </button>
+                <button type="button" class="mxp-action mxp-action--primary" data-role="ask-toggle" aria-expanded="false">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">chat</span>
+                    <span><?= $escaper->escapeHtml(__('Ask Copilot')) ?></span>
+                </button>
+            </div>
+            <div class="mxp-ask" data-role="ask-panel" hidden>
+                <form class="mxp-ask__form" data-role="ask-form">
+                    <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
+                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask about your catalog (e.g. \'Which products sold best last month?\')...')) ?>"
+                           aria-label="<?= $escaper->escapeHtmlAttr(__('Ask about your catalog')) ?>">
+                    <button type="submit" class="mxd-btn mxd-btn--primary" data-role="ask-submit">
+                        <span><?= $escaper->escapeHtml(__('Ask')) ?></span>
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                    </button>
+                </form>
+                <div class="mxp-quick">
+                    <?php foreach ([
+                        __('Which products sold best last month?'),
+                        __('Products with fewer than 10 units in stock and their sales in the last 30 days'),
+                        __('Net revenue by category this year'),
+                    ] as $question): ?>
+                        <button type="button" class="mxp-chip" data-question="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="mxp-answer" data-role="answer" hidden></div>
+            </div>
+            <div class="mxp-sql">
+                <div class="mxp-sql__head">
+                    <span class="mxd-label">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">terminal</span>
+                        <?= $escaper->escapeHtml(__('Underlying Executed SQL Query')) ?>
+                    </span>
+                    <button type="button" class="mxc-linkbtn" data-role="sql-copy">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
+                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy Raw SQL')) ?></span>
+                    </button>
+                </div>
+                <pre class="mxp-sql__code" data-role="sql-text"></pre>
+            </div>
+        </section>
     </div>
-    <?php endif; ?>
-
-    <!-- Tabs for product tables -->
-    <div class="ai-tab-nav">
-        <button class="ai-tab-btn active" data-tab="by-revenue"><?= $block->escapeHtml(__('By Revenue')) ?></button>
-        <button class="ai-tab-btn" data-tab="by-qty"><?= $block->escapeHtml(__('By Quantity')) ?></button>
-        <button class="ai-tab-btn" data-tab="worst"><?= $block->escapeHtml(__('Worst Sellers')) ?></button>
-        <button class="ai-tab-btn" data-tab="never-sold"><?= $block->escapeHtml(__('Never Sold')) ?></button>
-    </div>
-
-    <!-- By Revenue -->
-    <div class="ai-tab-panel active" id="tab-by-revenue">
-        <table class="ai-table">
-            <thead><tr>
-                <th>#</th>
-                <th><?= $block->escapeHtml(__('Product')) ?></th>
-                <th><?= $block->escapeHtml(__('SKU')) ?></th>
-                <th><?= $block->escapeHtml(__('Qty Sold')) ?></th>
-                <th><?= $block->escapeHtml(__('Revenue')) ?></th>
-                <th><?= $block->escapeHtml(__('Avg Price')) ?></th>
-                <th><?= $block->escapeHtml(__('Orders')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($byRevenue as $i => $p): ?>
-            <tr>
-                <td><?= $i + 1 ?></td>
-                <td><?= $block->escapeHtml($p['product_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
-                <td><?= number_format((float)$p['total_qty_sold']) ?></td>
-                <td><strong class="ai-text-green"><?= $block->escapeHtml($block->formatCurrency((float)$p['total_revenue'])) ?></strong></td>
-                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['avg_price'])) ?></td>
-                <td><?= (int)$p['order_count'] ?></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- By Qty -->
-    <div class="ai-tab-panel" id="tab-by-qty" style="display:none;">
-        <table class="ai-table">
-            <thead><tr>
-                <th>#</th>
-                <th><?= $block->escapeHtml(__('Product')) ?></th>
-                <th><?= $block->escapeHtml(__('SKU')) ?></th>
-                <th><?= $block->escapeHtml(__('Qty Sold')) ?></th>
-                <th><?= $block->escapeHtml(__('Revenue')) ?></th>
-                <th><?= $block->escapeHtml(__('Orders')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($byQty as $i => $p): ?>
-            <tr>
-                <td><?= $i + 1 ?></td>
-                <td><?= $block->escapeHtml($p['product_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
-                <td><strong class="ai-text-blue"><?= number_format((float)$p['total_qty_sold']) ?></strong></td>
-                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['total_revenue'])) ?></td>
-                <td><?= (int)$p['order_count'] ?></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Worst Sellers -->
-    <div class="ai-tab-panel" id="tab-worst" style="display:none;">
-        <table class="ai-table">
-            <thead><tr>
-                <th><?= $block->escapeHtml(__('Product')) ?></th>
-                <th><?= $block->escapeHtml(__('SKU')) ?></th>
-                <th><?= $block->escapeHtml(__('Qty Sold')) ?></th>
-                <th><?= $block->escapeHtml(__('Revenue')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($worst as $p): ?>
-            <tr>
-                <td><?= $block->escapeHtml($p['product_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
-                <td><?= number_format((float)$p['total_qty_sold']) ?></td>
-                <td class="ai-text-red"><?= $block->escapeHtml($block->formatCurrency((float)$p['total_revenue'])) ?></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Never Sold -->
-    <div class="ai-tab-panel" id="tab-never-sold" style="display:none;">
-        <?php if (empty($neverSold)): ?>
-            <p style="padding:20px;color:#6b7280;"><?= $block->escapeHtml(__('All products have been sold at least once.')) ?></p>
-        <?php else: ?>
-        <table class="ai-table">
-            <thead><tr>
-                <th><?= $block->escapeHtml(__('Product ID')) ?></th>
-                <th><?= $block->escapeHtml(__('SKU')) ?></th>
-                <th><?= $block->escapeHtml(__('Type')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($neverSold as $p): ?>
-            <tr>
-                <td><?= (int)$p['entity_id'] ?></td>
-                <td><?= $block->escapeHtml($p['sku']) ?></td>
-                <td><?= $block->escapeHtml($p['type_id']) ?></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php endif; ?>
-    </div>
-
 </div>
-
-<script>
-require(['jquery', 'chartjs'], function($, Chart) {
-    // Tab switching
-    $('.ai-tab-btn').on('click', function() {
-        $('.ai-tab-btn').removeClass('active');
-        $(this).addClass('active');
-        $('.ai-tab-panel').hide();
-        $('#tab-' + $(this).data('tab')).show();
-    });
-
-    // ── Per-period data ────────────────────────────────────────────────────
-    var topRevByPeriod = <?= /* @noEscape */ json_encode($topRevPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var typeByPeriod   = <?= /* @noEscape */ json_encode($typePeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-
-    var periodLabels = {
-        today: '<?= $block->escapeJs(__('(Today)')) ?>',
-        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
-        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
-        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
-    };
-
-    var topRevChart = null, typeChart = null;
-    var EMPTY_MSG = '<?= $block->escapeJs(__('No data in this period')) ?>';
-
-    function drawEmpty(canvas) {
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.font = '14px sans-serif'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
-        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
-        ctx.restore();
-    }
-
-    function renderTopRev(period) {
-        var data = topRevByPeriod[period] || [];
-        $('#ai-toprev-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-top-revenue');
-        if (topRevChart) { topRevChart.destroy(); topRevChart = null; }
-        if (!data.length) { drawEmpty(canvas); return; }
-
-        topRevChart = new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels: data.map(function(r){ return r.sku; }),
-                datasets: [{
-                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                    data: data.map(function(r){ return parseFloat(r.total_revenue); }),
-                    backgroundColor: 'rgba(99,102,241,0.8)',
-                    borderColor: 'rgba(99,102,241,1)',
-                    borderWidth: 1
-                }]
-            },
-            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
-        });
-    }
-
-    function renderType(period) {
-        var data = typeByPeriod[period] || [];
-        $('#ai-ptype-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-product-type');
-        if (typeChart) { typeChart.destroy(); typeChart = null; }
-        if (!data.length) { drawEmpty(canvas); return; }
-
-        typeChart = new Chart(canvas, {
-            type: 'pie',
-            data: {
-                labels: data.map(function(r){ return r.product_type; }),
-                datasets: [{
-                    data: data.map(function(r){ return parseFloat(r.total_revenue); }),
-                    backgroundColor: ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6']
-                }]
-            },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-        });
-    }
-
-    function renderPeriodCharts(period) {
-        renderTopRev(period);
-        renderType(period);
-    }
-
-    // Period tabs — update KPI panels AND the period-aware charts
-    $('.ai-period-tab').on('click', function() {
-        $('.ai-period-tab').removeClass('active');
-        $(this).addClass('active');
-        var period = $(this).data('period');
-        $('.ai-kpi-panel').hide();
-        $('.ai-kpi-panel[data-period="' + period + '"]').show();
-        renderPeriodCharts(period);
-    });
-
-    renderPeriodCharts('month');
-
-    <?php if (!empty($byCategory)): ?>
-    var catData = <?= /* @noEscape */ json_encode(array_values($byCategory), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    new Chart(document.getElementById('chart-category'), {
-        type: 'bar',
-        data: {
-            labels: catData.map(r => r.category_name),
-            datasets: [{
-                label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                data: catData.map(r => parseFloat(r.total_revenue)),
-                backgroundColor: 'rgba(16,185,129,0.8)'
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { display: false } } }
-    });
-    <?php endif; ?>
-});
+<script type="text/x-magento-init">
+<?= /* @noEscape */ json_encode(
+    ['[data-role=mxp-root]' => ['Meetanshi_AIReporting/js/product-report' => $config]],
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+) ?>
 </script>

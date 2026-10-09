@@ -19,8 +19,6 @@ use Psr\Log\LoggerInterface;
 
 class OllamaProvider implements ProviderInterface
 {
-    private const SYSTEM_PROMPT = 'You are a Magento 2 database expert. Convert natural language questions into valid MySQL SELECT queries only. Never generate INSERT, UPDATE, DELETE, DROP, or ALTER statements. Return only the raw SQL query without any explanation, markdown, or code blocks.';
-
     /**
      * Context window (tokens). Ollama silently drops the start of a prompt that does not fit its
      * context — which would cut off the instructions and schema. The size moves in coarse steps
@@ -51,7 +49,7 @@ class OllamaProvider implements ProviderInterface
     /**
      * @inheritDoc
      */
-    public function complete(string $prompt): string
+    public function complete(string $prompt, string $system = ''): string
     {
         $baseUrl = $this->getBaseUrl();
         $model   = trim($this->config->getOllamaModel());
@@ -63,18 +61,17 @@ class OllamaProvider implements ProviderInterface
         }
 
         $maxTokens = $this->config->getMaxTokens();
+        $messages  = $system !== '' ? [['role' => 'system', 'content' => $system]] : [];
+        $messages[] = ['role' => 'user', 'content' => $prompt];
         $payload = $this->json->serialize([
             'model'      => $model,
-            'messages'   => [
-                ['role' => 'system', 'content' => self::SYSTEM_PROMPT],
-                ['role' => 'user', 'content' => $prompt],
-            ],
+            'messages'   => $messages,
             'stream'     => false,
             'keep_alive' => self::KEEP_ALIVE,
             'options'    => [
                 'temperature' => 0.1,
                 'num_predict' => $maxTokens,
-                'num_ctx'     => $this->getContextSize(self::SYSTEM_PROMPT . $prompt, $maxTokens),
+                'num_ctx'     => $this->getContextSize($system . $prompt, $maxTokens),
             ],
         ]);
 

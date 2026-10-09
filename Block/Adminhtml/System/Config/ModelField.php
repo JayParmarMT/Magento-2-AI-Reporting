@@ -29,24 +29,52 @@ class ModelField extends Field
         $selectHtml = parent::_getElementHtml($element);
 
         $fetchUrl = $this->getUrl('meetanshi_aireporting/config/fetchModels');
+        $testUrl  = $this->getUrl('meetanshi_aireporting/config/testConnection');
         $elementId = $element->getHtmlId();
 
         $buttonLabel = (string) __('Fetch Latest Models');
         $loadingLabel = (string) __('Fetching…');
-        $pickText = (string) __('— Keep current / select a model —');
+        $testLabel = (string) __('Test Connection');
+        $testingLabel = (string) __('Testing…');
 
         $html = $selectHtml;
         $html .= <<<HTML
 <button type="button" id="{$elementId}_fetch" class="action-default scalable" style="margin-left:8px;">
     <span>{$buttonLabel}</span>
 </button>
+<button type="button" id="{$elementId}_test" class="action-default scalable" style="margin-left:4px;">
+    <span>{$testLabel}</span>
+</button>
 <span id="{$elementId}_fetch_msg" style="margin-left:8px;font-size:12px;"></span>
 <script>
 require(['jquery', 'prototype'], function ($) {
     var select  = document.getElementById('{$elementId}');
     var button  = document.getElementById('{$elementId}_fetch');
+    var testBtn = document.getElementById('{$elementId}_test');
     var msgEl   = document.getElementById('{$elementId}_fetch_msg');
     if (!select || !button) { return; }
+
+    // Uses the saved API key and model: changes must be saved first
+    testBtn.addEventListener('click', function () {
+        testBtn.disabled = true;
+        var original = testBtn.innerHTML;
+        testBtn.innerHTML = '<span>{$testingLabel}</span>';
+        msgEl.textContent = '';
+        msgEl.style.color = '#666';
+
+        new Ajax.Request('{$testUrl}', {
+            method: 'post',
+            parameters: { provider: '{$provider}', isAjax: true, form_key: window.FORM_KEY },
+            onComplete: function (t) {
+                testBtn.disabled = false;
+                testBtn.innerHTML = original;
+                var res;
+                try { res = t.responseText.evalJSON(); } catch (e) { res = null; }
+                msgEl.style.color = (res && res.success) ? '#1a7f37' : '#e02b27';
+                msgEl.textContent = (res && res.message) ? res.message : 'Request failed. Please try again.';
+            }
+        });
+    });
 
     button.addEventListener('click', function () {
         var saved = select.value;

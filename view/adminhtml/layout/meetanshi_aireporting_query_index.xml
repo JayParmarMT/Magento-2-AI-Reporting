@@ -11,11 +11,16 @@
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <update handle="meetanshi_aireporting_default"/>
+    <update handle="meetanshi_aireporting_mxd"/>
+    <head>
+        <css src="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" src_type="url"/>
+        <css src="Meetanshi_AIReporting::css/ask_ai.css"/>
+    </head>
     <body>
         <referenceContainer name="content">
             <block class="Meetanshi\AIReporting\Block\Adminhtml\Query"
                    name="meetanshi_aireporting_query"
-                   template="Meetanshi_AIReporting::query.phtml"/>
+                   template="Meetanshi_AIReporting::ask_ai.phtml"/>
         </referenceContainer>
     </body>
 </page>

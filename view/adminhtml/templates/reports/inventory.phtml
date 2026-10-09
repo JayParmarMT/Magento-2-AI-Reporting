@@ -1,233 +1,338 @@
 <?php
-/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Inventory $block */
-$kpi          = $block->getKpiCards();
-$lowStock     = $block->getLowStockProducts();
-$outOfStock   = $block->getOutOfStockProducts();
-$stockDist    = $block->getStockDistribution();
-$demandPeriod = $block->getDemandVsSupplyPerPeriod();
-$turnover     = $block->getInventoryTurnover();
+/**
+ * Meetanshi AIReporting — Inventory & Stock Intelligence
+ *
+ * Content area only (Magento's admin menu and header are untouched). The skeleton below is
+ * filled by Meetanshi_AIReporting/js/inventory-report from the view model's data, on load and
+ * whenever the range changes. Styles are scoped to .mxd (css/inventory_report.css).
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+
+/** @var \Magento\Backend\Block\Template $block */
+/** @var \Magento\Framework\Escaper $escaper */
+/** @var \Meetanshi\AIReporting\ViewModel\InventoryAnalytics $viewModel */
+$viewModel  = $block->getData('view_model');
+$config     = $viewModel->getJsConfig();
+$data       = $config['data'];
+$thresholds = $config['thresholds'];
 ?>
-<div class="meetanshi-aireporting-wrap">
+<div class="mxd mxi" data-role="mxi-root">
+    <div class="mxi-body">
 
-    <div class="ai-header">
-        <span class="ai-provider-badge">🏭 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
-    </div>
-
-    <!-- Period Tabs -->
-    <div class="ai-period-tabs">
-        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
-        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
-        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
-        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
-    </div>
-
-    <!-- KPI Cards (current stock snapshot — same for every period) -->
-    <div class="ai-stats-grid">
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Total SKUs')) ?></div>
-            <div class="ai-stat-value"><?= number_format((int)($kpi['total_skus'] ?? 0)) ?></div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('In Stock')) ?></div>
-            <div class="ai-stat-value ai-stat-green"><?= number_format((int)($kpi['in_stock'] ?? 0)) ?></div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Out of Stock')) ?></div>
-            <div class="ai-stat-value ai-stat-red"><?= number_format((int)($kpi['out_of_stock'] ?? 0)) ?></div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Low Stock (≤10)')) ?></div>
-            <div class="ai-stat-value ai-stat-orange"><?= number_format((int)($kpi['low_stock'] ?? 0)) ?></div>
-        </div>
-        <div class="ai-stat-card">
-            <div class="ai-stat-label"><?= $block->escapeHtml(__('Stock Value')) ?></div>
-            <div class="ai-stat-value ai-stat-blue"><?= $block->escapeHtml($block->formatCurrency((float)($kpi['total_stock_value'] ?? 0))) ?></div>
-        </div>
-    </div>
-    <p class="ai-help-text" style="margin:-4px 0 12px;"><?= $block->escapeHtml(__('Stock figures reflect current inventory. The period tabs adjust the demand chart below.')) ?></p>
-
-    <!-- Charts Row -->
-    <div class="ai-charts-row">
-        <!-- Stock Distribution -->
-        <div class="ai-chart-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Stock Level Distribution')) ?></h3>
-            </div>
-            <canvas id="chart-stock-dist" height="200"></canvas>
-        </div>
-
-        <!-- Demand vs Supply -->
-        <div class="ai-chart-card ai-chart-wide">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Top Sellers: Demand vs Current Stock')) ?> <span id="ai-demand-period-label" class="ai-chart-subtitle"></span></h3>
-            </div>
-            <canvas id="chart-demand-supply" height="100"></canvas>
-        </div>
-    </div>
-
-    <!-- Tabs -->
-    <div class="ai-tab-nav">
-        <button class="ai-tab-btn active" data-tab="low-stock"><?= $block->escapeHtml(__('Low Stock')) ?> <span class="ai-badge-count"><?= count($lowStock) ?></span></button>
-        <button class="ai-tab-btn" data-tab="out-of-stock"><?= $block->escapeHtml(__('Out of Stock')) ?> <span class="ai-badge-count ai-badge-count-red"><?= count($outOfStock) ?></span></button>
-        <button class="ai-tab-btn" data-tab="turnover"><?= $block->escapeHtml(__('Turnover Rate')) ?></button>
-    </div>
-
-    <!-- Low Stock Table -->
-    <div class="ai-tab-panel active" id="tab-low-stock">
-        <?php if (empty($lowStock)): ?>
-            <p style="padding:20px;color:#10b981;">✅ <?= $block->escapeHtml(__('No low stock products found.')) ?></p>
-        <?php else: ?>
-        <table class="ai-table">
-            <thead><tr>
-                <th><?= $block->escapeHtml(__('Product')) ?></th>
-                <th><?= $block->escapeHtml(__('SKU')) ?></th>
-                <th><?= $block->escapeHtml(__('Price')) ?></th>
-                <th><?= $block->escapeHtml(__('Current Qty')) ?></th>
-                <th><?= $block->escapeHtml(__('Min Qty')) ?></th>
-                <th><?= $block->escapeHtml(__('Status')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($lowStock as $p): ?>
-            <?php $statusClass = $block->getStockStatusClass((float)$p['qty']); ?>
-            <tr>
-                <td><?= $block->escapeHtml($p['product_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
-                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['price'])) ?></td>
-                <td><strong class="<?= $p['qty'] <= 5 ? 'ai-text-red' : 'ai-text-orange' ?>"><?= (float)$p['qty'] ?></strong></td>
-                <td><?= (float)$p['min_qty'] ?></td>
-                <td><span class="ai-badge <?= $block->escapeHtmlAttr($statusClass) ?>"><?= $p['qty'] == 0 ? 'Out of Stock' : ($p['qty'] <= 5 ? 'Critical' : 'Low') ?></span></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php endif; ?>
-    </div>
-
-    <!-- Out of Stock Table -->
-    <div class="ai-tab-panel" id="tab-out-of-stock" style="display:none;">
-        <?php if (empty($outOfStock)): ?>
-            <p style="padding:20px;color:#10b981;">✅ <?= $block->escapeHtml(__('No out of stock products.')) ?></p>
-        <?php else: ?>
-        <table class="ai-table">
-            <thead><tr>
-                <th><?= $block->escapeHtml(__('Product')) ?></th>
-                <th><?= $block->escapeHtml(__('SKU')) ?></th>
-                <th><?= $block->escapeHtml(__('Price')) ?></th>
-                <th><?= $block->escapeHtml(__('Qty')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($outOfStock as $p): ?>
-            <tr>
-                <td><?= $block->escapeHtml($p['product_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
-                <td><?= $block->escapeHtml($block->formatCurrency((float)$p['price'])) ?></td>
-                <td><span class="ai-badge ai-badge-red">0</span></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php endif; ?>
-    </div>
-
-    <!-- Turnover Table -->
-    <div class="ai-tab-panel" id="tab-turnover" style="display:none;">
-        <table class="ai-table">
-            <thead><tr>
-                <th><?= $block->escapeHtml(__('Product')) ?></th>
-                <th><?= $block->escapeHtml(__('SKU')) ?></th>
-                <th><?= $block->escapeHtml(__('Qty Sold (30d)')) ?></th>
-                <th><?= $block->escapeHtml(__('Current Stock')) ?></th>
-                <th><?= $block->escapeHtml(__('Turnover Rate')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($turnover as $p): ?>
-            <tr>
-                <td><?= $block->escapeHtml($p['product_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($p['sku']) ?></td>
-                <td><?= number_format((float)$p['qty_sold']) ?></td>
-                <td><?= number_format((float)$p['current_stock']) ?></td>
-                <td>
-                    <span class="ai-badge <?= (float)$p['turnover_rate'] >= 1 ? 'ai-badge-green' : 'ai-badge-blue' ?>">
-                        <?= number_format((float)$p['turnover_rate'], 2) ?>x
+        <!-- Header -->
+        <section class="mxi-card mxi-header">
+            <div class="mxi-header__title">
+                <nav class="mxd-crumbs" aria-label="<?= $escaper->escapeHtmlAttr(__('Breadcrumb')) ?>">
+                    <span><?= $escaper->escapeHtml(__('Meetanshi Extensions')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <span><?= $escaper->escapeHtml(__('Pre-built Reports')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <strong><?= $escaper->escapeHtml(__('Inventory Report')) ?></strong>
+                </nav>
+                <div class="mxi-titlerow">
+                    <h1 class="mxd-h1 mxi-h1"><?= $escaper->escapeHtml(__('Inventory & Stock Intelligence')) ?></h1>
+                    <span class="mxi-livetag">
+                        <span class="mxd-dot mxd-dot--live" aria-hidden="true"></span>
+                        <?= $escaper->escapeHtml($config['msi'] ? __('Live MSI Telemetry') : __('Live Stock Telemetry')) ?>
                     </span>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+                </div>
+                <div class="mxi-badges">
+                    <span class="mxi-badge mxi-badge--brand">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
+                        <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
+                    </span>
+                    <span class="mxi-badge">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">layers</span>
+                        <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
+                        · <?= $escaper->escapeHtml($viewModel->getStockSourceLabel()) ?>
+                    </span>
+                    <?php if ($viewModel->getStoreLabel() !== ''): ?>
+                        <span class="mxi-badge mxi-badge--slate">
+                            <span class="mxd-dot mxi-dot--green" aria-hidden="true"></span>
+                            <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                        </span>
+                    <?php endif; ?>
+                    <span class="mxi-badge mxi-badge--ghost" data-role="query-time"></span>
+                </div>
+                <p class="mxi-note">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
+                    <span>
+                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
+                        <?= $escaper->escapeHtml(__('Stock is the current snapshot; sales, days of cover and turnover follow the selected range')) ?>
+                    </span>
+                </p>
+            </div>
+
+            <div class="mxi-header__actions">
+                <div class="mxi-rangebox">
+                    <div class="mxi-range" role="group" aria-label="<?= $escaper->escapeHtmlAttr(__('Sales range')) ?>" data-role="range">
+                        <?php foreach ($viewModel->getPresetRanges() as $key => $label): ?>
+                            <button type="button" data-range="<?= $escaper->escapeHtmlAttr($key) ?>"
+                                    class="<?= $key === $data['range']['key'] ? 'is-active' : '' ?>"><?= $escaper->escapeHtml($label) ?></button>
+                        <?php endforeach; ?>
+                        <button type="button" class="mxi-range__cal" data-role="custom-toggle" data-range="custom"
+                                aria-expanded="false" title="<?= $escaper->escapeHtmlAttr(__('Custom date range')) ?>">
+                            <span class="mxd-ico mxd-ico--md" aria-hidden="true">calendar_today</span>
+                        </button>
+                    </div>
+                    <div class="mxi-custom" data-role="custom-range" hidden>
+                        <input type="date" class="mxd-input" data-role="custom-start" aria-label="<?= $escaper->escapeHtmlAttr(__('From')) ?>">
+                        <span class="mxd-muted">–</span>
+                        <input type="date" class="mxd-input" data-role="custom-end" aria-label="<?= $escaper->escapeHtmlAttr(__('To')) ?>">
+                        <button type="button" class="mxd-btn mxd-btn--primary" data-role="custom-apply"><?= $escaper->escapeHtml(__('Apply')) ?></button>
+                    </div>
+                    <span class="mxi-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($data['range']['label']) ?></span>
+                </div>
+                <div class="mxi-header__buttons">
+                    <button type="button" class="mxd-btn" data-role="export"
+                            title="<?= $escaper->escapeHtmlAttr(__('Export the SKUs of the open tab, with the current filters, as CSV')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">download</span>
+                        <span><?= $escaper->escapeHtml(__('CSV')) ?></span>
+                    </button>
+                    <button type="button" class="mxd-btn" data-role="print"
+                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
+                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
+                    </button>
+                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
+                        <span class="mxd-ico mxd-ico--sm mxi-ico-soft" aria-hidden="true">auto_awesome</span>
+                        <span><?= $escaper->escapeHtml(__('Ask Copilot')) ?></span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <div class="mxd-error" data-role="error" hidden></div>
+
+        <!-- KPI cards -->
+        <div class="mxi-kpis mxi-loadable" data-role="kpis"></div>
+
+        <!-- Stock tiers + top sellers -->
+        <div class="mxi-row mxi-row--5-7 mxi-loadable">
+            <section class="mxi-card mxi-card--column">
+                <header class="mxi-card__head">
+                    <div class="mxi-titleline">
+                        <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Stock Level Distribution')) ?></h2>
+                        <span class="mxi-tag"><?= $escaper->escapeHtml(__('Current')) ?></span>
+                    </div>
+                    <p class="mxd-sub"><?= $escaper->escapeHtml(__('SKUs by available quantity (on hand minus reserved). Click a tier to filter the table.')) ?></p>
+                </header>
+                <div class="mxi-dist">
+                    <div class="mxi-donut">
+                        <canvas data-role="tier-chart"></canvas>
+                        <div class="mxi-donut__center" data-role="donut-center"></div>
+                    </div>
+                    <div class="mxi-tiers" data-role="tiers"></div>
+                </div>
+                <footer class="mxi-valuation">
+                    <span>
+                        <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">verified</span>
+                        <?= $escaper->escapeHtml(__('Total Catalog Valuation:')) ?>
+                    </span>
+                    <strong class="mxd-mono" data-role="valuation" title="<?= $escaper->escapeHtmlAttr(__('Units on hand × list price, base currency')) ?>"></strong>
+                </footer>
+            </section>
+
+            <section class="mxi-card mxi-card--column">
+                <header class="mxi-card__head mxi-card__head--split">
+                    <div>
+                        <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Top Sellers: Demand vs Current Stock')) ?></h2>
+                        <p class="mxd-sub" data-role="sellers-sub"></p>
+                    </div>
+                    <div class="mxi-legend">
+                        <span><i class="mxi-swatch mxi-swatch--brand"></i><?= $escaper->escapeHtml(__('Units Sold')) ?></span>
+                        <span><i class="mxi-swatch mxi-swatch--stock"></i><?= $escaper->escapeHtml(__('Available Stock')) ?></span>
+                    </div>
+                </header>
+                <div class="mxi-sellers" data-role="sellers"></div>
+                <footer class="mxi-card__foot">
+                    <span class="mxi-inline">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">info</span>
+                        <?= $escaper->escapeHtml(__('Healthy cover buffer: %1 – %2 days', $thresholds['healthyCover'][0], $thresholds['healthyCover'][1])) ?>
+                    </span>
+                    <button type="button" class="mxd-link" data-role="view-runrates"></button>
+                </footer>
+            </section>
+        </div>
+
+        <!-- SKU table -->
+        <section class="mxi-card mxi-card--table mxi-loadable" data-role="table-card">
+            <div class="mxi-tabs">
+                <div class="mxi-tabs__list" role="tablist" data-role="tabs">
+                    <?php foreach ([
+                        'all'      => __('All Stocked SKUs'),
+                        'risk'     => __('Low Stock & Depletion'),
+                        'idle'     => __('Dead Stock / Idle Capital'),
+                        'turnover' => __('Turnover & Run-Rate'),
+                    ] as $tab => $label): ?>
+                        <button type="button" role="tab" data-tab="<?= $escaper->escapeHtmlAttr($tab) ?>"
+                                class="mxi-tab<?= $tab === 'all' ? ' is-active' : '' ?>" aria-selected="<?= $tab === 'all' ? 'true' : 'false' ?>">
+                            <span><?= $escaper->escapeHtml($label) ?></span>
+                            <span class="mxi-tab__count" data-role="count-<?= $escaper->escapeHtmlAttr($tab) ?>"></span>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+                <span class="mxi-tabs__total" data-role="catalog-total"></span>
+            </div>
+            <div class="mxi-toolbar">
+                <div class="mxi-toolbar__filters">
+                    <label class="mxi-search">
+                        <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">search</span>
+                        <input type="text" class="mxd-input" data-role="search"
+                               placeholder="<?= $escaper->escapeHtmlAttr(__('Search SKU, Product Name...')) ?>"
+                               aria-label="<?= $escaper->escapeHtmlAttr(__('Search SKU or product name')) ?>">
+                    </label>
+                    <?php if ($config['msi']): ?>
+                        <label class="mxi-selectpill">
+                            <span class="mxd-muted"><?= $escaper->escapeHtml(__('Source:')) ?></span>
+                            <select data-role="source" aria-label="<?= $escaper->escapeHtmlAttr(__('Source')) ?>">
+                                <option value=""><?= $escaper->escapeHtml(__('All Sources (MSI)')) ?></option>
+                            </select>
+                            <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">arrow_drop_down</span>
+                        </label>
+                    <?php endif; ?>
+                    <label class="mxi-selectpill">
+                        <span class="mxd-muted"><?= $escaper->escapeHtml(__('Category:')) ?></span>
+                        <select data-role="category" aria-label="<?= $escaper->escapeHtmlAttr(__('Category')) ?>">
+                            <option value=""><?= $escaper->escapeHtml(__('All Categories')) ?></option>
+                        </select>
+                        <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">arrow_drop_down</span>
+                    </label>
+                    <button type="button" class="mxi-chip-filter" data-role="tier-chip" hidden></button>
+                </div>
+                <button type="button" class="mxd-btn" data-role="refresh"
+                        title="<?= $escaper->escapeHtmlAttr(__('Reload stock, reservations and sales')) ?>">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">refresh</span>
+                    <span><?= $escaper->escapeHtml($config['msi'] ? __('Sync MSI') : __('Refresh')) ?></span>
+                </button>
+            </div>
+            <div class="mxi-tablewrap">
+                <table class="mxi-table">
+                    <thead data-role="thead"></thead>
+                    <tbody data-role="rows"></tbody>
+                </table>
+            </div>
+            <footer class="mxi-pager">
+                <div class="mxi-pager__info">
+                    <span data-role="pager-info"></span>
+                    <select class="mxi-perpage" data-role="per-page" aria-label="<?= $escaper->escapeHtmlAttr(__('Rows per page')) ?>">
+                        <option value="10" selected><?= $escaper->escapeHtml(__('10 per page')) ?></option>
+                        <option value="20"><?= $escaper->escapeHtml(__('20 per page')) ?></option>
+                        <option value="50"><?= $escaper->escapeHtml(__('50 per page')) ?></option>
+                        <option value="0"><?= $escaper->escapeHtml(__('All')) ?></option>
+                    </select>
+                </div>
+                <div class="mxi-pager__buttons" data-role="pager"></div>
+            </footer>
+            <p class="mxi-tablenote" data-role="table-note" hidden></p>
+        </section>
+
+        <!-- Copilot analysis -->
+        <section class="mxi-copilot" data-role="copilot">
+            <div class="mxi-copilot__glow" aria-hidden="true"></div>
+            <header class="mxi-copilot__head">
+                <div class="mxi-copilot__title">
+                    <span class="mxi-copilot__icon"><span class="mxd-ico mxd-ico--md" aria-hidden="true">auto_awesome</span></span>
+                    <div>
+                        <div class="mxi-titleline">
+                            <h3 class="mxd-h3 mxd-h3--light"><?= $escaper->escapeHtml(__('Store Intelligence Copilot Analysis')) ?></h3>
+                            <span class="mxi-copilot__model"><?= $escaper->escapeHtml(__('Rule-based · from the figures above')) ?></span>
+                        </div>
+                        <p class="mxi-copilot__sub">
+                            <?= $escaper->escapeHtml($config['msi']
+                                ? __('Deterministic SQL across inventory_source_item, inventory_reservation and sales_order_item')
+                                : __('Deterministic SQL across cataloginventory_stock_item and sales_order_item')) ?>
+                        </p>
+                    </div>
+                </div>
+                <div class="mxi-copilot__tools">
+                    <button type="button" class="mxi-darkbtn mxi-darkbtn--sm" data-role="sql-toggle" aria-expanded="false">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">code</span>
+                        <span><?= $escaper->escapeHtml(__('Inspect Raw Query')) ?></span>
+                    </button>
+                    <span class="mxi-runtime" data-role="runtime"></span>
+                </div>
+            </header>
+            <div class="mxi-copilot__body">
+                <div class="mxi-copilot__insight mxi-loadable" data-role="insight"></div>
+                <div class="mxi-copilot__actions">
+                    <a class="mxd-btn mxd-btn--primary" data-role="export-clearance" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
+                       title="<?= $escaper->escapeHtmlAttr(__('In-stock SKUs with no sale for over %1 days, by idle capital (CSV) — ready for a clearance promotion', $thresholds['idleDays'])) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">bolt</span>
+                        <span><?= $escaper->escapeHtml(__('Export Clearance List')) ?></span>
+                    </a>
+                    <a class="mxi-darkbtn" data-role="export-reorder" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
+                       title="<?= $escaper->escapeHtmlAttr(__('Selling SKUs under %1 days of cover, with the quantity that brings them to %2 days at the range\'s sales pace (CSV)', $thresholds['healthyCover'][0], $thresholds['reorderCover'])) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">receipt_long</span>
+                        <span><?= $escaper->escapeHtml(__('Generate PO Reorder Plan')) ?></span>
+                    </a>
+                    <button type="button" class="mxi-ghostbtn" data-role="ask-toggle" aria-expanded="false">
+                        <span><?= $escaper->escapeHtml(__('Ask Follow-up Question')) ?></span>
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">arrow_forward</span>
+                    </button>
+                </div>
+            </div>
+            <div class="mxi-sql" data-role="sql-panel" hidden>
+                <div class="mxi-sql__head">
+                    <span><?= $escaper->escapeHtml(__('// SKU table query (store tables resolved, sales range inlined)')) ?></span>
+                    <button type="button" class="mxi-linkbtn" data-role="sql-copy">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
+                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy SQL')) ?></span>
+                    </button>
+                </div>
+                <pre class="mxi-sql__code" data-role="sql-text"></pre>
+            </div>
+            <div class="mxi-ask" data-role="ask-panel" hidden>
+                <p class="mxi-ask__engine">
+                    <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                    <span class="mxd-mono"><?= $escaper->escapeHtml(__('Follow-ups use %1: %2', $config['provider'], $config['model'])) ?></span>
+                </p>
+                <form class="mxi-ask__form" data-role="ask-form">
+                    <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
+                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask about your stock (e.g. \'Which products have 10 or fewer units left?\')...')) ?>"
+                           aria-label="<?= $escaper->escapeHtmlAttr(__('Ask about your stock')) ?>">
+                    <button type="submit" class="mxd-btn mxd-btn--primary" data-role="ask-submit">
+                        <span><?= $escaper->escapeHtml(__('Ask')) ?></span>
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                    </button>
+                </form>
+                <div class="mxi-quick">
+                    <?php foreach ([
+                        __('Which products have 10 or fewer units in stock?'),
+                        __('Top 10 products by units sold in the last 30 days'),
+                        __('Which in-stock products have not sold in the last 90 days?'),
+                    ] as $question): ?>
+                        <button type="button" class="mxi-chip" data-question="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="mxi-answer" data-role="answer" hidden></div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="mxi-meta">
+            <div class="mxi-meta__left">
+                <span><?= $escaper->escapeHtml(__('Meetanshi AI Reporting v%1', $viewModel->getModuleVersion())) ?></span>
+                <span aria-hidden="true">•</span>
+                <span><?= $escaper->escapeHtml(__('Stock source:')) ?> <strong><?= $escaper->escapeHtml($viewModel->getStockSourceLabel()) ?></strong></span>
+                <span aria-hidden="true">•</span>
+                <span><?= $escaper->escapeHtml(__(
+                    'Thresholds: low ≤ %1 units · critical cover < %2 days · idle > %3 days',
+                    $thresholds['low'],
+                    $thresholds['criticalCover'],
+                    $thresholds['idleDays']
+                )) ?></span>
+            </div>
+            <span class="mxd-mono" data-role="snapshot"></span>
+        </footer>
     </div>
-
 </div>
-
-<script>
-require(['jquery', 'chartjs'], function($, Chart) {
-    $('.ai-tab-btn').on('click', function() {
-        $('.ai-tab-btn').removeClass('active');
-        $(this).addClass('active');
-        $('.ai-tab-panel').hide();
-        $('#tab-' + $(this).data('tab')).show();
-    });
-
-    var distData = <?= /* @noEscape */ json_encode(array_values($stockDist), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    new Chart(document.getElementById('chart-stock-dist'), {
-        type: 'doughnut',
-        data: {
-            labels: distData.map(r => r.stock_range),
-            datasets: [{
-                data: distData.map(r => parseInt(r.product_count)),
-                backgroundColor: ['#ef4444','#f97316','#f59e0b','#10b981','#6366f1','#8b5cf6']
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-    });
-
-    // ── Demand vs Supply (period-aware) ────────────────────────────────────
-    var demandByPeriod = <?= /* @noEscape */ json_encode($demandPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var periodLabels = {
-        today: '<?= $block->escapeJs(__('(Today)')) ?>',
-        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
-        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
-        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
-    };
-    var demandChart = null;
-    var EMPTY_MSG = '<?= $block->escapeJs(__('No sales in this period')) ?>';
-
-    function drawEmpty(canvas) {
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.font = '14px sans-serif'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
-        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
-        ctx.restore();
-    }
-
-    function renderDemand(period) {
-        var data = demandByPeriod[period] || [];
-        $('#ai-demand-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-demand-supply');
-        if (demandChart) { demandChart.destroy(); demandChart = null; }
-        if (!data.length) { drawEmpty(canvas); return; }
-
-        demandChart = new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels: data.map(function(r){ return r.sku; }),
-                datasets: [
-                    { label: '<?= $block->escapeJs(__('Qty Sold')) ?>', data: data.map(function(r){ return parseFloat(r.qty_sold_30d); }), backgroundColor: 'rgba(99,102,241,0.8)' },
-                    { label: '<?= $block->escapeJs(__('Current Stock')) ?>', data: data.map(function(r){ return parseFloat(r.current_stock); }), backgroundColor: 'rgba(16,185,129,0.8)' }
-                ]
-            },
-            options: { responsive: true }
-        });
-    }
-
-    // Period tabs — only the demand chart is period-sensitive (stock KPIs are current)
-    $('.ai-period-tab').on('click', function() {
-        $('.ai-period-tab').removeClass('active');
-        $(this).addClass('active');
-        renderDemand($(this).data('period'));
-    });
-
-    renderDemand('month');
-});
+<script type="text/x-magento-init">
+<?= /* @noEscape */ json_encode(
+    ['[data-role=mxi-root]' => ['Meetanshi_AIReporting/js/inventory-report' => $config]],
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+) ?>
 </script>

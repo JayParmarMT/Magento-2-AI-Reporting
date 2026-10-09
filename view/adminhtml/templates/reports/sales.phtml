@@ -1,352 +1,353 @@
 <?php
-/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Sales $block */
-$kpi           = $block->getKpiCards();
-$monthly       = $block->getRevenueByMonth();
-$daily         = $block->getRevenueByDay();
-$statuses      = $block->getOrdersByStatus();
-$statusPeriod  = $block->getOrdersByStatusPerPeriod();
-$revSeries     = $block->getRevenueTimeSeriesPerPeriod();
-$dowPeriod     = $block->getRevenueByDayOfWeekPerPeriod();
-$shipping = $block->getRevenueByShipping();
-$coupons  = $block->getCouponUsage();
-$regions  = $block->getRevenueByRegion();
-$refunds  = $block->getRefundSummary();
-$dow      = $block->getRevenueByDayOfWeek();
+/**
+ * Meetanshi AIReporting — Sales & Revenue Intelligence
+ *
+ * Content area only (Magento's admin menu and header are untouched). The skeleton below is
+ * filled by Meetanshi_AIReporting/js/sales-report from the view model's data, on load and
+ * whenever the range changes. Shared styles in css/prebuilt_report.css, page styles in
+ * css/sales_report.css.
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+
+/** @var \Magento\Backend\Block\Template $block */
+/** @var \Magento\Framework\Escaper $escaper */
+/** @var \Meetanshi\AIReporting\ViewModel\SalesRevenue $viewModel */
+$viewModel = $block->getData('view_model');
+$config    = $viewModel->getJsConfig();
+$range     = $config['data']['range'];
 ?>
-<div class="meetanshi-aireporting-wrap">
+<div class="mxd mxc mxr" data-role="mxr-root">
+    <div class="mxc-body">
 
-    <!-- Header -->
-    <div class="ai-header">
-        <span class="ai-provider-badge">📊 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
-    </div>
-
-    <!-- Period Tabs -->
-    <div class="ai-period-tabs">
-        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
-        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
-        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
-        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
-    </div>
-
-    <!-- KPI Cards -->
-    <div class="ai-stats-grid" id="ai-kpi-grid">
-        <?php foreach (['today','week','month','year'] as $period): ?>
-        <div class="ai-kpi-panel" data-period="<?= $period ?>" style="<?= $period !== 'month' ? 'display:none' : '' ?>">
-            <div class="ai-stats-grid">
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Revenue')) ?></div>
-                    <div class="ai-stat-value ai-stat-green"><?= $block->escapeHtml($block->formatCurrency((float)($kpi[$period]['revenue'] ?? 0))) ?></div>
+        <!-- Header -->
+        <section class="mxc-card mxc-header">
+            <div class="mxc-header__title">
+                <nav class="mxd-crumbs" aria-label="<?= $escaper->escapeHtmlAttr(__('Breadcrumb')) ?>">
+                    <span><?= $escaper->escapeHtml(__('Meetanshi Extensions')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <span><?= $escaper->escapeHtml(__('Pre-built Reports')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <strong><?= $escaper->escapeHtml(__('Sales & Revenue Report')) ?></strong>
+                </nav>
+                <div class="mxc-titlerow">
+                    <h1 class="mxd-h1 mxc-h1"><?= $escaper->escapeHtml(__('Sales & Revenue Intelligence')) ?></h1>
+                    <div class="mxc-badges">
+                        <span class="mxc-badge mxc-badge--brand">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
+                            <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
+                        </span>
+                        <span class="mxc-badge">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">dataset</span>
+                            <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
+                        </span>
+                        <?php if ($viewModel->getStoreLabel() !== ''): ?>
+                            <span class="mxc-badge mxc-badge--slate">
+                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                                <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                            </span>
+                        <?php endif; ?>
+                    </div>
                 </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Orders')) ?></div>
-                    <div class="ai-stat-value"><?= (int)($kpi[$period]['orders'] ?? 0) ?></div>
+                <p class="mxc-note">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
+                    <span>
+                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
+                        <?= $escaper->escapeHtml(__('Currency: %1', $viewModel->getCurrencyLabel())) ?> ·
+                        <?= $escaper->escapeHtml(__('Net rules:')) ?>
+                        <code class="mxr-code"><?= $escaper->escapeHtml($viewModel->getNetRule()) ?></code>
+                    </span>
+                </p>
+            </div>
+
+            <div class="mxc-header__actions">
+                <div class="mxc-rangebox">
+                    <div class="mxc-range" role="group" aria-label="<?= $escaper->escapeHtmlAttr(__('Date range')) ?>" data-role="range">
+                        <?php foreach ($viewModel->getPresetRanges() as $key => $label): ?>
+                            <button type="button" data-range="<?= $escaper->escapeHtmlAttr($key) ?>"
+                                    class="<?= $key === $range['key'] ? 'is-active' : '' ?>"><?= $escaper->escapeHtml($label) ?></button>
+                        <?php endforeach; ?>
+                        <button type="button" class="mxc-range__cal" data-role="custom-toggle" data-range="custom"
+                                aria-expanded="false" title="<?= $escaper->escapeHtmlAttr(__('Custom date range')) ?>">
+                            <span class="mxd-ico mxd-ico--md" aria-hidden="true">calendar_today</span>
+                        </button>
+                    </div>
+                    <div class="mxc-custom" data-role="custom-range" hidden>
+                        <input type="date" class="mxd-input" data-role="custom-start" aria-label="<?= $escaper->escapeHtmlAttr(__('From')) ?>">
+                        <span class="mxd-muted">–</span>
+                        <input type="date" class="mxd-input" data-role="custom-end" aria-label="<?= $escaper->escapeHtmlAttr(__('To')) ?>">
+                        <button type="button" class="mxd-btn mxd-btn--primary" data-role="custom-apply"><?= $escaper->escapeHtml(__('Apply')) ?></button>
+                    </div>
+                    <span class="mxc-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($range['label']) ?></span>
                 </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Avg Order Value')) ?></div>
-                    <div class="ai-stat-value ai-stat-blue"><?= $block->escapeHtml($block->formatCurrency((float)($kpi[$period]['aov'] ?? 0))) ?></div>
+                <div class="mxc-header__buttons">
+                    <div class="mxr-dropdown">
+                        <button type="button" class="mxd-btn" data-role="csv-toggle" aria-haspopup="true" aria-expanded="false">
+                            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
+                            <span><?= $escaper->escapeHtml(__('CSV')) ?></span>
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">expand_more</span>
+                        </button>
+                        <div class="mxr-menu" data-role="csv-menu" role="menu" hidden>
+                            <button type="button" role="menuitem" data-export="summary">
+                                <span class="mxd-ico mxd-ico--sm" aria-hidden="true">summarize</span>
+                                <span>
+                                    <strong><?= $escaper->escapeHtml(__('Report summary')) ?></strong>
+                                    <small><?= $escaper->escapeHtml(__('Every section of this page')) ?></small>
+                                </span>
+                            </button>
+                            <button type="button" role="menuitem" data-export="orders">
+                                <span class="mxd-ico mxd-ico--sm" aria-hidden="true">receipt_long</span>
+                                <span>
+                                    <strong><?= $escaper->escapeHtml(__('Order lines')) ?></strong>
+                                    <small><?= $escaper->escapeHtml(__('Every order placed in the range')) ?></small>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="button" class="mxd-btn" data-role="print"
+                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
+                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
+                    </button>
+                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
+                        <span class="mxd-ico mxd-ico--sm mxc-ico-soft" aria-hidden="true">auto_awesome</span>
+                        <span><?= $escaper->escapeHtml(__('Ask Copilot about Report')) ?></span>
+                    </button>
                 </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Refunds')) ?></div>
-                    <div class="ai-stat-value ai-stat-red"><?= $block->escapeHtml($block->formatCurrency((float)($refunds['total_refunded'] ?? 0))) ?></div>
+            </div>
+        </section>
+
+        <div class="mxd-error" data-role="error" hidden></div>
+
+        <div class="mxc-period" data-role="period">
+            <!-- KPI cards -->
+            <div class="mxc-kpis mxr-kpis" data-role="kpis"></div>
+
+            <!-- Ticker -->
+            <div class="mxc-ticker">
+                <div class="mxc-ticker__metrics" data-role="ticker"></div>
+                <div class="mxc-ticker__sql">
+                    <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">speed</span>
+                    <span class="mxd-mono" data-role="latency"></span>
                 </div>
             </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
 
-    <!-- Charts Row 1 -->
-    <div class="ai-charts-row">
-        <!-- Revenue Trend (period-aware) -->
-        <div class="ai-chart-card ai-chart-wide">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue Trend')) ?> <span id="ai-revenue-period-label" class="ai-chart-subtitle"></span></h3>
+            <!-- Velocity + order lifecycle -->
+            <div class="mxr-row mxr-row--8-4">
+                <section class="mxc-card mxc-card--column">
+                    <header class="mxc-card__head mxc-card__head--split">
+                        <div>
+                            <h2 class="mxd-h2" data-role="trend-title"></h2>
+                            <p class="mxd-sub" data-role="trend-sub"></p>
+                        </div>
+                        <div class="mxc-legend">
+                            <span><i class="mxc-swatch mxc-swatch--brand"></i><?= $escaper->escapeHtml(__('Net Revenue')) ?></span>
+                            <span><i class="mxr-swatch-line"></i><?= $escaper->escapeHtml(__('Orders Count')) ?></span>
+                        </div>
+                    </header>
+                    <div class="mxr-chart mxr-chart--trend">
+                        <canvas data-role="trend-chart"></canvas>
+                        <p class="mxr-chart__empty" data-role="trend-empty" hidden><?= $escaper->escapeHtml(__('No sales in this range')) ?></p>
+                    </div>
+                </section>
+
+                <section class="mxc-card mxc-card--column">
+                    <header class="mxc-card__head mxc-card__head--split">
+                        <div>
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Order Lifecycle Share')) ?></h2>
+                            <p class="mxd-sub"><?= $escaper->escapeHtml(__('Every order placed, by status')) ?></p>
+                        </div>
+                        <span class="mxd-ico mxd-ico--md mxd-muted" aria-hidden="true">donut_large</span>
+                    </header>
+                    <div class="mxc-donut mxr-donut">
+                        <canvas data-role="status-chart"></canvas>
+                        <div class="mxc-donut__center">
+                            <span class="mxc-donut__value" data-role="status-total"></span>
+                            <span class="mxc-donut__label"><?= $escaper->escapeHtml(__('Total Orders')) ?></span>
+                        </div>
+                    </div>
+                    <ul class="mxr-statuslist" data-role="statuses"></ul>
+                </section>
             </div>
-            <canvas id="chart-revenue-monthly" height="80"></canvas>
-        </div>
 
-        <!-- Orders by Status -->
-        <div class="ai-chart-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Orders by Status')) ?> <span id="ai-status-period-label" class="ai-chart-subtitle"></span></h3>
+            <!-- Daily trajectory + weekday distribution -->
+            <div class="mxr-row mxr-row--7-5">
+                <section class="mxc-card mxc-card--column">
+                    <header class="mxc-card__head mxc-card__head--split">
+                        <div>
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Daily Revenue Trajectory (Last 30 Days)')) ?></h2>
+                            <p class="mxd-sub" data-role="daily-sub"></p>
+                        </div>
+                        <span class="mxr-peaktag" data-role="daily-peak" hidden></span>
+                    </header>
+                    <div class="mxr-chart mxr-chart--grow"><canvas data-role="daily-chart"></canvas></div>
+                </section>
+
+                <section class="mxc-card mxc-card--column">
+                    <header class="mxc-card__head mxc-card__head--split">
+                        <div>
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Day-of-Week Distribution')) ?></h2>
+                            <p class="mxd-sub"><?= $escaper->escapeHtml(__('Net revenue by weekday in the selected range')) ?></p>
+                        </div>
+                        <span class="mxd-ico mxd-ico--md mxd-muted" aria-hidden="true">view_week</span>
+                    </header>
+                    <div class="mxr-weekdays" data-role="weekdays"></div>
+                    <div class="mxr-hint" data-role="weekday-hint" hidden></div>
+                </section>
             </div>
-            <canvas id="chart-order-status" height="180"></canvas>
-        </div>
-    </div>
 
-    <!-- Charts Row 2 -->
-    <div class="ai-charts-row">
-        <!-- Daily Revenue (period-aware) -->
-        <div class="ai-chart-card ai-chart-wide">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Daily Revenue')) ?> <span id="ai-daily-period-label" class="ai-chart-subtitle"></span></h3>
+            <!-- Regions + shipping -->
+            <div class="mxr-row mxr-row--7-5">
+                <section class="mxc-card mxc-card--column">
+                    <header class="mxc-card__head mxc-card__head--split">
+                        <div>
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Revenue by State & Region (Top Markets)')) ?></h2>
+                            <p class="mxd-sub"><?= $escaper->escapeHtml(__('Shipping address; billing address for virtual orders')) ?></p>
+                        </div>
+                        <button type="button" class="mxd-link mxr-viewall" data-role="regions-toggle" hidden>
+                            <span data-role="regions-toggle-label"></span>
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                        </button>
+                    </header>
+                    <div class="mxc-tablewrap">
+                        <table class="mxc-table mxr-table">
+                            <thead>
+                                <tr>
+                                    <th><?= $escaper->escapeHtml(__('State / Region')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('Orders')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('Net Revenue')) ?></th>
+                                    <th><?= $escaper->escapeHtml(__('GMV Share')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('AOV')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('Tax Coll.')) ?></th>
+                                </tr>
+                            </thead>
+                            <tbody data-role="regions"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="mxc-card mxc-card--column">
+                    <header class="mxc-card__head mxc-card__head--split">
+                        <div>
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Shipping & Fulfillment Methods')) ?></h2>
+                            <p class="mxd-sub"><?= $escaper->escapeHtml(__('Revenue, shipping charged and orders shipped per method')) ?></p>
+                        </div>
+                        <span class="mxd-ico mxd-ico--md mxd-muted" aria-hidden="true">local_shipping</span>
+                    </header>
+                    <div class="mxc-tablewrap">
+                        <table class="mxc-table mxr-table">
+                            <thead>
+                                <tr>
+                                    <th><?= $escaper->escapeHtml(__('Method')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('Orders')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('Revenue')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('Avg Fee')) ?></th>
+                                    <th class="mxc-r"><?= $escaper->escapeHtml(__('Fulfilled')) ?></th>
+                                </tr>
+                            </thead>
+                            <tbody data-role="shipping"></tbody>
+                        </table>
+                    </div>
+                    <div class="mxr-hint mxr-hint--split" data-role="shipping-hint" hidden></div>
+                </section>
             </div>
-            <canvas id="chart-revenue-daily" height="80"></canvas>
+
+            <!-- Promotions -->
+            <section class="mxc-card">
+                <header class="mxc-card__head mxc-card__head--split">
+                    <div>
+                        <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Coupon & Promotional Code Performance')) ?></h2>
+                        <p class="mxd-sub"><?= $escaper->escapeHtml(__('Cart price rules and coupon codes applied to orders in the range. An order with several rules counts under each.')) ?></p>
+                    </div>
+                    <div class="mxr-roi" data-role="roi"></div>
+                </header>
+                <div class="mxc-tablewrap">
+                    <table class="mxc-table mxr-table">
+                        <thead>
+                            <tr>
+                                <th><?= $escaper->escapeHtml(__('Coupon Code')) ?></th>
+                                <th><?= $escaper->escapeHtml(__('Campaign Type')) ?></th>
+                                <th class="mxc-r"><?= $escaper->escapeHtml(__('Orders Used')) ?></th>
+                                <th class="mxc-r"><?= $escaper->escapeHtml(__('Discount Total')) ?></th>
+                                <th class="mxc-r"><?= $escaper->escapeHtml(__('Revenue Driven')) ?></th>
+                                <th class="mxc-r"><?= $escaper->escapeHtml(__('AOV with Code')) ?></th>
+                                <th class="mxc-r"><?= $escaper->escapeHtml(__('Status')) ?></th>
+                            </tr>
+                        </thead>
+                        <tbody data-role="promotions"></tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
-        <!-- Revenue by Day of Week -->
-        <div class="ai-chart-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue by Day of Week')) ?> <span id="ai-dow-period-label" class="ai-chart-subtitle"></span></h3>
+        <!-- Copilot analysis -->
+        <section class="mxc-copilot" data-role="copilot">
+            <header class="mxc-copilot__head">
+                <div class="mxc-titleline">
+                    <span class="mxd-ico mxd-ico--lg mxd-text-brand" aria-hidden="true">auto_awesome</span>
+                    <h3 class="mxd-h3 mxd-h3--light"><?= $escaper->escapeHtml(__('Store Intelligence Copilot Analysis')) ?></h3>
+                    <span class="mxc-copilot__model"><?= $escaper->escapeHtml(__('Rule-based · from the figures above')) ?></span>
+                </div>
+                <span class="mxd-mono mxc-copilot__runtime" data-role="runtime"></span>
+            </header>
+            <div class="mxc-copilot__insight" data-role="insight"></div>
+            <div class="mxc-copilot__actions">
+                <div class="mxc-copilot__buttons">
+                    <button type="button" class="mxc-darkbtn" data-role="ask-region">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">groups</span>
+                        <span data-role="ask-region-label"><?= $escaper->escapeHtml(__('Analyze Top Region Cohort')) ?></span>
+                    </button>
+                    <button type="button" class="mxc-darkbtn" data-role="ask-compare">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">compare_arrows</span>
+                        <span><?= $escaper->escapeHtml(__('Compare with Previous Period')) ?></span>
+                    </button>
+                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-toggle" aria-expanded="false">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">chat</span>
+                        <span><?= $escaper->escapeHtml(__('Ask Follow-up')) ?></span>
+                    </button>
+                </div>
+                <div class="mxc-sqlbar">
+                    <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">database</span>
+                    <span class="mxc-sqlbar__text" data-role="sql-text"></span>
+                    <button type="button" class="mxc-linkbtn" data-role="sql-copy">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
+                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy Raw SQL')) ?></span>
+                    </button>
+                </div>
             </div>
-            <canvas id="chart-dow" height="180"></canvas>
-        </div>
-    </div>
-
-    <!-- Tables Row -->
-    <div class="ai-tables-row">
-
-        <!-- Coupon Usage -->
-        <?php if (!empty($coupons)): ?>
-        <div class="ai-table-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Coupon Usage')) ?></h3>
+            <div class="mxc-ask" data-role="ask-panel" hidden>
+                <p class="mxc-ask__engine">
+                    <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                    <span class="mxd-mono"><?= $escaper->escapeHtml(__('Follow-ups use %1: %2', $config['provider'], $config['model'])) ?></span>
+                </p>
+                <form class="mxc-ask__form" data-role="ask-form">
+                    <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
+                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask about your sales (e.g. \'Net revenue by payment method this month\')...')) ?>"
+                           aria-label="<?= $escaper->escapeHtmlAttr(__('Ask about your sales')) ?>">
+                    <button type="submit" class="mxd-btn mxd-btn--primary" data-role="ask-submit">
+                        <span><?= $escaper->escapeHtml(__('Ask')) ?></span>
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                    </button>
+                </form>
+                <div class="mxc-quick">
+                    <?php foreach ([
+                        __('Net revenue by payment method this month'),
+                        __('Refund rate by payment method'),
+                        __('Average order value by customer group this year'),
+                    ] as $question): ?>
+                        <button type="button" class="mxc-chip" data-question="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="mxc-answer" data-role="answer" hidden></div>
             </div>
-            <table class="ai-table">
-                <thead><tr>
-                    <th><?= $block->escapeHtml(__('Coupon Code')) ?></th>
-                    <th><?= $block->escapeHtml(__('Used')) ?></th>
-                    <th><?= $block->escapeHtml(__('Revenue')) ?></th>
-                    <th><?= $block->escapeHtml(__('Discount')) ?></th>
-                    <th><?= $block->escapeHtml(__('AOV')) ?></th>
-                </tr></thead>
-                <tbody>
-                <?php foreach ($coupons as $coupon): ?>
-                <tr>
-                    <td><strong><?= $block->escapeHtml($coupon['coupon_code']) ?></strong></td>
-                    <td><?= (int)$coupon['times_used'] ?></td>
-                    <td><?= $block->escapeHtml($block->formatCurrency((float)$coupon['revenue'])) ?></td>
-                    <td class="ai-text-red">-<?= $block->escapeHtml($block->formatCurrency((float)$coupon['total_discount'])) ?></td>
-                    <td><?= $block->escapeHtml($block->formatCurrency((float)$coupon['avg_order_value'])) ?></td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-
-        <!-- Revenue by Region -->
-        <?php if (!empty($regions)): ?>
-        <div class="ai-table-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue by Region')) ?></h3>
-            </div>
-            <table class="ai-table">
-                <thead><tr>
-                    <th><?= $block->escapeHtml(__('State/Region')) ?></th>
-                    <th><?= $block->escapeHtml(__('Orders')) ?></th>
-                    <th><?= $block->escapeHtml(__('Revenue')) ?></th>
-                </tr></thead>
-                <tbody>
-                <?php foreach ($regions as $region): ?>
-                <tr>
-                    <td><?= $block->escapeHtml($region['state']) ?></td>
-                    <td><?= (int)$region['orders'] ?></td>
-                    <td><?= $block->escapeHtml($block->formatCurrency((float)$region['revenue'])) ?></td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-
-        <!-- Shipping Methods -->
-        <?php if (!empty($shipping)): ?>
-        <div class="ai-table-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Revenue by Shipping Method')) ?></h3>
-            </div>
-            <table class="ai-table">
-                <thead><tr>
-                    <th><?= $block->escapeHtml(__('Method')) ?></th>
-                    <th><?= $block->escapeHtml(__('Orders')) ?></th>
-                    <th><?= $block->escapeHtml(__('Revenue')) ?></th>
-                    <th><?= $block->escapeHtml(__('AOV')) ?></th>
-                </tr></thead>
-                <tbody>
-                <?php foreach ($shipping as $ship): ?>
-                <tr>
-                    <td><?= $block->escapeHtml($ship['shipping_method']) ?></td>
-                    <td><?= (int)$ship['orders'] ?></td>
-                    <td><?= $block->escapeHtml($block->formatCurrency((float)$ship['revenue'])) ?></td>
-                    <td><?= $block->escapeHtml($block->formatCurrency((float)$ship['aov'])) ?></td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
-
+        </section>
     </div>
 </div>
-
-<script>
-require(['jquery', 'chartjs'], function($, Chart) {
-
-    // ── Per-period datasets (preloaded for all 4 periods) ──────────────────
-    var statusByPeriod  = <?= /* @noEscape */ json_encode($statusPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var revByPeriod     = <?= /* @noEscape */ json_encode($revSeries, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var dowByPeriod     = <?= /* @noEscape */ json_encode($dowPeriod, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-
-    var periodLabels = {
-        today: '<?= $block->escapeJs(__('(Today)')) ?>',
-        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
-        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
-        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
-    };
-    var statusColors = ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#ec4899','#0ea5e9'];
-    var dowColors    = ['#6366f1','#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe','#f5f3ff'];
-
-    var statusChart = null, revenueChart = null, dailyChart = null, dowChart = null;
-
-    var EMPTY_MSG = '<?= $block->escapeJs(__('No data in this period')) ?>';
-
-    function drawEmpty(canvas) {
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.font = '14px sans-serif';
-        ctx.fillStyle = '#9ca3af';
-        ctx.textAlign = 'center';
-        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
-        ctx.restore();
-    }
-
-    // ── Orders by Status (doughnut) ────────────────────────────────────────
-    function renderStatusChart(period) {
-        var data = statusByPeriod[period] || [];
-        $('#ai-status-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-order-status');
-        if (statusChart) { statusChart.destroy(); statusChart = null; }
-        if (!data.length) { drawEmpty(canvas); return; }
-
-        statusChart = new Chart(canvas, {
-            type: 'doughnut',
-            data: {
-                labels: data.map(function(r){ return r.status; }),
-                datasets: [{
-                    data: data.map(function(r){ return parseInt(r.orders); }),
-                    backgroundColor: statusColors
-                }]
-            },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-        });
-    }
-
-    // ── Revenue Trend (bar + orders line) ──────────────────────────────────
-    function renderRevenueChart(period) {
-        var data = revByPeriod[period] || [];
-        $('#ai-revenue-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-revenue-monthly');
-        if (revenueChart) { revenueChart.destroy(); revenueChart = null; }
-        var hasData = data.some(function(r){ return parseFloat(r.revenue) > 0 || parseInt(r.orders) > 0; });
-        if (!data.length || !hasData) { drawEmpty(canvas); return; }
-
-        revenueChart = new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels: data.map(function(r){ return r.label; }),
-                datasets: [
-                    {
-                        label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                        data: data.map(function(r){ return parseFloat(r.revenue); }),
-                        backgroundColor: 'rgba(99,102,241,0.8)',
-                        borderColor: 'rgba(99,102,241,1)',
-                        borderWidth: 1,
-                        yAxisID: 'y'
-                    },
-                    {
-                        label: '<?= $block->escapeJs(__('Orders')) ?>',
-                        data: data.map(function(r){ return parseInt(r.orders); }),
-                        type: 'line',
-                        borderColor: 'rgba(16,185,129,1)',
-                        backgroundColor: 'rgba(16,185,129,0.1)',
-                        borderWidth: 2,
-                        fill: false,
-                        yAxisID: 'y1',
-                        tension: 0.4
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                interaction: { mode: 'index', intersect: false },
-                scales: {
-                    y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Revenue ($)' } },
-                    y1: { type: 'linear', position: 'right', title: { display: true, text: 'Orders' }, grid: { drawOnChartArea: false } }
-                }
-            }
-        });
-    }
-
-    // ── Daily/period Revenue (line) ────────────────────────────────────────
-    function renderDailyChart(period) {
-        var data = revByPeriod[period] || [];
-        $('#ai-daily-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-revenue-daily');
-        if (dailyChart) { dailyChart.destroy(); dailyChart = null; }
-        var hasData = data.some(function(r){ return parseFloat(r.revenue) > 0; });
-        if (!data.length || !hasData) { drawEmpty(canvas); return; }
-
-        dailyChart = new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels: data.map(function(r){ return r.label; }),
-                datasets: [{
-                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                    data: data.map(function(r){ return parseFloat(r.revenue); }),
-                    borderColor: 'rgba(99,102,241,1)',
-                    backgroundColor: 'rgba(99,102,241,0.1)',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: { responsive: true, plugins: { legend: { display: false } } }
-        });
-    }
-
-    // ── Revenue by Day of Week (bar) ───────────────────────────────────────
-    function renderDowChart(period) {
-        var data = dowByPeriod[period] || [];
-        $('#ai-dow-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-dow');
-        if (dowChart) { dowChart.destroy(); dowChart = null; }
-        var hasData = data.some(function(r){ return parseFloat(r.revenue) > 0; });
-        if (!data.length || !hasData) { drawEmpty(canvas); return; }
-
-        dowChart = new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels: data.map(function(r){ return r.day_name; }),
-                datasets: [{
-                    label: '<?= $block->escapeJs(__('Revenue ($)')) ?>',
-                    data: data.map(function(r){ return parseFloat(r.revenue); }),
-                    backgroundColor: dowColors
-                }]
-            },
-            options: { responsive: true, plugins: { legend: { display: false } } }
-        });
-    }
-
-    // ── Render all charts for a given period ───────────────────────────────
-    function renderAllCharts(period) {
-        renderRevenueChart(period);
-        renderStatusChart(period);
-        renderDailyChart(period);
-        renderDowChart(period);
-    }
-
-    // Period tabs — update KPI panels AND every chart
-    $('.ai-period-tab').on('click', function() {
-        $('.ai-period-tab').removeClass('active');
-        $(this).addClass('active');
-        var period = $(this).data('period');
-        $('.ai-kpi-panel').hide();
-        $('.ai-kpi-panel[data-period="' + period + '"]').show();
-        renderAllCharts(period);
-    });
-
-    // Initial render — "This Month" is the active tab on load
-    renderAllCharts('month');
-});
+<script type="text/x-magento-init">
+<?= /* @noEscape */ json_encode(
+    ['[data-role=mxr-root]' => ['Meetanshi_AIReporting/js/sales-report' => $config]],
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+) ?>
 </script>

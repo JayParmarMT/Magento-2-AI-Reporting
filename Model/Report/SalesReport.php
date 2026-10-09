@@ -448,4 +448,395 @@ class SalesReport
               AND o.created_at >= ? AND o.created_at < ?
         "), [$from, $to]) ?: ['orders' => 0, 'revenue' => 0, 'aov' => 0];
     }
+
+    // ── Range-based figures of the Sales & Revenue page (any local [start, end) range) ──────────
+
+    /**
+     * Totals of a range. Sales figures count orders that are not canceled / pending payment;
+     * all_orders, pending_payment and canceled count every order placed in the range.
+     */
+    public function getRangeTotals(\DateTimeImmutable $start, \DateTimeImmutable $end): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $row = $this->context->getConnection()->fetchRow($this->context->resolveTables($this->getRangeTotalsSql()), [$from, $to]) ?: [];
+
+        $totals = [];
+        foreach (['revenue', 'gross', 'refunded', 'discount', 'tax', 'shipping', 'discounted_revenue'] as $key) {
+            $totals[$key] = round((float) ($row[$key] ?? 0), 2);
+        }
+        foreach (['all_orders', 'orders', 'refund_orders', 'discounted_orders', 'pending_payment', 'canceled'] as $key) {
+            $totals[$key] = (int) ($row[$key] ?? 0);
+        }
+
+        return $totals;
+    }
+
+    /**
+     * The totals query (with ? placeholders for the UTC range), as shown under the copilot panel.
+     */
+    public function getRangeTotalsSql(): string
+    {
+        $valid    = $this->context->validOrderCondition();
+        $rev      = $this->context->orderRevenueExpr();
+        $gross    = $this->context->orderValueExpr();
+        $refunded = $this->context->orderAmountExpr('o.base_total_refunded');
+        $discount = $this->context->orderAmountExpr('ABS(o.base_discount_amount)');
+        $tax      = $this->context->orderAmountExpr('o.base_tax_amount');
+        $shipping = $this->context->orderAmountExpr('o.base_shipping_amount');
+
+        return "SELECT COUNT(*) AS all_orders,
+                COALESCE(SUM({$valid}), 0) AS orders,
+                COALESCE(SUM(IF({$valid}, {$rev}, 0)), 0) AS revenue,
+                COALESCE(SUM(IF({$valid}, {$gross}, 0)), 0) AS gross,
+                COALESCE(SUM(IF({$valid}, {$refunded}, 0)), 0) AS refunded,
+                COALESCE(SUM({$valid} AND o.base_total_refunded > 0), 0) AS refund_orders,
+                COALESCE(SUM(IF({$valid}, {$discount}, 0)), 0) AS discount,
+                COALESCE(SUM({$valid} AND o.base_discount_amount <> 0), 0) AS discounted_orders,
+                COALESCE(SUM(IF({$valid} AND o.base_discount_amount <> 0, {$rev}, 0)), 0) AS discounted_revenue,
+                COALESCE(SUM(IF({$valid}, {$tax}, 0)), 0) AS tax,
+                COALESCE(SUM(IF({$valid}, {$shipping}, 0)), 0) AS shipping,
+                COALESCE(SUM(o.state = 'pending_payment'), 0) AS pending_payment,
+                COALESCE(SUM(o.state = 'canceled'), 0) AS canceled
+            FROM {{sales_order}} o
+            WHERE o.created_at >= ? AND o.created_at < ?";
+    }
+
+    /**
+     * The highest counted order of a range (gross value) with its ship-to region, or null.
+     */
+    public function getTopOrder(\DateTimeImmutable $start, \DateTimeImmutable $end): ?array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $gross = $this->context->orderValueExpr();
+
+        $row = $this->context->getConnection()->fetchRow($this->context->resolveTables("
+            SELECT
+                o.entity_id,
+                o.increment_id,
+                ROUND({$gross}, 2) AS amount,
+                COALESCE(NULLIF(sa.region, ''), NULLIF(ba.region, ''), '') AS region,
+                COALESCE(sa.country_id, ba.country_id, '') AS country
+            FROM {{sales_order}} o
+            LEFT JOIN {{sales_order_address}} sa ON sa.parent_id = o.entity_id AND sa.address_type = 'shipping'
+            LEFT JOIN {{sales_order_address}} ba ON ba.parent_id = o.entity_id AND ba.address_type = 'billing'
+            WHERE {$this->context->validOrderCondition()}
+              AND o.created_at >= ? AND o.created_at < ?
+            ORDER BY amount DESC, o.entity_id DESC
+            LIMIT 1
+        "), [$from, $to]);
+
+        return $row ? [
+            'order_id'     => (int) $row['entity_id'],
+            'increment_id' => (string) $row['increment_id'],
+            'amount'       => (float) $row['amount'],
+            'region'       => (string) $row['region'],
+            'country'      => (string) $row['country'],
+        ] : null;
+    }
+
+    /**
+     * Credit memos created in a range: count and refunded amount.
+     */
+    public function getCreditMemoTotals(\DateTimeImmutable $start, \DateTimeImmutable $end): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+
+        $row = $this->context->getConnection()->fetchRow($this->context->resolveTables("
+            SELECT
+                COUNT(*) AS memos,
+                COALESCE(SUM(cm.base_grand_total * IFNULL(cm.base_to_global_rate, 1)), 0) AS refunded
+            FROM {{sales_creditmemo}} cm
+            WHERE cm.created_at >= ? AND cm.created_at < ?
+        "), [$from, $to]) ?: [];
+
+        return ['memos' => (int) ($row['memos'] ?? 0), 'refunded' => round((float) ($row['refunded'] ?? 0), 2)];
+    }
+
+    /**
+     * Net revenue and orders per hour, day or month of a range, with empty buckets filled in.
+     *
+     * @return array<int, array{key: string, label: string, orders: int, revenue: float}>
+     */
+    public function getRevenueSeries(\DateTimeImmutable $start, \DateTimeImmutable $end, string $unit): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $local = $this->context->localTimeExpr('o.created_at', $start, $end);
+        $rev   = $this->context->orderRevenueExpr();
+        $group = match ($unit) {
+            'hour'  => "DATE_FORMAT({$local}, '%Y-%m-%d %H:00')",
+            'month' => "DATE_FORMAT({$local}, '%Y-%m')",
+            default => "DATE({$local})",
+        };
+
+        $rows = $this->context->getConnection()->fetchAll($this->context->resolveTables("
+            SELECT
+                {$group} AS bucket,
+                COUNT(*) AS orders,
+                ROUND(SUM({$rev}), 2) AS revenue
+            FROM {{sales_order}} o
+            WHERE {$this->context->validOrderCondition()}
+              AND o.created_at >= ? AND o.created_at < ?
+            GROUP BY bucket
+            ORDER BY bucket ASC
+        "), [$from, $to]);
+
+        $byKey  = array_column($rows, null, 'bucket');
+        $series = [];
+        [$step, $keyFormat, $labelFormat] = match ($unit) {
+            'hour'  => ['+1 hour', 'Y-m-d H:00', 'H:00'],
+            'month' => ['first day of next month', 'Y-m', 'M Y'],
+            default => ['+1 day', 'Y-m-d', 'M j'],
+        };
+        $cursor = $unit === 'month' ? $start->modify('first day of this month') : $start;
+
+        for (; $cursor < $end; $cursor = $cursor->modify($step)) {
+            $key = $cursor->format($keyFormat);
+            $series[] = [
+                'key'     => $key,
+                'label'   => $cursor->format($labelFormat),
+                'orders'  => (int) ($byKey[$key]['orders'] ?? 0),
+                'revenue' => (float) ($byKey[$key]['revenue'] ?? 0),
+            ];
+        }
+
+        return $series;
+    }
+
+    /**
+     * Every order placed in a range by status (all states), with gross order value.
+     */
+    public function getStatusBreakdown(\DateTimeImmutable $start, \DateTimeImmutable $end): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+
+        $rows = $this->context->getConnection()->fetchAll($this->context->resolveTables("
+            SELECT
+                o.status,
+                o.state,
+                COALESCE(st.label, o.status) AS label,
+                COUNT(*) AS orders,
+                ROUND(SUM({$this->context->orderValueExpr()}), 2) AS value
+            FROM {{sales_order}} o
+            LEFT JOIN {{sales_order_status}} st ON st.status = o.status
+            WHERE o.created_at >= ? AND o.created_at < ?
+            GROUP BY o.status, o.state, st.label
+            ORDER BY orders DESC, value DESC
+        "), [$from, $to]);
+
+        return array_map(static fn (array $row): array => [
+            'status'  => (string) $row['status'],
+            'state'   => (string) $row['state'],
+            'label'   => (string) $row['label'],
+            'orders'  => (int) $row['orders'],
+            'value'   => (float) $row['value'],
+            'counted' => !in_array($row['state'], ReportContext::EXCLUDED_STATES, true),
+        ], $rows);
+    }
+
+    /**
+     * Net revenue, orders and AOV per weekday of a range (Sunday first).
+     */
+    public function getWeekdayBreakdown(\DateTimeImmutable $start, \DateTimeImmutable $end): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $local = $this->context->localTimeExpr('o.created_at', $start, $end);
+        $rev   = $this->context->orderRevenueExpr();
+
+        $rows = $this->context->getConnection()->fetchAll($this->context->resolveTables("
+            SELECT
+                DAYOFWEEK({$local}) AS day_num,
+                COUNT(*) AS orders,
+                ROUND(SUM({$rev}), 2) AS revenue
+            FROM {{sales_order}} o
+            WHERE {$this->context->validOrderCondition()}
+              AND o.created_at >= ? AND o.created_at < ?
+            GROUP BY day_num
+        "), [$from, $to]);
+
+        return array_map(static fn (array $row): array => [
+            'day_num'  => (int) $row['day_num'],
+            'day_name' => (string) $row['day_name'],
+            'orders'   => (int) $row['orders'],
+            'revenue'  => (float) $row['revenue'],
+        ], $this->context->fillDaysOfWeek($rows, ['orders' => 0, 'revenue' => 0]));
+    }
+
+    /**
+     * The local hour (0–23) with the most counted orders in a range, or null without orders.
+     */
+    public function getPeakHour(\DateTimeImmutable $start, \DateTimeImmutable $end): ?int
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $local = $this->context->localTimeExpr('o.created_at', $start, $end);
+
+        $hour = $this->context->getConnection()->fetchOne($this->context->resolveTables("
+            SELECT HOUR({$local}) AS hour_num
+            FROM {{sales_order}} o
+            WHERE {$this->context->validOrderCondition()}
+              AND o.created_at >= ? AND o.created_at < ?
+            GROUP BY hour_num
+            ORDER BY COUNT(*) DESC, SUM({$this->context->orderRevenueExpr()}) DESC
+            LIMIT 1
+        "), [$from, $to]);
+
+        return $hour === false || $hour === null ? null : (int) $hour;
+    }
+
+    /**
+     * Counted orders by ship-to region (billing region for virtual orders), by net revenue.
+     */
+    public function getRegionBreakdown(\DateTimeImmutable $start, \DateTimeImmutable $end, int $limit = 50): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $region  = "COALESCE(NULLIF(sa.region, ''), NULLIF(ba.region, ''), '')";
+        $country = "COALESCE(sa.country_id, ba.country_id, '')";
+
+        $rows = $this->context->getConnection()->fetchAll($this->context->resolveTables("
+            SELECT
+                {$region} AS region,
+                {$country} AS country,
+                COUNT(*) AS orders,
+                ROUND(SUM({$this->context->orderRevenueExpr()}), 2) AS revenue,
+                ROUND(SUM({$this->context->orderAmountExpr('o.base_tax_amount')}), 2) AS tax
+            FROM {{sales_order}} o
+            LEFT JOIN {{sales_order_address}} sa ON sa.parent_id = o.entity_id AND sa.address_type = 'shipping'
+            LEFT JOIN {{sales_order_address}} ba ON ba.parent_id = o.entity_id AND ba.address_type = 'billing'
+            WHERE {$this->context->validOrderCondition()}
+              AND o.created_at >= ? AND o.created_at < ?
+            GROUP BY {$region}, {$country}
+            ORDER BY revenue DESC, orders DESC
+            LIMIT " . max(1, $limit)), [$from, $to]);
+
+        return array_map(static fn (array $row): array => [
+            'region'  => (string) $row['region'],
+            'country' => (string) $row['country'],
+            'orders'  => (int) $row['orders'],
+            'revenue' => (float) $row['revenue'],
+            'tax'     => (float) $row['tax'],
+        ], $rows);
+    }
+
+    /**
+     * Counted orders by shipping method: net revenue, shipping charged and how many orders shipped.
+     */
+    public function getShippingBreakdown(\DateTimeImmutable $start, \DateTimeImmutable $end): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $method      = "COALESCE(NULLIF(o.shipping_method, ''), '')";
+        $description = "COALESCE(NULLIF(o.shipping_description, ''), '')";
+
+        $rows = $this->context->getConnection()->fetchAll($this->context->resolveTables("
+            SELECT
+                {$method} AS method,
+                {$description} AS description,
+                COUNT(*) AS orders,
+                ROUND(SUM({$this->context->orderRevenueExpr()}), 2) AS revenue,
+                ROUND(SUM({$this->context->orderAmountExpr('o.base_shipping_amount')}), 2) AS shipping,
+                COALESCE(SUM(o.is_virtual = 1), 0) AS virtual_orders,
+                COALESCE(SUM(sh.order_id IS NOT NULL), 0) AS shipped_orders
+            FROM {{sales_order}} o
+            LEFT JOIN (SELECT DISTINCT order_id FROM {{sales_shipment}}) sh ON sh.order_id = o.entity_id
+            WHERE {$this->context->validOrderCondition()}
+              AND o.created_at >= ? AND o.created_at < ?
+            GROUP BY {$method}, {$description}
+            ORDER BY revenue DESC, orders DESC
+            LIMIT 20
+        "), [$from, $to]);
+
+        return array_map(static fn (array $row): array => [
+            'method'         => (string) $row['method'],
+            'description'    => (string) $row['description'],
+            'orders'         => (int) $row['orders'],
+            'revenue'        => (float) $row['revenue'],
+            'shipping'       => (float) $row['shipping'],
+            'virtual_orders' => (int) $row['virtual_orders'],
+            'shipped_orders' => (int) $row['shipped_orders'],
+        ], $rows);
+    }
+
+    /**
+     * Counted orders per cart price rule that applied to them (coupon rules split by code).
+     * An order with several rules counts under each with its whole revenue; its discount counts
+     * only under rules that give one (not under a free-shipping-only rule).
+     */
+    public function getPromotionBreakdown(\DateTimeImmutable $start, \DateTimeImmutable $end, int $limit = 30): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+        $code = "IF(r.coupon_type = 1, '', COALESCE(o.coupon_code, ''))";
+
+        $rows = $this->context->getConnection()->fetchAll($this->context->resolveTables("
+            SELECT
+                r.rule_id,
+                r.name,
+                r.coupon_type,
+                r.simple_action,
+                r.discount_amount,
+                r.simple_free_shipping,
+                r.is_active,
+                r.from_date,
+                r.to_date,
+                {$code} AS code,
+                COUNT(*) AS orders,
+                ROUND(SUM(IF(r.discount_amount > 0, {$this->context->orderAmountExpr('ABS(o.base_discount_amount)')}, 0)), 2) AS discount,
+                ROUND(SUM({$this->context->orderRevenueExpr()}), 2) AS revenue
+            FROM {{sales_order}} o
+            INNER JOIN {{salesrule}} r ON FIND_IN_SET(r.rule_id, o.applied_rule_ids){$this->context->currentVersionCondition('r')}
+            WHERE {$this->context->validOrderCondition()}
+              AND o.applied_rule_ids IS NOT NULL AND o.applied_rule_ids <> ''
+              AND o.created_at >= ? AND o.created_at < ?
+            GROUP BY r.rule_id, r.name, r.coupon_type, r.simple_action, r.discount_amount, r.simple_free_shipping,
+                     r.is_active, r.from_date, r.to_date, {$code}
+            ORDER BY revenue DESC, orders DESC
+            LIMIT " . max(1, $limit)), [$from, $to]);
+
+        return array_map(static fn (array $row): array => [
+            'rule_id'         => (int) $row['rule_id'],
+            'name'            => (string) $row['name'],
+            'code'            => (string) $row['code'],
+            'coupon_type'     => (int) $row['coupon_type'],
+            'simple_action'   => (string) $row['simple_action'],
+            'discount_amount' => (float) $row['discount_amount'],
+            'free_shipping'   => (int) $row['simple_free_shipping'] > 0,
+            'is_active'       => (bool) $row['is_active'],
+            'from_date'       => $row['from_date'] ? (string) $row['from_date'] : null,
+            'to_date'         => $row['to_date'] ? (string) $row['to_date'] : null,
+            'orders'          => (int) $row['orders'],
+            'discount'        => (float) $row['discount'],
+            'revenue'         => (float) $row['revenue'],
+        ], $rows);
+    }
+
+    /**
+     * Every order placed in a range, oldest first, for the order-level CSV export.
+     */
+    public function getOrderLines(\DateTimeImmutable $start, \DateTimeImmutable $end): array
+    {
+        [$from, $to] = $this->context->utcRange($start, $end);
+
+        return $this->context->getConnection()->fetchAll($this->context->resolveTables("
+            SELECT
+                o.increment_id,
+                o.created_at,
+                o.status,
+                o.state,
+                o.customer_email,
+                TRIM(CONCAT_WS(' ', o.customer_firstname, o.customer_lastname)) AS customer_name,
+                o.customer_is_guest,
+                COALESCE(NULLIF(sa.region, ''), NULLIF(ba.region, ''), '') AS region,
+                COALESCE(sa.country_id, ba.country_id, '') AS country,
+                COALESCE(o.shipping_description, '') AS shipping_method,
+                COALESCE(o.coupon_code, '') AS coupon_code,
+                ROUND({$this->context->orderValueExpr()}, 2) AS gross,
+                ROUND({$this->context->orderAmountExpr('ABS(o.base_discount_amount)')}, 2) AS discount,
+                ROUND({$this->context->orderAmountExpr('o.base_tax_amount')}, 2) AS tax,
+                ROUND({$this->context->orderAmountExpr('o.base_shipping_amount')}, 2) AS shipping,
+                ROUND({$this->context->orderAmountExpr('o.base_total_refunded')}, 2) AS refunded,
+                ROUND({$this->context->orderRevenueExpr()}, 2) AS net
+            FROM {{sales_order}} o
+            LEFT JOIN {{sales_order_address}} sa ON sa.parent_id = o.entity_id AND sa.address_type = 'shipping'
+            LEFT JOIN {{sales_order_address}} ba ON ba.parent_id = o.entity_id AND ba.address_type = 'billing'
+            WHERE o.created_at >= ? AND o.created_at < ?
+            ORDER BY o.created_at ASC, o.entity_id ASC
+        "), [$from, $to]);
+    }
 }

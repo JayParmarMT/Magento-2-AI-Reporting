@@ -1,0 +1,287 @@
+<?php
+/**
+ * Meetanshi AIReporting — AI Analytics & Executive Dashboard
+ *
+ * Content area only (Magento's admin menu and header are untouched). The skeleton below is
+ * filled by Meetanshi_AIReporting/js/executive-dashboard from the block's data, on load and on
+ * every refresh. Styles are scoped to .mxd (css/executive_dashboard.css).
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+
+/** @var \Meetanshi\AIReporting\Block\Adminhtml\Dashboard $block */
+/** @var \Magento\Framework\Escaper $escaper */
+?>
+<?php if (!$block->isEnabled()): ?>
+    <div class="message message-warning">
+        <?= $escaper->escapeHtml(__('Meetanshi AI Reporting is disabled. Please enable it in Stores > Configuration > Meetanshi > AI Reporting.')) ?>
+    </div>
+    <?php return; ?>
+<?php endif; ?>
+<?php $config = $block->getJsConfig(); ?>
+<div class="mxd" data-role="mxd-root">
+
+    <!-- Command bar -->
+    <section class="mxd-commandbar">
+        <div class="mxd-commandbar__title">
+            <nav class="mxd-crumbs" aria-label="<?= $escaper->escapeHtmlAttr(__('Breadcrumb')) ?>">
+                <span><?= $escaper->escapeHtml(__('Meetanshi Extensions')) ?></span>
+                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                <span><?= $escaper->escapeHtml(__('AI Reporting')) ?></span>
+                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                <strong><?= $escaper->escapeHtml(__('Executive Intelligence')) ?></strong>
+            </nav>
+            <div class="mxd-titlerow">
+                <h1 class="mxd-h1"><?= $escaper->escapeHtml(__('AI Analytics & Executive Dashboard')) ?></h1>
+                <span class="mxd-platform">
+                    <span class="mxd-dot mxd-dot--brand"></span>
+                    <span><?= $escaper->escapeHtml($block->getPlatformLabel()) ?></span>
+                    <span class="mxd-sep">•</span>
+                    <strong><?= $escaper->escapeHtml($block->getStoreLabel()) ?></strong>
+                </span>
+            </div>
+        </div>
+        <div class="mxd-commandbar__actions">
+            <div class="mxd-engine" data-role="engine">
+                <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">psychology</span>
+                <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                <span class="mxd-mono"><?= $escaper->escapeHtml($config['provider'] . ': ' . $config['model']) ?></span>
+                <span class="mxd-ico mxd-ico--xs mxd-muted" aria-hidden="true"
+                      title="<?= $escaper->escapeHtmlAttr($config['aiConfigured']
+                          ? __('AI provider used by Ask AI, Chat and the assistant below. Change it in Stores > Configuration > Meetanshi > AI Reporting.')
+                          : __('The AI provider is not configured yet. Set it up in Stores > Configuration > Meetanshi > AI Reporting.')) ?>">info</span>
+            </div>
+            <div class="mxd-range">
+                <span class="mxd-ico mxd-ico--md mxd-text-brand" aria-hidden="true">calendar_today</span>
+                <span class="mxd-range__label" data-role="range-label"><?= $escaper->escapeHtml($config['data']['date_range']['label']) ?></span>
+                <span class="mxd-ico mxd-ico--sm mxd-text-brand-dark" aria-hidden="true">arrow_drop_down</span>
+                <select class="mxd-range__select" data-role="range" aria-label="<?= $escaper->escapeHtmlAttr(__('Date range')) ?>">
+                    <?php foreach ($block->getRangeOptions() as $value => $label): ?>
+                        <option value="<?= $escaper->escapeHtmlAttr($value) ?>"<?= $value === 'last_6_months' ? ' selected' : '' ?>><?= $escaper->escapeHtml($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="mxd-range__custom" data-role="custom-range" hidden>
+                    <input type="date" class="mxd-input" data-role="custom-start" aria-label="<?= $escaper->escapeHtmlAttr(__('From')) ?>">
+                    <span class="mxd-muted">–</span>
+                    <input type="date" class="mxd-input" data-role="custom-end" aria-label="<?= $escaper->escapeHtmlAttr(__('To')) ?>">
+                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="custom-apply"><?= $escaper->escapeHtml(__('Apply')) ?></button>
+                </div>
+            </div>
+            <div class="mxd-actions">
+                <button type="button" class="mxd-btn" data-role="live" aria-pressed="false"
+                        title="<?= $escaper->escapeHtmlAttr(__('Refresh every 60 seconds')) ?>">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">sync</span>
+                    <span><?= $escaper->escapeHtml(__('Live')) ?></span>
+                </button>
+                <a class="mxd-btn" data-role="export" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
+                    <span><?= $escaper->escapeHtml(__('Export')) ?></span>
+                </a>
+                <a class="mxd-btn mxd-btn--primary" href="<?= $escaper->escapeUrl($config['askAiUrl']) ?>">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">auto_awesome</span>
+                    <span><?= $escaper->escapeHtml(__('Ask Copilot')) ?></span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="mxd-body" data-role="body">
+        <div class="mxd-error" data-role="error" hidden></div>
+
+        <!-- KPI strip -->
+        <div class="mxd-kpis" data-role="kpis"></div>
+
+        <!-- Row 1: trend + status -->
+        <div class="mxd-row mxd-row--8-4">
+            <section class="mxd-card mxd-card--lg">
+                <header class="mxd-card__head mxd-card__head--split">
+                    <div>
+                        <div class="mxd-card__titlerow">
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Revenue & Order Volume Trend')) ?></h2>
+                            <span class="mxd-tag mxd-tag--mono">sales_order</span>
+                        </div>
+                        <p class="mxd-sub" data-role="trend-sub"></p>
+                    </div>
+                    <div class="mxd-segmented" data-role="trend-mode" role="group">
+                        <button type="button" class="is-active" data-mode="both"><?= $escaper->escapeHtml(__('Overlaid')) ?></button>
+                        <button type="button" data-mode="revenue"><?= $escaper->escapeHtml(__('Revenue')) ?></button>
+                        <button type="button" data-mode="orders"><?= $escaper->escapeHtml(__('Orders')) ?></button>
+                    </div>
+                </header>
+                <div class="mxd-telemetry" data-role="trend-stats"></div>
+                <div class="mxd-chart mxd-chart--trend"><canvas data-role="trend-chart"></canvas></div>
+                <footer class="mxd-legend">
+                    <span><i class="mxd-swatch mxd-swatch--brand"></i><?= $escaper->escapeHtml(__('Net Revenue')) ?></span>
+                    <span><i class="mxd-swatch mxd-swatch--green"></i><?= $escaper->escapeHtml(__('Order Count')) ?></span>
+                </footer>
+            </section>
+
+            <section class="mxd-card mxd-card--lg">
+                <header class="mxd-card__head">
+                    <div class="mxd-card__titlerow mxd-card__titlerow--split">
+                        <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Orders by Status')) ?></h2>
+                        <a class="mxd-iconbtn" href="<?= $escaper->escapeUrl($block->getUrl('sales/order')) ?>"
+                           title="<?= $escaper->escapeHtmlAttr(__('Open the order grid')) ?>">
+                            <span class="mxd-ico mxd-ico--md" aria-hidden="true">more_vert</span>
+                        </a>
+                    </div>
+                    <p class="mxd-sub"><?= $escaper->escapeHtml(__('Every order placed in the period, by its current status')) ?></p>
+                </header>
+                <div class="mxd-donut">
+                    <canvas data-role="status-chart"></canvas>
+                    <div class="mxd-donut__center">
+                        <span class="mxd-donut__value" data-role="status-total">0</span>
+                        <span class="mxd-donut__label"><?= $escaper->escapeHtml(__('Total Orders')) ?></span>
+                    </div>
+                </div>
+                <div class="mxd-statuslist" data-role="status-list"></div>
+            </section>
+        </div>
+
+        <!-- Row 2: categories, segments, weekdays -->
+        <div class="mxd-row mxd-row--3">
+            <section class="mxd-card mxd-card--lg mxd-card--column">
+                <header class="mxd-card__head">
+                    <div class="mxd-card__titlerow mxd-card__titlerow--split">
+                        <div class="mxd-card__titlerow">
+                            <h3 class="mxd-h3"><?= $escaper->escapeHtml(__('Top Categories')) ?></h3>
+                            <span class="mxd-tag"><?= $escaper->escapeHtml(__('Live catalog')) ?></span>
+                        </div>
+                        <span class="mxd-label mxd-text-brand"><?= $escaper->escapeHtml(__('Net Sales')) ?></span>
+                    </div>
+                    <p class="mxd-sub"><?= $escaper->escapeHtml(__('Net item revenue per category, as a share of total net revenue')) ?></p>
+                </header>
+                <div class="mxd-bars" data-role="categories"></div>
+                <footer class="mxd-card__foot">
+                    <span data-role="category-count"></span>
+                    <a class="mxd-link" href="<?= $escaper->escapeUrl($block->getUrl('catalog/category')) ?>">
+                        <span><?= $escaper->escapeHtml(__('Manage Catalog')) ?></span>
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                    </a>
+                </footer>
+            </section>
+
+            <section class="mxd-card mxd-card--lg mxd-card--column">
+                <header class="mxd-card__head">
+                    <div class="mxd-card__titlerow mxd-card__titlerow--split">
+                        <h3 class="mxd-h3"><?= $escaper->escapeHtml(__('Customer Segments')) ?></h3>
+                        <span class="mxd-pill mxd-pill--green" data-role="repeat-rate"></span>
+                    </div>
+                    <p class="mxd-sub" data-role="segments-sub"></p>
+                </header>
+                <div class="mxd-segments" data-role="segments"></div>
+                <div class="mxd-insight" data-role="segment-insight"></div>
+            </section>
+
+            <section class="mxd-card mxd-card--lg mxd-card--column">
+                <header class="mxd-card__head">
+                    <div class="mxd-card__titlerow mxd-card__titlerow--split">
+                        <h3 class="mxd-h3"><?= $escaper->escapeHtml(__('Day of Week Velocity')) ?></h3>
+                        <span class="mxd-tag mxd-tag--mono" data-role="dow-peak" hidden></span>
+                    </div>
+                    <p class="mxd-sub"><?= $escaper->escapeHtml(__('Net revenue by weekday in store time — plan campaigns and newsletters around it')) ?></p>
+                </header>
+                <div class="mxd-columns" data-role="dow"></div>
+                <div class="mxd-callout" data-role="peak-window"></div>
+            </section>
+        </div>
+
+        <!-- Product performance -->
+        <section class="mxd-card mxd-card--table">
+            <header class="mxd-tablebar">
+                <div>
+                    <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Top Performing Products by Net Revenue')) ?></h2>
+                    <p class="mxd-sub"><?= $escaper->escapeHtml(__('Products sold in the period with realized price, current stock and quick AI actions')) ?></p>
+                </div>
+                <div class="mxd-tablebar__controls">
+                    <label class="mxd-search">
+                        <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">search</span>
+                        <input type="text" class="mxd-input" data-role="product-search"
+                               placeholder="<?= $escaper->escapeHtmlAttr(__('Filter SKU or title...')) ?>"
+                               aria-label="<?= $escaper->escapeHtmlAttr(__('Filter SKU or title')) ?>">
+                    </label>
+                    <label class="mxd-selectpill">
+                        <span class="mxd-muted"><?= $escaper->escapeHtml(__('Category:')) ?></span>
+                        <select data-role="product-category" aria-label="<?= $escaper->escapeHtmlAttr(__('Category')) ?>">
+                            <option value=""><?= $escaper->escapeHtml(__('All Categories')) ?></option>
+                        </select>
+                        <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">expand_more</span>
+                    </label>
+                    <button type="button" class="mxd-btn" data-role="product-export">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">download</span>
+                        <span><?= $escaper->escapeHtml(__('Export Table')) ?></span>
+                    </button>
+                </div>
+            </header>
+            <div class="mxd-tablewrap">
+                <table class="mxd-table">
+                    <thead>
+                    <tr>
+                        <th class="mxd-c">#</th>
+                        <th><?= $escaper->escapeHtml(__('Product Description & SKU')) ?></th>
+                        <th><?= $escaper->escapeHtml(__('Category')) ?></th>
+                        <th class="mxd-r"><?= $escaper->escapeHtml(__('Units Sold')) ?></th>
+                        <th class="mxd-r"><?= $escaper->escapeHtml(__('Net Revenue')) ?></th>
+                        <th class="mxd-r"><?= $escaper->escapeHtml(__('Avg Realized Price')) ?></th>
+                        <th class="mxd-c"><?= $escaper->escapeHtml(__('Stock Health')) ?></th>
+                        <th class="mxd-r"><?= $escaper->escapeHtml(__('AI Actions')) ?></th>
+                    </tr>
+                    </thead>
+                    <tbody data-role="products"></tbody>
+                </table>
+            </div>
+            <footer class="mxd-pager">
+                <span class="mxd-muted" data-role="pager-info"></span>
+                <div class="mxd-pager__buttons" data-role="pager"></div>
+            </footer>
+        </section>
+
+        <!-- AI assistant -->
+        <section class="mxd-assistant" data-role="assistant">
+            <div class="mxd-assistant__intro">
+                <div class="mxd-assistant__logo"><span class="mxd-ico mxd-ico--lg" aria-hidden="true">auto_awesome</span></div>
+                <div>
+                    <div class="mxd-card__titlerow">
+                        <h3 class="mxd-h3 mxd-h3--light">
+                            <?= $escaper->escapeHtml($config['aiConfigured'] ? __('Meetanshi AI Assistant is Active') : __('Meetanshi AI Assistant is not configured')) ?>
+                        </h3>
+                        <span class="mxd-pill <?= $config['aiConfigured'] ? 'mxd-pill--darkgreen' : 'mxd-pill--darkgrey' ?>">
+                            <?= $escaper->escapeHtml($config['provider']) ?>
+                        </span>
+                    </div>
+                    <p class="mxd-assistant__text"><?= $escaper->escapeHtml(__('Ask questions about your store data. Answers come from read-only queries on this store\'s database.')) ?></p>
+                </div>
+            </div>
+            <div class="mxd-assistant__ask">
+                <form class="mxd-ask" data-role="ask-form">
+                    <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
+                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask AI about this dashboard (e.g. \'Which SKUs had 0 purchases?\')...')) ?>"
+                           aria-label="<?= $escaper->escapeHtmlAttr(__('Ask AI about this dashboard')) ?>">
+                    <button type="submit" class="mxd-btn mxd-btn--primary" data-role="ask-submit">
+                        <span><?= $escaper->escapeHtml(__('Query')) ?></span>
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                    </button>
+                </form>
+                <div class="mxd-quick">
+                    <span class="mxd-quick__label"><?= $escaper->escapeHtml(__('Quick:')) ?></span>
+                    <?php foreach ([
+                        __('Which products had zero sales this month?'),
+                        __('Refund rate by payment method'),
+                        __('Net revenue by month this year'),
+                    ] as $question): ?>
+                        <button type="button" class="mxd-chip" data-question="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="mxd-answer" data-role="answer" hidden></div>
+        </section>
+    </div>
+</div>
+<script type="text/x-magento-init">
+<?= /* @noEscape */ json_encode(
+    ['[data-role=mxd-root]' => ['Meetanshi_AIReporting/js/executive-dashboard' => $config]],
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+) ?>
+</script>

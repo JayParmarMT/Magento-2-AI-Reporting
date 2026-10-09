@@ -1,12 +1,29 @@
 <?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting — Customer Analytics Report (content area only)
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <update handle="meetanshi_aireporting_default"/>
+    <update handle="meetanshi_aireporting_mxd"/>
+    <head>
+        <css src="Meetanshi_AIReporting::css/prebuilt_report.css"/>
+    </head>
     <body>
         <referenceContainer name="content">
-            <block class="Meetanshi\AIReporting\Block\Adminhtml\Reports\Customer"
+            <block class="Magento\Backend\Block\Template"
                    name="meetanshi_aireporting_reports_customer"
-                   template="Meetanshi_AIReporting::reports/customer.phtml"/>
+                   template="Meetanshi_AIReporting::reports/customer.phtml">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">Meetanshi\AIReporting\ViewModel\CustomerAnalytics</argument>
+                </arguments>
+            </block>
         </referenceContainer>
     </body>
 </page>

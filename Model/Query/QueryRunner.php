@@ -36,16 +36,17 @@ class QueryRunner
     }
 
     /**
-     * @return array{sql: string, result: array, repaired: bool}
+     * @param array<int, array{question: string, sql: string}> $history earlier turns of a chat, oldest first
+     * @return array{sql: string, result: array, repaired: bool, assumption: string}
      * @throws \Magento\Framework\Exception\LocalizedException
      */
-    public function run(string $question): array
+    public function run(string $question, array $history = []): array
     {
-        $sql = $this->nlpToSql->convert($question);
+        $sql = $this->nlpToSql->convert($question, $history);
 
         // First attempt
         try {
-            return ['sql' => $sql, 'result' => $this->queryExecutor->execute($sql), 'repaired' => false];
+            return $this->result($sql, $this->queryExecutor->execute($sql), false);
         } catch (QueryException $e) {
             if (!$this->isRepairable($e->getMessage())) {
                 throw $e;
@@ -56,14 +57,10 @@ class QueryRunner
         $lastException = null;
         for ($attempt = 1; $attempt <= self::MAX_REPAIR_ATTEMPTS; $attempt++) {
             $error = $lastException ? $lastException->getMessage() : $e->getMessage();
-            $sql   = $this->nlpToSql->repair($question, $sql, $this->shortError($error));
+            $sql   = $this->nlpToSql->repair($question, $sql, $this->shortError($error), $history);
 
             try {
-                return [
-                    'sql'      => $sql,
-                    'result'   => $this->queryExecutor->execute($sql),
-                    'repaired' => true
-                ];
+                return $this->result($sql, $this->queryExecutor->execute($sql), true);
             } catch (QueryException $repairException) {
                 $lastException = $repairException;
                 if (!$this->isRepairable($repairException->getMessage())) {
@@ -74,6 +71,19 @@ class QueryRunner
 
         // All repair attempts exhausted — surface the last database error
         throw $lastException;
+    }
+
+    /**
+     * @return array{sql: string, result: array, repaired: bool, assumption: string}
+     */
+    private function result(string $sql, array $result, bool $repaired): array
+    {
+        return [
+            'sql'        => $sql,
+            'result'     => $result,
+            'repaired'   => $repaired,
+            'assumption' => $this->nlpToSql->getLastAssumption(),
+        ];
     }
 
     public function isRepairable(string $message): bool

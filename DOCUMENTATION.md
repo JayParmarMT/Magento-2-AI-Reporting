@@ -35,15 +35,13 @@ Supported LLM providers are **Groq** (the default), **Ollama** (local), **OpenRo
 AIReporting/
 ├── Block/Adminhtml/
 │   ├── Dashboard.php              # Dashboard data (KPIs, trends, segments), all SQL lives here
-│   ├── Query.php                  # "Ask AI" page: URLs, form key, suggested questions
-│   ├── SavedReports.php           # Saved reports list (collection)
-│   └── Reports/{Sales,Customer,Product,Inventory}.php  # Thin wrappers over Model/Report/*
+│   └── Query.php                  # "Ask AI" page: URLs, form key, suggested questions
 ├── Controller/Adminhtml/
 │   ├── AbstractAction.php         # Base page action (PageFactory + ACL)
 │   ├── Dashboard/{Index,RefreshData,Export}.php
 │   ├── Query/{Index,Execute}.php  # Execute = main AJAX endpoint (NLP→SQL→rows)
 │   ├── Chat/Send.php              # AJAX chat endpoint (NLP→SQL→rows→LLM answer) [untracked]
-│   ├── Report/{Saved,Save}.php
+│   ├── Report/{Saved,Save,Update,Delete,ExportData}.php  # Saved AI Reports page + its actions
 │   └── Reports/{Sales,Customer,Product,Inventory}.php
 ├── Exception/{LlmException,QueryException}.php   # both extend LocalizedException
 ├── Model/
@@ -120,10 +118,21 @@ The module adds a top-level menu, **Meetanshi AIReporting → AI Reporting**:
 | (AJAX POST) | `chat/send` | `Chat\Send` | `::query` |
 | Saved Reports | `report/saved` | `Report\Saved` | `::saved_reports` |
 | (AJAX POST) | `report/save` | `Report\Save` | `::saved_reports` |
+| (AJAX POST) | `report/update` (title, chart format) | `Report\Update` | `::saved_reports` |
+| (AJAX POST) | `report/delete` (`ids[]`) | `Report\Delete` | `::saved_reports` |
+| (download) | `report/exportData` (result CSV) | `Report\ExportData` | `::saved_reports` + `::query` |
 | Pre-built → Sales & Revenue | `reports/sales` | `Reports\Sales` | `::reports_sales` |
+| (AJAX) | `reports/salesData` | `Reports\SalesData` | `::reports_sales` |
+| (download) | `reports/salesExport` | `Reports\SalesExport` | `::reports_sales` |
 | Pre-built → Customer Analytics | `reports/customer` | `Reports\Customer` | `::reports_customer` |
+| (AJAX) | `reports/customerData` | `Reports\CustomerData` | `::reports_customer` |
+| (download) | `reports/customerExport` | `Reports\CustomerExport` | `::reports_customer` |
 | Pre-built → Product Performance | `reports/product` | `Reports\Product` | `::reports_product` |
+| (AJAX) | `reports/productData` | `Reports\ProductData` | `::reports_product` |
+| (download) | `reports/productExport` | `Reports\ProductExport` | `::reports_product` |
 | Pre-built → Inventory | `reports/inventory` | `Reports\Inventory` | `::reports_inventory` |
+| (AJAX) | `reports/inventoryData` | `Reports\InventoryData` | `::reports_inventory` |
+| (download) | `reports/inventoryExport` | `Reports\InventoryExport` | `::reports_inventory` |
 
 The ACL tree is `Magento_Backend::admin → Meetanshi_AIReporting::aireporting → {dashboard, query, saved_reports, reports → {reports_sales, reports_customer, reports_product, reports_inventory}, config}`.
 
@@ -165,7 +174,9 @@ Copy SQL, Download CSV (client-side), Save Report (→ report/save)
 
 ### 5.2 Running a saved report
 
-`saved_reports.phtml` stores `{report_id, chart, nlp}` in `sessionStorage` and redirects to `query/index`. `query.phtml` then POSTs `{report_id}` to `query/execute`. The server loads the SQL from the database, but only if the report belongs to the logged-in admin, and runs it through the same checks as AI-generated SQL. Raw SQL from the browser is no longer accepted (§14).
+The Saved AI Reports page (`saved_reports.phtml` + `js/saved-reports.js`, data from `ViewModel/SavedReports`) stores `{report_id, chart, nlp}` in `sessionStorage` and redirects to `query/index`. `query.phtml` then POSTs `{report_id}` to `query/execute`. The server loads the SQL from the database, but only if the report belongs to the logged-in admin, and runs it through the same checks as AI-generated SQL. Raw SQL from the browser is no longer accepted (§14).
+
+The same page also offers, all owner-scoped: **Edit** (`report/update`: title and chart format only), **Delete** (`report/delete`), **Export** (`report/exportData`: re-runs the report read-only and row-limited through `QueryExecutor`, logs the run, and downloads the result as CSV; text that a spreadsheet would run as a formula is prefixed with `'`), and definition exports (JSON/CSV of title, question, SQL and run stats, built in the browser). Each report shows whether `SqlGuard` still accepts its stored SQL; **Run** and **Export** are disabled when it does not.
 
 ### 5.3 Chat (`chat/send`)
 
@@ -197,10 +208,10 @@ Each report page's block calls its `Model\Report\*Report` class. All figures are
 
 | Report | Contents |
 |---|---|
-| **Sales** | KPI cards for today, week, month and year (orders, revenue, AOV); revenue by month (12 months); revenue by day (30 days); orders by status (all time); revenue by shipping method (top 10); coupon usage (top 20); revenue by shipping region (top 15); refund and cancel summary; revenue by day of week (6 months) |
-| **Customer** | KPIs (total, new today/week/month, distinct emails with orders); top 20 customers by spend; RFM scoring for 50 customers (the block labels them Champions, Loyal, New, At Risk, Lost or Potential); new vs returning per month; acquisition per month; CLV buckets; repeat purchase rate |
-| **Product** | KPIs (total, simple, configurable, SKUs sold, quantity sold); best sellers by revenue and by quantity (20 each); worst sellers (10); revenue by product type; monthly trend of the top 5 SKUs; products never sold (20); revenue by category (15) |
-| **Inventory** | KPIs (SKUs, in stock, out of stock, low stock ≤ 10, stock value = qty × base price); low-stock list (≤ 10, 30 rows); out-of-stock list (30); stock distribution; demand vs supply (30-day sales vs stock, flags CRITICAL below 7 days of cover and LOW below 14); turnover rate (30 days) |
+| **Sales** | Redesigned page (Stitch "Sales & Revenue Report"), data from `ViewModel\SalesRevenue`. **Follows the range filter** (Today, This Week, This Month, This Year, custom; reloaded from `reports/salesData`): net revenue, orders and AOV vs the previous period of the same length; pending-payment / canceled orders (shown, not counted); highest order with its region; credit memos created in the range and refund rate (of gross); discounts, tax and shipping charged; net revenue and orders by hour (one day), day (up to 62 days) or month, with the peak; every order by status; revenue by weekday with the busiest hour; regions (shipping address, billing for virtual orders) with GMV share, AOV and tax; shipping methods with average fee and share of orders shipped; cart price rules and coupon codes applied (`sales_order.applied_rule_ids` × `salesrule`; an order counts under each rule, its discount only under rules that give one) with promotional ROI. **Always the last 30 days:** daily revenue trajectory. `reports/salesExport` downloads `type=summary` (every section) or `type=orders` (every order placed in the range, all states, with a "Counted in Sales" column). The copilot insight is rule-based; follow-ups go to `chat/send` |
+| **Customer** | Redesigned page (Stitch "Customer Analytics Report"), data from `ViewModel\CustomerAnalytics`. **Follows the range filter** (Today, This Week, This Month, This Year, custom; reloaded from `reports/customerData`): buyers vs the previous period of the same length, registered vs guest, new registrations and how many ordered, repeat rate (2+ orders to date) and multi-order rate (2+ in the period), average lifetime value of the period's buyers, spend, orders per buyer, and new vs returning buyers by hour, day (up to 62 days) or month. **All-time:** CLV tiers (VIP ≥ 1,000, Growth 500–999, Core 250–499, Starter 100–249, Entry < 100) with buyers and revenue share; RFM scores 1–5 for every buyer, labelled Champions, Loyal, Promising, New Customer, At Risk or Lost; churn risk index (buyers with no order for 90+ days); re-order cycle; top-3 concentration; the most valuable lapsed buyer; the top 200 buyers by lifetime value with preferred category. `reports/customerExport` downloads every matching buyer as CSV (`segment=vip|winback`, `segments=` RFM labels, `q=` name/email text). The copilot panel's insight is rule-based; follow-up questions go to `chat/send` |
+| **Product** | Redesigned page (Stitch "Product Performance Report"), data from `ViewModel\ProductPerformance`. Sales figures follow the range filter (Today, This Week, This Month, This Year, custom; reloaded from `reports/productData`); catalog size and stock are as of now. KPIs: products (and how many were created in the range), SKUs sold and sell-through (sold at least once, as an order line or a configurable/bundle child, out of enabled non-grouped products), units vs the previous period of the same length, average basket, and dead stock (sellable products without a sale, with their stock value at list price). Top 10 by net revenue or units; net revenue by product type; units by realized price band with the sweet spot; top 5 categories (gross margin only when every order line carries a product cost); product table tabs — best sellers by revenue / quantity, worst 10, never sold — with current stock, days of cover and a velocity rating (restock under 14 days of cover or out of stock; otherwise high / medium / low = top 20% / next 40% / rest by units). `reports/productExport` downloads every row of a tab as CSV, with the page's filters (`tab`, `range`, `start`, `end`, `q`, `category`, `stock`). The copilot summary is rule-based; follow-ups go to `chat/send` |
+| **Inventory** | Redesigned page (Stitch "Inventory Report"), data from `ViewModel\InventoryAnalytics`; see §19. **Current stock:** SKUs, in/out of stock, disabled, on hand, reserved (MSI reservations), available = on hand − reserved, stock value = on hand × list price, tiers by available quantity (101+, 51–100, 11–50, 1–10, out). **Follows the range filter** (reloaded from `reports/inventoryData`): units sold, average daily sales, days of cover, turnover and annualized run-rate, top 6 sellers. Tabs: all SKUs, low stock & depletion (out, ≤ 10 available or < 14 days of cover), dead stock (in stock, no sale for 90+ days), turnover. `reports/inventoryExport` downloads any tab, the PO reorder plan or the clearance list as CSV |
 
 **Revenue** means net revenue: `base_grand_total − base_total_refunded`, converted with `base_to_global_rate` to the global base currency. Orders in state `canceled` or `pending_payment` are not counted. See §13.
 
@@ -237,8 +248,8 @@ The five provider classes are almost identical. The system prompt appears five t
 
 - There is no foreign key to `admin_user`.
 - There is no `db_schema_whitelist.json` (Magento uses it to drop columns safely in later versions).
-- No admin grid or screen shows the query log. It is written to but never displayed.
-- Saved reports cannot be edited or deleted from the UI.
+- The Saved AI Reports page shows the admin's latest 30 log entries in its **Query Audit Log** drawer, and derives each saved report's run count, last run and duration from the log rows written after the report was saved (matched on admin + SQL). There is no full query-log grid.
+- Saved reports can be renamed, given another chart format, deleted (one or many) and exported from the Saved AI Reports page. Their question and SQL never change.
 
 ---
 
@@ -602,3 +613,144 @@ Constructors of `NlpToSql`, `SystemInfoResponder` and `Chat\Send` changed. On a 
 - **New:** `Model/Schema/SchemaCatalog.php`, `Model/Schema/ModuleCatalog.php`, `Model/ModuleInfoResponder.php`, `Exception/DirectAnswerException.php`, and tests `Test/Unit/Model/Schema/{SchemaCatalogTest,ModuleCatalogTest,SchemaCatalogTrait}.php`, `Test/Unit/Model/{ModuleInfoResponderTest,SystemInfoResponderTest}.php`
 - **Changed:** `Model/Query/NlpToSql.php`, `Model/SystemInfoResponder.php`, `Model/Query/SqlGuard.php` (`isSecretConfigValue()`), `Controller/Adminhtml/Chat/Send.php`, `view/adminhtml/templates/query.phtml` (welcome text, two quick buttons, list formatting), `Test/Unit/Model/Query/NlpToSqlTest.php`
 
+## 17. Accuracy, provider reliability and follow-up questions (2026-10-07)
+
+### 17.1 What was wrong
+
+The query log (79 entries) showed where questions failed:
+
+- **14 of 19 errors were provider problems**, not SQL: HTTP 404 (retired or wrong model name), 429 (rate limit) and a missing key. OpenAI and OpenRouter never retried, Groq retried only 429, and Groq reported a 404 as "check your API key".
+- **The built-in Claude model list offered only retired models** ("Claude 3.5 Haiku (Fast, Recommended)"), so a Claude setup failed with 404 out of the box. The provider also always sent `temperature`, which current Claude models reject with HTTP 400.
+- **Every provider hard-coded an "SQL only, no explanation, no markdown" system prompt.** The chat answer step (friendly markdown) and the `ANSWER:` direct reply went through the same call, so the model was given contradictory instructions.
+- **Silent wrong answers:** "how many customers have loyalty cards" returned *success* by reading `salesrule_customer` (coupon usage). The store has no loyalty data.
+- The LLM timeout reused the **database** query timeout (30 s).
+- Chat questions were never written to the query log; chat had no memory, so "and last month?" failed.
+- The prompt test runner only checked that SQL *runs*, not that it returns the right data.
+
+### 17.2 Decision: no vector database
+
+Considered and rejected for now. None of the logged failures was a table the keyword retrieval missed. At 400–2,000 tables, `SchemaCatalog` is the right tool. A vector store would mean extra infrastructure for every merchant, and Claude and Groq have no embeddings API. Semantic search also always returns a "nearest" table, which would make the loyalty-card case worse. If `run_gold_test.php` later shows paraphrase misses, store embeddings in a MySQL table and compare them in PHP; that needs no vector database.
+
+### 17.3 Changes
+
+- **Providers (`Model/LLM`)**
+  - `ProviderInterface::complete($prompt, $system = '')`: the caller sets the system prompt.
+  - New `AbstractProvider` handles timeout, retries of 408/429/5xx/529 (honouring `Retry-After`, max 10 s wait, 2 retries) and errors that name the model and quote the provider's own message.
+  - New `AbstractChatCompletionsProvider` is the base for OpenAI, Groq and OpenRouter. OpenAI uses `max_completion_tokens` and sends no temperature to reasoning models (o-series, gpt-5).
+  - Gemini skips "thought" parts and explains `MAX_TOKENS`. Ollama got only the system-prompt parameter.
+- **Claude**
+  - The schema and rules are sent as a system block with `cache_control` (prompt caching).
+  - `temperature` is sent only to models that accept it.
+  - Models that think by default (Opus 5.x, Sonnet 5.x, Fable) get `max_tokens` ≥ 16000, because thinking counts against it.
+  - `stop_reason: refusal` and `max_tokens` produce clear errors.
+  - Opus 5.5/5, Sonnet 5.5 and Fable 5.1 send `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`), so a declined request is retried server-side.
+  - The model list is now Opus 5.5 (default), Sonnet 5.5 and Haiku 4.5.
+- **Configuration**
+  - New **AI Request Timeout** (`general/llm_timeout`, default 120 s). Query Timeout is relabelled "Database Query Timeout".
+  - **Test Connection** button next to "Fetch Latest Models" (`config/testConnection`). It sends a tiny request with the saved key and model.
+  - New **Database User for AI Queries** status row. It shows whether a dedicated `aireporting` connection is used and warns if that user has write privileges.
+- **`NlpToSql`**
+  - System prompt = role + verified core schema + rules. It is identical for every question, so it can be cached.
+  - Per-question message = store facts, matched live tables, then the new parts:
+    - **WORDS WITH NO MATCH** lists question words found in no table, column or comment (`SchemaCatalog::findUnknownWords`; measure words such as "spend" are ignored, and synonyms count only via table names). The model is told to reply `ANSWER:` rather than substitute an unrelated table.
+    - **SAVED REPORTS SIMILAR TO THIS QUESTION** includes up to 3 saved reports, found by word overlap (`ExampleFinder`).
+    - **EARLIER IN THIS CONVERSATION** includes chat history. Table retrieval also uses the previous question.
+  - The model may start with `ASSUMPTION: …` when it had to interpret the question. This is returned as `assumption`, shown as "Interpreted as: …" in Ask AI and Chat, and returned by `QueryRunner::run()`.
+- **Chat (`Chat\Send`)**
+  - Has its own answer system prompt; result rows are marked as data, not instructions.
+  - Logs every question (SQL, direct and failed answers) through the new `Model/QueryLogger` (also used by `Query\Execute`).
+  - Keeps the last 3 turns in the admin session (`Model/Query/ChatHistory`, 30 min expiry). "Clear chat" posts `reset=1`.
+- **CLI:** `bin/magento meetanshi:aireporting:readonly-grants --user=<name> [--host=<host>]` prints `CREATE USER` + per-table `GRANT SELECT` for every table except the credential/session tables SqlGuard refuses, plus the `env.php` snippet. It executes nothing. Re-run it after installing modules.
+- **Accuracy test:** `Test/ai-prompts/gold_queries.json` (30 cases: sales, customers, products, promotions, system, one follow-up, three "no data") and `run_gold_test.php`. A case passes when the reference result is contained in the AI query's result. `--check-gold` validates the reference queries without AI calls.
+
+### 17.4 Measured accuracy
+
+Not measured yet. The first run on 2026-10-07 (local Ollama, `qwen2.5-coder:3b`) was interrupted by a session restart after 3 of 30 cases: 1 passed, and 2 hit the 240 s Ollama timeout on this CPU. To measure, raise "Ollama Request Timeout" (or use a hosted provider) and run:
+
+```bash
+php app/code/Meetanshi/AIReporting/Test/ai-prompts/run_gold_test.php
+```
+
+### 17.5 Deployment note
+
+Constructors changed (`NlpToSql`, `QueryRunner` callers, `Chat\Send`, `Query\Execute`, `ModelFetcher`, all providers) and a console command was added. On compiled-DI stores run `bin/magento setup:di:compile` and `bin/magento cache:flush`. This was done on this machine on 2026-10-07, using the §15.4 procedure. No database schema change.
+
+Saved reports freeze dates: a report saved for "this month" keeps the literal UTC dates it was generated with. Not changed here.
+
+### 17.6 Files
+
+- **New:** `Model/LLM/AbstractProvider.php`, `Model/LLM/AbstractChatCompletionsProvider.php`, `Model/Query/ExampleFinder.php`, `Model/Query/ChatHistory.php`, `Model/QueryLogger.php`, `Controller/Adminhtml/Config/TestConnection.php`, `Block/Adminhtml/System/Config/ReadOnlyConnectionStatus.php`, `Console/Command/ReadOnlyGrants.php`, `Test/ai-prompts/gold_queries.json`, `Test/ai-prompts/run_gold_test.php`, tests `Test/Unit/Model/LLM/{ClaudeProviderTest,ChatCompletionsProviderTest}.php`, `Test/Unit/Model/Query/{ExampleFinderTest,ChatHistoryTest}.php`
+- **Changed:** all `Model/LLM/*Provider.php`, `Model/LLM/ProviderInterface.php`, `Model/LLM/ModelFetcher.php`, `Model/Config.php`, `Model/Config/Source/ClaudeModel.php`, `Model/Query/{NlpToSql,QueryRunner}.php`, `Model/Schema/SchemaCatalog.php`, `Controller/Adminhtml/{Chat/Send,Query/Execute}.php`, `Block/Adminhtml/System/Config/ModelField.php`, `etc/{config,di}.xml`, `etc/adminhtml/system.xml`, `view/adminhtml/templates/query.phtml`, `view/adminhtml/web/css/aireporting.css`, `Test/Unit/Model/Query/NlpToSqlTest.php`, `Test/Unit/Controller/Adminhtml/Query/ExecuteTest.php`
+
+## 18. Executive Dashboard redesign (2026-10-07)
+
+The Dashboard page (`dashboard/index`) now follows the Stitch design "Executive Dashboard - Meetanshi AI Reporting" (project "Magento AI Reports Redesign"). Only the page content changed: Magento's admin menu and header are untouched, and every style is scoped to `.mxd` in a CSS file loaded only on this page.
+
+### 18.1 Sections and where the numbers come from
+
+| Section | Data |
+|---|---|
+| Header | Magento name/version/edition, default store view and website, active AI provider and model (green dot when a key/URL is configured), date range with resolved dates. **Live** refreshes every 60 s while switched on (off by default, so an idle tab does not keep the admin session alive). **Export** is the existing CSV export for the selected range. **Ask Copilot** opens Ask AI. |
+| KPI cards | Net revenue (with refunds), orders (with completed count), AOV (with best weekday), active buyers (with repeat buyers), units sold (with SKUs moved and top seller), catalog health (share of stock-managed products neither out of stock nor ≤ 10, stock value = qty × base price). Changes compare with the previous period of the same length. |
+| Revenue & order trend | Daily net revenue and orders (store time), Overlaid / Revenue / Orders modes, peak revenue day callout, peak order day, store timezone. Chart.js. |
+| Orders by status | Every order placed in the period (all states), count, share and gross value per status. |
+| Top categories | Top 5 by net item revenue, share of total net revenue (a product in two categories counts in both, so shares can add up to more than 100%), number of categories with sales. |
+| Customer segments | Buyers by email (guests included) with 6+ orders (VIP), 2–5 (Returning), 1 (First-time): buyers, transactions, revenue and share. Repeat rate. The insight box is computed: concentration risk when VIP brings ≥ 50% of revenue, a repeat-purchase tip when ≥ 50% of buyers ordered once, otherwise "balanced". |
+| Day of week | Net revenue per weekday (store time), peak and runner-up highlighted, and the weekday + hour with the most orders. |
+| Top products | Up to 200 products sold in the period: deepest category, units, net revenue, average realized price, current stock (MSI-aware; "Not tracked" for product types without quantity). Search, category filter, 5 per page, CSV export of the filtered rows (formula-safe), link to the product edit page, and an AI action that asks the assistant about that SKU. |
+| AI assistant | Sends the question to `chat/send` (same pipeline, logging and history as Chat) and shows the answer, the AI's assumption, rows/time and the SQL. |
+
+The design's "AI anomaly detection" and "optimal campaign trigger" texts were not used, because nothing computes them. The page shows the peak day and the busiest ordering hour instead.
+
+### 18.2 Implementation
+
+- `Block/Adminhtml/Dashboard.php` keeps every existing array key (the CSV export uses them) and adds: `kpis.refunded`, `complete_orders`, `skus_sold`, `stock_items`, `stock_healthy_pct`, `inventory_value`, `best_aov_day`, `top_product`, `repeat_buyers`; `trend_stats`; `category_count` and `share`; `products`; `peak_window`; status `code`; segment `transactions` (all three segments always returned). New constructor argument `ProductMetadataInterface`. `getJsConfig()` gives the script its data and URLs.
+- `Model/Config::getActiveModel()` and `isActiveProviderConfigured()`.
+- `view/adminhtml/templates/executive_dashboard.phtml` is the skeleton. It is filled by `view/adminhtml/web/js/executive-dashboard.js` (RequireJS module started via `x-magento-init`, no inline script), which renders from the page data on load and from `dashboard/refreshData` on every refresh.
+- `view/adminhtml/web/css/executive_dashboard.css`: scoped styles, px units (the admin root font size is 62.5%), resets for Magento's global button/input styles inside `.mxd` only. Layout: 6 KPIs per row above 1500 px, 3 per row below; the 3 insight cards become 2 + 1 between 1200 and 1500 px, and everything stacks below 1200 px.
+- Fonts: IBM Plex Sans, JetBrains Mono and Material Symbols from Google Fonts, added to the page head in `meetanshi_aireporting_dashboard_index.xml`, and whitelisted in `etc/adminhtml/csp_whitelist.xml` (`style-src fonts.googleapis.com`, `font-src fonts.gstatic.com`).
+- `templates/dashboard_enhanced.phtml` is no longer used. It is kept because it has uncommitted edits. `css/dashboard_enhanced.css` stays: the report pages use its classes.
+
+### 18.3 Verification
+
+The page was rendered from the CLI with Magento's admin stylesheet and screenshotted in headless Chrome at 1600, 1366, 1280 and 1024 px, including an empty period. Paging, search, category filter, CSV export, chart modes and the export link were tested, with no JavaScript errors. All date ranges return data in 3–12 ms. The live admin page was not opened from this session (no admin login).
+
+### 18.4 Deployment note
+
+The block constructor changed: run `bin/magento setup:di:compile` and `bin/magento cache:flush` (done on this machine on 2026-10-07).
+
+
+## 19. Inventory report redesign (2026-10-08)
+
+The Inventory page (`reports/inventory`) now follows the Stitch design "Inventory Report - Meetanshi AI Reporting" (project "Magento AI Reports Redesign"). Only the page content changed: Magento's admin menu, header, menu entry and ACL are untouched, and every style is scoped to `.mxd.mxi` in a CSS file loaded only on this page.
+
+### 19.1 Sections and where the numbers come from
+
+| Section | Data |
+|---|---|
+| Header | Magento name/version/edition, stock source (MSI with the number of enabled sources, or single-source `cataloginventory`), default store view, query time, store timezone. Range filter: Today, This Week, This Month, This Year, custom (shared `Model/Report/ReportRange`, default This Year). **CSV** exports the open table tab with its filters; **PDF** prints the page with every row of the open tab; **Ask Copilot** opens the follow-up panel. |
+| KPI cards | SKUs (in stock / disabled), stock value at list price (units on hand, units reserved), out of stock with depletion %, low stock (≤ 10 available) with the count at ≤ 5 or under 14 days of cover, stock turnover for the range (units sold ÷ units on hand) and its 365-day run-rate. Out-of-stock, low-stock and turnover cards open the matching tab. |
+| Stock Level Distribution | SKUs per tier of available quantity: 101+ (High Reserve), 51–100 (Optimal), 11–50 (Buffer), 1–10 (Critical Low), Out of Stock. Clicking a tier filters the table. Total catalog valuation. |
+| Top Sellers: Demand vs Current Stock | The 6 SKUs with the most units sold in the range: sold vs available, and days of cover coloured red < 14, amber < 30, green 30–90, blue > 90. |
+| SKU table | Tabs: All Stocked SKUs; Low Stock & Depletion (out of stock, ≤ 10 available, or under 14 days of cover); Dead Stock / Idle Capital (in stock with no sale for over 90 days, or never sold); Turnover & Run-Rate (SKUs sold in the range). Search (SKU or name), MSI source and category filters, sortable columns, 10/20/50/all per page. Per row: deepest category, quantity per source, available, reserved, list price, stock value, units sold, days of cover, status, links to the product edit page and (dead stock) a new cart price rule, and an AI button that asks about the SKU's sales history. Below 1680 px the Reserved and Unit Price columns move under Available and Stock Value. |
+| Copilot analysis | Rule-based text from the figures (in-stock rate, SKUs needing attention and which runs out first, idle capital, top seller, reorder candidates, overstock). **Export Clearance List** = dead stock by idle capital (CSV); **Generate PO Reorder Plan** = selling SKUs under 30 days of cover with the quantity that brings them to 60 days at the range's sales pace (CSV); **Inspect Raw Query** shows the SKU-table SQL; follow-up questions go to `chat/send`. |
+
+Definitions: available = on hand − reserved (MSI reservations are units held by orders not yet shipped; without MSI, `cataloginventory` quantity is already net of orders and reserved is 0). A SKU is out of stock when its stock status is out of stock or nothing is available. Days of cover = available ÷ (units sold in the range ÷ days in the range). Units sold are net of refunds and cancellations, on the simple/child lines that hold stock; cancelled and pending-payment orders are excluded.
+
+The design's "+8.4% vs prior cycle" stock-value change, "Model: Meetanshi Ecom-SQL v2.4", "MSI Inventory Sync: every 15m" and "Simulate Clearance Bundle" were not used, because nothing records stock history or computes them; the page shows reserved units, a rule-based label, the stock source and a clearance-list export instead. Product images are not shown (an icon per category keyword is), so the table does not download full-size originals.
+
+### 19.2 Implementation
+
+- `Model/Report/InventoryReport.php`: new `getSkuRows()` / `getSkuRowsSql()` (one query: stock, name, list price, status, MSI reservations, units sold in the range, last sale), `summarize()`, `getSources()`, `getSourceQuantities()`, `getProductCategories()` (with the parent's name for the category filter), `rangeDays()`; thresholds are class constants (`LOW_STOCK_QTY`, `CRITICAL_COVER_DAYS`, `HEALTHY_COVER_DAYS`, `IDLE_AFTER_DAYS`, `TIERS`). The older public methods are unchanged.
+- `ViewModel/InventoryAnalytics.php` (new): page data, up to 500 rows per tab sent to the browser (exports include every row), export rows and the reorder quantity.
+- `Controller/Adminhtml/Reports/InventoryData.php` (JSON) and `InventoryExport.php` (CSV, formula-safe, written to a one-off file in `var/export` that is deleted after sending). Both check `::reports_inventory`.
+- `view/adminhtml/templates/reports/inventory.phtml` is the skeleton, filled by `view/adminhtml/web/js/inventory-report.js` (RequireJS module started via `x-magento-init`). Styles: `view/adminhtml/web/css/inventory_report.css` on top of `mxd_base.css`.
+- `Block/Adminhtml/Reports/Inventory.php` was removed; the layout uses `Magento\Backend\Block\Template` with the view model.
+
+### 19.3 Verification
+
+The template was rendered from the CLI and loaded in headless Chrome with Magento's admin stylesheet; data and range changes were served by the real view model. A scripted run covered tabs, search, category/source/tier filters, sorting, paging, every range including a custom one, the SQL inspector and AI follow-ups (38 checks, no JavaScript errors). The table fits without horizontal scrolling from 1280 px up. Every export tab was run through the controller (filters applied, temporary file removed). Unit tests: `Test/Unit/Model/Report/InventoryReportTest.php` (new cases for row derivation, MSI/legacy SQL and totals). The live admin page was not opened from this session (no admin login); unauthenticated requests to the new routes redirect to the login page.
+
+### 19.4 Deployment note
+
+No existing constructor changed and there is no database change. The new classes work without `setup:di:compile`, but until the next compile the two new controllers run without interceptors (see §15.4 before compiling on this machine).

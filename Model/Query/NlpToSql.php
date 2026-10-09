@@ -248,6 +248,19 @@ SCHEMA;
         'currency', 'month', 'monthly', 'weekly', 'yearly', 'daily', 'recent', 'latest', 'revenue', 'sale',
     ];
 
+    /**
+     * Optional first line of the AI reply that states how it read an ambiguous question.
+     */
+    private const ASSUMPTION_PATTERN = '/^[ \t]*(?:--[ \t]*)?(?:\*\*)?ASSUMPTIONS?[ \t]*:[ \t]*(?:\*\*)?[ \t]*(.*)$\R?/mi';
+
+    /**
+     * Saved reports included as examples with each question.
+     */
+    private const MAX_EXAMPLES = 3;
+
+    private const SYSTEM_INTRO = "You are a Magento 2 database expert. You turn a store admin's question into one read-only "
+        . "MySQL SELECT query on this store's database.";
+
     private const WRITE_STATEMENT_PATTERN =
         '/^\s*(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|REPLACE|GRANT|REVOKE|RENAME|SET|CALL|LOAD|LOCK|UNLOCK|HANDLER'
         . '|SHOW|DESCRIBE|EXPLAIN|USE)\b/im';
@@ -262,13 +275,21 @@ SCHEMA;
      */
     private ?array $curatedColumns = null;
 
+    private ?string $systemPrompt = null;
+
+    /**
+     * How the AI read the last question, when it had to interpret it ('' otherwise).
+     */
+    private string $lastAssumption = '';
+
     public function __construct(
         private readonly ProviderPool $providerPool,
         private readonly ResourceConnection $resourceConnection,
         private readonly ReportContext $reportContext,
         private readonly SqlGuard $sqlGuard,
         private readonly SchemaCatalog $schemaCatalog,
-        private readonly ModuleCatalog $moduleCatalog
+        private readonly ModuleCatalog $moduleCatalog,
+        private readonly ExampleFinder $exampleFinder
     ) {
     }
 
@@ -276,35 +297,52 @@ SCHEMA;
      * Convert a natural language question to a MySQL SELECT query.
      *
      * @param string $nlpQuery
+     * @param array<int, array{question: string, sql: string}> $history earlier turns of a chat, oldest first
      * @return string Raw SQL query
      * @throws DirectAnswerException when the AI answers in plain text (question is not about stored data)
      * @throws LlmException
      */
-    public function convert(string $nlpQuery): string
+    public function convert(string $nlpQuery, array $history = []): string
     {
-        $prompt   = $this->buildPrompt($nlpQuery);
+        $prompt   = $this->buildPrompt($nlpQuery, $history);
         $provider = $this->providerPool->getActiveProvider();
 
-        return $this->toSql($provider->complete($prompt));
+        return $this->toSql($provider->complete($prompt, $this->getSystemPrompt()));
     }
 
     /**
      * Ask the LLM to correct a query the database rejected (unknown column, syntax, …).
      * The real columns of the tables it used are included so it can pick existing ones.
      *
+     * @param array<int, array{question: string, sql: string}> $history
      * @throws LlmException
      */
-    public function repair(string $nlpQuery, string $failedSql, string $databaseError): string
+    public function repair(string $nlpQuery, string $failedSql, string $databaseError, array $history = []): string
     {
-        $prompt = $this->buildPrompt($nlpQuery) . "\n\n"
+        $prompt = $this->buildPrompt($nlpQuery, $history) . "\n\n"
             . "Your previous SQL for this question failed.\n"
             . "Previous SQL: " . preg_replace('/\s+/', ' ', $failedSql) . "\n"
             . "Database error: " . $databaseError . "\n"
             . $this->describeTablesUsed($nlpQuery, $failedSql, $databaseError)
-            . "Return a corrected single SELECT query that uses only the tables and columns listed above. "
+            . "Return a corrected single SELECT query that uses only the tables and columns listed in the schema. "
             . "Return only the raw SQL.";
 
-        return $this->toSql($this->providerPool->getActiveProvider()->complete($prompt));
+        // A corrected query usually keeps the reading of the question without restating it
+        $previousAssumption = $this->lastAssumption;
+        $sql = $this->toSql($this->providerPool->getActiveProvider()->complete($prompt, $this->getSystemPrompt()));
+        if ($this->lastAssumption === '') {
+            $this->lastAssumption = $previousAssumption;
+        }
+
+        return $sql;
+    }
+
+    /**
+     * How the AI interpreted the last converted question ("'returns' read as credit memos"), or ''.
+     */
+    public function getLastAssumption(): string
+    {
+        return $this->lastAssumption;
     }
 
     /**
@@ -314,6 +352,7 @@ SCHEMA;
      */
     private function toSql(string $response): string
     {
+        $response = $this->takeAssumption($response);
         $text = trim((string) preg_replace('/^```\w*\s*|\s*```$/', '', trim($response)));
         if (stripos($text, self::DIRECT_ANSWER_PREFIX) === 0) {
             $answer = trim(substr($text, strlen(self::DIRECT_ANSWER_PREFIX)));
@@ -323,6 +362,20 @@ SCHEMA;
         }
 
         return $this->sanitizeSql($this->applyTablePrefix($this->extractSql($response)));
+    }
+
+    /**
+     * Remember the reply's "ASSUMPTION: …" line(s) and return the reply without them.
+     */
+    private function takeAssumption(string $response): string
+    {
+        $this->lastAssumption = '';
+        if (!preg_match_all(self::ASSUMPTION_PATTERN, $response, $m)) {
+            return $response;
+        }
+        $this->lastAssumption = mb_substr(trim(implode(' ', array_map('trim', $m[1]))), 0, 500);
+
+        return (string) preg_replace(self::ASSUMPTION_PATTERN, '', $response);
     }
 
     /**
@@ -395,21 +448,23 @@ SCHEMA;
     }
 
     /**
-     * Build the full prompt with static + dynamic schema context.
+     * Instructions and the core schema — identical for every question on this store, so providers
+     * can cache it (Claude prompt caching, OpenAI/Gemini prefix caching).
      */
-    private function buildPrompt(string $nlpQuery): string
+    private function getSystemPrompt(): string
     {
-        // Core schema + store facts + the live tables (core, Adobe Commerce or third-party) matching the question
-        $schema = $this->getVerifiedSchema() . "\n" . $this->getStoreFacts() . $this->getRelevantSchema($nlpQuery);
+        if ($this->systemPrompt !== null) {
+            return $this->systemPrompt;
+        }
 
-        return $schema . "\n\n"
-            . "Convert the following question into a single valid MySQL SELECT query.\n"
+        return $this->systemPrompt = self::SYSTEM_INTRO . "\n\n" . $this->getVerifiedSchema() . "\n"
             . "Rules:\n"
             . "- Use only SELECT statements. Never use INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or any DDL/DML.\n"
             . "- Always add a LIMIT clause (max 500 rows) unless the query is an aggregate (COUNT, SUM, AVG).\n"
             . "- Use table aliases for readability.\n"
             . "- Never use SELECT * or alias.*; always list the columns you need explicitly.\n"
-            . "- CRITICAL: Only reference columns that are listed in the schema above for each table. Never invent or guess column names.\n"
+            . "- CRITICAL: Only reference tables and columns that are listed — in the schema above, or in the "
+            . "'MORE TABLES FROM THIS STORE' section that comes with a question. Never invent or guess names.\n"
             . "- The customer_entity table's primary key is 'entity_id' (NOT 'customer_id'). "
             . "Only sales_order, quote, wishlist, review_detail and newsletter_subscriber have a 'customer_id' column.\n"
             . "- To count/list customers, use customer_entity.entity_id, customer_entity.email and customer_entity.created_at.\n"
@@ -428,11 +483,76 @@ SCHEMA;
             . "- Produce ONE complete, syntactically valid MySQL SELECT statement. Do not add a trailing semicolon, "
             . "trailing comma, trailing comment, or any text after the final clause. The LIMIT clause (when used) "
             . "must be the very last clause and use the form 'LIMIT <number>'.\n"
-            . "- Only if NO select query over the tables above can answer the question (a greeting, general Magento "
+            . "- Never substitute an unrelated table for data this store does not record. If the question is about a "
+            . "feature or kind of record that no listed table holds (for example loyalty cards on a store without a "
+            . "loyalty module), do not write SQL: reply with '" . self::DIRECT_ANSWER_PREFIX . " ' and say that this "
+            . "store's database has no such data.\n"
+            . "- If you must read a word of the question as differently named data (for example 'returns' as credit "
+            . "memos), first write one line 'ASSUMPTION: <short explanation for the admin>' and put the SQL on the next "
+            . "line. Write no ASSUMPTION line when the question maps directly onto the schema.\n"
+            . "- Only if NO select query over the listed tables can answer the question (a greeting, general Magento "
             . "advice or how-to, or data this database does not store), do not write SQL: reply with '"
             . self::DIRECT_ANSWER_PREFIX . " ' followed by a short, helpful plain-text reply.\n"
-            . "- Otherwise return only the raw SQL. No explanation, no markdown, no code fences.\n\n"
+            . "- Otherwise return only the raw SQL (after the optional ASSUMPTION line). No explanation, no markdown, "
+            . "no code fences.";
+    }
+
+    /**
+     * The per-question part of the prompt: store facts (they include today's date), the live tables
+     * matching the question, similar saved reports, earlier chat turns and the question itself.
+     *
+     * @param array<int, array{question: string, sql: string}> $history
+     */
+    private function buildPrompt(string $nlpQuery, array $history = []): string
+    {
+        // Follow-ups ("now by month") name no tables themselves: match tables on the earlier question too
+        $previous      = $history ? (string) end($history)['question'] : '';
+        $retrievalText = trim($previous . "\n" . $nlpQuery);
+
+        return $this->getStoreFacts()
+            . $this->getRelevantSchema($retrievalText, $nlpQuery)
+            . $this->getExamples($nlpQuery)
+            . $this->describeHistory($history)
+            . "\nConvert the following question into a single valid MySQL SELECT query, following the rules.\n"
             . "Question: " . $nlpQuery;
+    }
+
+    /**
+     * Saved reports whose question resembles this one: real, admin-approved SQL for this store.
+     */
+    private function getExamples(string $question): string
+    {
+        $lines = [];
+        foreach ($this->exampleFinder->find($question, self::MAX_EXAMPLES) as $example) {
+            $lines[] = 'Q: ' . $example['question'] . "\nSQL: " . preg_replace('/\s+/', ' ', $example['sql']);
+        }
+
+        return $lines
+            ? "\n═══ SAVED REPORTS SIMILAR TO THIS QUESTION (saved by an admin of this store — reuse their joins and "
+                . "filters; their dates are from when they were saved, so take dates for this question from STORE FACTS) ═══\n"
+                . implode("\n", $lines) . "\n"
+            : '';
+    }
+
+    /**
+     * Earlier questions of the chat, so a follow-up ("and last month?", "only for Germany") can build on them.
+     *
+     * @param array<int, array{question: string, sql: string}> $history
+     */
+    private function describeHistory(array $history): string
+    {
+        if (!$history) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($history as $turn) {
+            $lines[] = 'Q: ' . $turn['question'] . "\n"
+                . ($turn['sql'] !== '' ? 'SQL: ' . preg_replace('/\s+/', ' ', $turn['sql']) : '(answered without SQL)');
+        }
+
+        return "\n═══ EARLIER IN THIS CONVERSATION (oldest first — the new question may refer to these; reuse their "
+            . "tables and filters where it does) ═══\n" . implode("\n", $lines) . "\n";
     }
 
     /**
@@ -481,9 +601,13 @@ SCHEMA;
      * Live tables and columns that match the question and are not in the core list:
      *  - tables of a module the question names (e.g. "size chart" → Meetanshi_SizeChart's tables),
      *  - other tables whose name or comment matches the question (core, Adobe Commerce or third-party),
-     *  - columns that modules add to core tables (e.g. sales_order.some_flag) when the question mentions them.
+     *  - columns that modules add to core tables (e.g. sales_order.some_flag) when the question mentions them,
+     *  - words of the question that match nothing in the schema (data this store may not record).
+     *
+     * @param string $question text to match tables on (the question, plus the previous one in a chat)
+     * @param string $currentQuestion the question alone
      */
-    private function getRelevantSchema(string $question): string
+    private function getRelevantSchema(string $question, string $currentQuestion = ''): string
     {
         try {
             $this->getVerifiedSchema();
@@ -536,15 +660,36 @@ SCHEMA;
             }
 
             $lines = array_filter($lines);
-            if (!$lines) {
-                return '';
-            }
+            $output = $lines
+                ? "\n═══ MORE TABLES FROM THIS STORE (live database schema matched to the question) ═══\n"
+                    . implode("\n", $lines) . "\n"
+                : '';
 
-            return "\n═══ MORE TABLES FROM THIS STORE (live database schema matched to the question) ═══\n"
-                . implode("\n", $lines) . "\n";
+            return $output . $this->describeUnknownWords($currentQuestion !== '' ? $currentQuestion : $question);
         } catch (\Throwable $e) {
             return '';
         }
+    }
+
+    /**
+     * A note on question words that appear in no table, column or comment of this store — the usual
+     * sign of data the store does not keep ("loyalty cards"), which the AI must not map onto an
+     * unrelated table.
+     */
+    private function describeUnknownWords(string $question): string
+    {
+        // Known text = the schema only: the rules mention example words ("loyalty cards") on purpose
+        $unknown = $this->schemaCatalog->findUnknownWords($question, $this->getVerifiedSchema());
+        if (!$unknown) {
+            return '';
+        }
+
+        return "\n═══ WORDS WITH NO MATCH IN THIS STORE'S DATABASE ═══\n"
+            . '- No table, column or table comment matches: ' . implode(', ', $unknown) . ".\n"
+            . "- If such a word names a feature or kind of record (e.g. 'loyalty card', 'gift registry'), this store "
+            . 'does not record it: reply with ' . self::DIRECT_ANSWER_PREFIX . " and say so instead of using an "
+            . "unrelated table. If it only describes a measure or filter (e.g. 'top spenders', 'loyal customers' = "
+            . "customers with repeat orders), answer normally with the listed tables.\n";
     }
 
     /**

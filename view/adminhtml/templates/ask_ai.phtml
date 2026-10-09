@@ -1,0 +1,340 @@
+<?php
+/**
+ * Meetanshi AIReporting — Ask AI & Copilot Analytics
+ *
+ * Content area only (Magento's admin menu and header are untouched). Driven by
+ * Meetanshi_AIReporting/js/ask-ai; shared styles in css/mxd_base.css, page styles in css/ask_ai.css.
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+
+/** @var \Meetanshi\AIReporting\Block\Adminhtml\Query $block */
+/** @var \Magento\Framework\Escaper $escaper */
+?>
+<?php if (!$block->isEnabled()): ?>
+    <div class="message message-warning">
+        <?= $escaper->escapeHtml(__('Meetanshi AI Reporting is disabled. Please enable it in Stores > Configuration > Meetanshi > AI Reporting.')) ?>
+    </div>
+    <?php return; ?>
+<?php endif; ?>
+<?php
+$config  = $block->getJsConfig();
+$context = $block->getAiContext();
+$ready   = $config['aiConfigured'];
+?>
+<div class="mxd mxq" data-role="mxq-root">
+
+    <!-- Header -->
+    <section class="mxq-head">
+        <div class="mxq-head__title">
+            <nav class="mxq-crumbs" aria-label="<?= $escaper->escapeHtmlAttr(__('Breadcrumb')) ?>">
+                <span><?= $escaper->escapeHtml(__('Admin')) ?></span><span>/</span>
+                <span><?= $escaper->escapeHtml(__('Meetanshi Extensions')) ?></span><span>/</span>
+                <strong><?= $escaper->escapeHtml(__('AI Copilot Reporting')) ?></strong>
+            </nav>
+            <div class="mxq-titlerow">
+                <h1 class="mxq-h1"><?= $escaper->escapeHtml(__('Ask AI & Copilot Analytics')) ?></h1>
+                <span class="mxq-badge"><?= $escaper->escapeHtml($context->getPlatformLabel()) ?></span>
+            </div>
+            <p class="mxq-lead">
+                <?= $escaper->escapeHtml(__('Ask about your store in plain English. The AI writes a MySQL query, the module checks it and runs it read-only, and the Copilot explains what the numbers mean.')) ?>
+            </p>
+        </div>
+        <div class="mxq-head__side">
+            <div class="mxq-engine">
+                <span class="mxd-dot <?= $ready ? 'mxq-dot--brand' : 'mxd-dot--off' ?>"></span>
+                <strong><?= $escaper->escapeHtml($config['provider']) ?></strong>
+                <code><?= $escaper->escapeHtml($config['model']) ?></code>
+                <a class="mxd-iconbtn mxq-engine__cfg" href="<?= $escaper->escapeUrl($block->getConfigUrl()) ?>"
+                   title="<?= $escaper->escapeHtmlAttr(__('Change model / AI settings')) ?>">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">settings</span>
+                </a>
+            </div>
+            <div class="mxq-tabs" role="tablist" data-role="tabs">
+                <button type="button" class="is-active" data-tab="studio" role="tab" aria-selected="true">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">dashboard_customize</span>
+                    <?= $escaper->escapeHtml(__('Unified Studio')) ?>
+                </button>
+                <button type="button" data-tab="stream" role="tab" aria-selected="false">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">forum</span>
+                    <?= $escaper->escapeHtml(__('Copilot Stream')) ?>
+                </button>
+                <a href="<?= $escaper->escapeUrl($block->getSavedReportsUrl()) ?>">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">bookmarks</span>
+                    <span><?= $escaper->escapeHtml(__('Saved')) ?> (<span data-role="saved-count"><?= (int) $config['savedCount'] ?></span>)</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="mxq-body">
+
+        <!-- Composer -->
+        <section class="mxq-composer" data-role="composer">
+            <form class="mxq-omnibox" data-role="ask-form" autocomplete="off">
+                <span class="mxq-omnibox__icon"><span class="mxd-ico mxd-ico--md" aria-hidden="true">auto_awesome</span></span>
+                <input type="text" class="mxd-input mxq-omnibox__input" data-role="question" maxlength="500"
+                       placeholder="<?= $escaper->escapeHtmlAttr(__('Ask anything (e.g. Which coupon codes were used today? Low stock products with qty < 10)')) ?>"
+                       aria-label="<?= $escaper->escapeHtmlAttr(__('Your question')) ?>">
+                <span class="mxq-omnibox__hint"><kbd>Ctrl + Space</kbd><span><?= $escaper->escapeHtml(__('Suggest')) ?></span></span>
+                <button type="button" class="mxd-btn" data-role="options-toggle" aria-expanded="false">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">tune</span>
+                    <span><?= $escaper->escapeHtml(__('Options')) ?></span>
+                </button>
+                <button type="submit" class="mxd-btn mxd-btn--primary mxq-run" data-role="run">
+                    <span class="mxd-ico mxd-ico--md" aria-hidden="true">bolt</span>
+                    <span><?= $escaper->escapeHtml(__('Generate & Run')) ?></span>
+                </button>
+
+                <ul class="mxq-suggest" data-role="suggest" role="listbox" hidden></ul>
+
+                <div class="mxq-options" data-role="options" hidden>
+                    <div class="mxq-options__group">
+                        <span class="mxd-label"><?= $escaper->escapeHtml(__('Default view')) ?></span>
+                        <div class="mxq-options__row">
+                            <?php foreach (['table' => __('Table'), 'bar' => __('Bar'), 'line' => __('Trend'), 'pie' => __('Pie')] as $value => $label): ?>
+                                <label><input type="radio" name="mxq-default-view" value="<?= $escaper->escapeHtmlAttr($value) ?>" data-role="opt-view"> <?= $escaper->escapeHtml($label) ?></label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <div class="mxq-options__group">
+                        <label class="mxd-label" for="mxq-page-size"><?= $escaper->escapeHtml(__('Rows per page')) ?></label>
+                        <select id="mxq-page-size" class="mxq-select" data-role="opt-page-size">
+                            <?php foreach ([7, 10, 25, 50] as $size): ?>
+                                <option value="<?= (int) $size ?>"><?= (int) $size ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <label class="mxq-options__check">
+                        <input type="checkbox" data-role="opt-summary">
+                        <span><?= $escaper->escapeHtml(__('Summarize each result in the Copilot panel (computed in your browser, nothing is sent to the AI)')) ?></span>
+                    </label>
+                </div>
+            </form>
+
+            <div class="mxq-prompts__head">
+                <span><?= $escaper->escapeHtml(__('Recommended prompts')) ?></span>
+                <button type="button" class="mxq-textbtn" data-role="more-toggle" aria-expanded="false">
+                    <span><?= $escaper->escapeHtml(__('Explore more queries')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                </button>
+            </div>
+            <div class="mxq-prompts">
+                <?php foreach ($block->getPromptGroups() as $group): ?>
+                    <div class="mxq-prompts__group">
+                        <div class="mxq-prompts__label">
+                            <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true"><?= $escaper->escapeHtml($group['icon']) ?></span>
+                            <?= $escaper->escapeHtml($group['label']) ?>
+                        </div>
+                        <?php foreach ($group['prompts'] as $prompt): ?>
+                            <button type="button" class="mxq-prompt" data-question="<?= $escaper->escapeHtmlAttr($prompt) ?>" title="<?= $escaper->escapeHtmlAttr($prompt) ?>"><?= $escaper->escapeHtml($prompt) ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <div class="mxq-more" data-role="more" hidden>
+                <?php foreach ($block->getSuggestedQueries() as $prompt): ?>
+                    <button type="button" class="mxq-chip" data-question="<?= $escaper->escapeHtmlAttr($prompt) ?>"><?= $escaper->escapeHtml($prompt) ?></button>
+                <?php endforeach; ?>
+            </div>
+        </section>
+
+        <div class="mxq-workspace" data-role="workspace">
+
+            <!-- Results -->
+            <div class="mxq-main" data-role="studio">
+                <div class="mxq-state" data-role="state">
+                    <span class="mxq-state__icon"><span class="mxd-ico mxd-ico--lg" aria-hidden="true">query_stats</span></span>
+                    <strong><?= $escaper->escapeHtml(__('Ask a question to see your data here')) ?></strong>
+                    <span><?= $escaper->escapeHtml(__('Pick a recommended prompt above or type your own. Results appear as a table or chart, with the SQL that produced them.')) ?></span>
+                </div>
+
+                <div class="mxq-results" data-role="results" hidden>
+                    <div class="mxq-toolbar">
+                        <div class="mxq-meta" data-role="meta"></div>
+                        <div class="mxq-toolbar__actions">
+                            <div class="mxq-views" data-role="views" role="group">
+                                <button type="button" data-view="table"><span class="mxd-ico mxd-ico--sm" aria-hidden="true">table_chart</span><?= $escaper->escapeHtml(__('Table')) ?></button>
+                                <button type="button" data-view="bar"><span class="mxd-ico mxd-ico--sm" aria-hidden="true">bar_chart</span><?= $escaper->escapeHtml(__('Bar')) ?></button>
+                                <button type="button" data-view="line"><span class="mxd-ico mxd-ico--sm" aria-hidden="true">show_chart</span><?= $escaper->escapeHtml(__('Trend')) ?></button>
+                                <button type="button" data-view="pie"><span class="mxd-ico mxd-ico--sm" aria-hidden="true">pie_chart</span><?= $escaper->escapeHtml(__('Pie')) ?></button>
+                            </div>
+                            <button type="button" class="mxd-iconbtn" data-role="download" title="<?= $escaper->escapeHtmlAttr(__('Download CSV')) ?>">
+                                <span class="mxd-ico mxd-ico--md" aria-hidden="true">download</span>
+                            </button>
+                            <button type="button" class="mxd-iconbtn" data-role="save" title="<?= $escaper->escapeHtmlAttr(__('Save as report')) ?>">
+                                <span class="mxd-ico mxd-ico--md" aria-hidden="true">bookmark_add</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mxq-assumption" data-role="assumption" hidden></div>
+
+                    <div class="mxq-card mxq-tablecard" data-role="table-view">
+                        <div class="mxq-tablewrap">
+                            <table class="mxq-table">
+                                <thead data-role="thead"></thead>
+                                <tbody data-role="tbody"></tbody>
+                            </table>
+                        </div>
+                        <footer class="mxq-pager">
+                            <span data-role="pager-info"></span>
+                            <div class="mxq-pager__buttons" data-role="pager"></div>
+                        </footer>
+                    </div>
+
+                    <div class="mxq-card mxq-chartcard" data-role="chart-view" hidden>
+                        <header class="mxq-chartcard__head">
+                            <div>
+                                <h2 class="mxd-h3" data-role="chart-title"></h2>
+                                <p class="mxd-sub" data-role="chart-sub"></p>
+                            </div>
+                            <div class="mxq-axes">
+                                <label>
+                                    <span class="mxd-label"><?= $escaper->escapeHtml(__('X axis')) ?></span>
+                                    <select class="mxq-select" data-role="x-axis"></select>
+                                </label>
+                                <label>
+                                    <span class="mxd-label"><?= $escaper->escapeHtml(__('Values')) ?></span>
+                                    <select class="mxq-select" data-role="y-axis" multiple size="1"></select>
+                                </label>
+                            </div>
+                        </header>
+                        <div class="mxq-chart"><canvas data-role="chart"></canvas></div>
+                    </div>
+
+                    <div class="mxq-card mxq-nodata" data-role="no-data" hidden>
+                        <span class="mxd-ico mxd-ico--lg" aria-hidden="true">inbox</span>
+                        <strong><?= $escaper->escapeHtml(__('No results found')) ?></strong>
+                        <span><?= $escaper->escapeHtml(__('The query ran, but there is no matching data. Try a wider date range or a different question.')) ?></span>
+                    </div>
+
+                    <section class="mxq-sql" data-role="sql">
+                        <header class="mxq-sql__head" data-role="sql-toggle" role="button" tabindex="0" aria-expanded="true">
+                            <span class="mxd-ico mxd-ico--md mxd-text-brand" aria-hidden="true">database</span>
+                            <span class="mxq-sql__title"><?= $escaper->escapeHtml(__('Executed Magento 2 SQL Inspector')) ?></span>
+                            <code class="mxq-sql__tables" data-role="sql-tables"></code>
+                            <span class="mxq-sql__spacer"></span>
+                            <button type="button" class="mxd-btn mxq-sql__copy" data-role="copy-sql">
+                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
+                                <span data-role="copy-label"><?= $escaper->escapeHtml(__('Copy SQL')) ?></span>
+                            </button>
+                            <span class="mxd-ico mxd-ico--md mxq-sql__chevron" aria-hidden="true">expand_more</span>
+                        </header>
+                        <div class="mxq-sql__body" data-role="sql-body">
+                            <pre data-role="sql-code"></pre>
+                            <footer class="mxq-sql__foot" data-role="sql-foot"></footer>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Copilot -->
+            <aside class="mxq-copilot" data-role="copilot">
+                <header class="mxq-copilot__head">
+                    <span class="mxq-copilot__logo"><span class="mxd-ico mxd-ico--md" aria-hidden="true">smart_toy</span></span>
+                    <div class="mxq-copilot__title">
+                        <strong><?= $escaper->escapeHtml(__('Store Intelligence Copilot')) ?>
+                            <span class="mxd-dot <?= $ready ? 'mxq-dot--brand' : 'mxd-dot--off' ?>"></span></strong>
+                        <span><?= $escaper->escapeHtml(__('Context: %1', $context->getStoreName())) ?></span>
+                    </div>
+                    <button type="button" class="mxd-iconbtn" data-role="chat-reset" title="<?= $escaper->escapeHtmlAttr(__('Start a new conversation')) ?>">
+                        <span class="mxd-ico mxd-ico--md" aria-hidden="true">refresh</span>
+                    </button>
+                </header>
+                <div class="mxq-thread" data-role="thread" aria-live="polite">
+                    <div class="mxq-msg mxq-msg--bot" data-role="welcome">
+                        <div class="mxq-msg__card">
+                            <div class="mxq-msg__kicker"><span class="mxd-ico mxd-ico--sm" aria-hidden="true">waving_hand</span><?= $escaper->escapeHtml(__('Copilot')) ?></div>
+                            <p><?= $escaper->escapeHtml(__('Ask me about sales, orders, customers, products, inventory, store settings or installed modules. I remember the last few questions, so you can ask follow-ups.')) ?></p>
+                            <div class="mxq-msg__chips">
+                                <?php foreach ([
+                                    __("What is today's total revenue?"),
+                                    __('How many orders were placed this week?'),
+                                    __('Who are the top 5 customers by spending?'),
+                                    __('Which products are running low on stock?'),
+                                    __('Show me the sales trend for the last 7 days'),
+                                    __('What is the repeat purchase rate?'),
+                                ] as $question): ?>
+                                    <button type="button" class="mxq-chip" data-chat="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mxq-typing" data-role="typing" hidden><span></span><span></span><span></span>
+                    <em><?= $escaper->escapeHtml(__('Copilot is working… local models can take a minute.')) ?></em></div>
+                <div class="mxq-attached" data-role="attached" hidden>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">attach_file</span>
+                    <span class="mxq-attached__text" data-role="attached-text"></span>
+                    <button type="button" class="mxq-attached__remove" data-role="attach-remove"
+                            title="<?= $escaper->escapeHtmlAttr(__('Ask without the Studio result')) ?>">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">close</span>
+                    </button>
+                </div>
+                <form class="mxq-compose" data-role="chat-form" autocomplete="off">
+                    <input type="text" class="mxd-input" data-role="chat-input" maxlength="500"
+                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask follow-up or investigate SKU...')) ?>"
+                           aria-label="<?= $escaper->escapeHtmlAttr(__('Message the Copilot')) ?>">
+                    <button type="button" class="mxq-attach" data-role="chat-attach" aria-pressed="false" disabled
+                            title="<?= $escaper->escapeHtmlAttr(__('Ask about the Studio result (run a question first)')) ?>">
+                        <span class="mxd-ico mxd-ico--md" aria-hidden="true">attach_file</span>
+                    </button>
+                    <button type="submit" class="mxq-send" data-role="chat-send" title="<?= $escaper->escapeHtmlAttr(__('Send')) ?>">
+                        <span class="mxd-ico mxd-ico--md" aria-hidden="true">send</span>
+                    </button>
+                </form>
+            </aside>
+        </div>
+
+        <!-- Connection footer -->
+        <footer class="mxq-footer">
+            <span class="mxq-footer__icon"><span class="mxd-ico mxd-ico--md" aria-hidden="true">cloud_sync</span></span>
+            <div class="mxq-footer__text">
+                <strong><?= $escaper->escapeHtml($ready ? __('%1 connected', $config['provider']) : __('AI provider not configured')) ?></strong>
+                <span class="mxq-footer__sep">•</span>
+                <span><?= $escaper->escapeHtml(__(
+                    'Questions become read-only SQL on this store\'s database, limited to %1 rows and %2 s.',
+                    (int) $config['maxRows'],
+                    (int) $config['queryTimeout']
+                ) . ' ' . ($config['resultSharing']
+                    ? __('Result rows are sent to the AI provider to write chat answers.')
+                    : __('Result rows stay on your server.'))) ?></span>
+            </div>
+            <div class="mxq-footer__links">
+                <a href="<?= $escaper->escapeUrl($block->getSavedReportsUrl()) ?>"><?= $escaper->escapeHtml(__('Saved Reports')) ?></a>
+                <span class="mxq-footer__sep">•</span>
+                <a href="<?= $escaper->escapeUrl($block->getConfigUrl()) ?>"><?= $escaper->escapeHtml(__('Configure Engine')) ?></a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Save report dialog -->
+    <div class="mxq-modal" data-role="save-modal" hidden>
+        <div class="mxq-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="mxq-save-title">
+            <header>
+                <h3 class="mxd-h3" id="mxq-save-title"><?= $escaper->escapeHtml(__('Save Report')) ?></h3>
+                <button type="button" class="mxd-iconbtn" data-role="save-cancel" title="<?= $escaper->escapeHtmlAttr(__('Close')) ?>">
+                    <span class="mxd-ico mxd-ico--md" aria-hidden="true">close</span>
+                </button>
+            </header>
+            <label class="mxd-label" for="mxq-report-title"><?= $escaper->escapeHtml(__('Report title')) ?></label>
+            <input type="text" id="mxq-report-title" class="mxd-input mxq-modal__input" data-role="save-title" maxlength="255"
+                   placeholder="<?= $escaper->escapeHtmlAttr(__('e.g. Monthly Revenue Report')) ?>">
+            <p class="mxd-sub" data-role="save-hint"></p>
+            <footer>
+                <button type="button" class="mxd-btn" data-role="save-cancel"><?= $escaper->escapeHtml(__('Cancel')) ?></button>
+                <button type="button" class="mxd-btn mxd-btn--primary" data-role="save-confirm"><?= $escaper->escapeHtml(__('Save')) ?></button>
+            </footer>
+        </div>
+    </div>
+    <div class="mxq-toast" data-role="toast" role="status" hidden></div>
+</div>
+<script type="text/x-magento-init">
+<?= /* @noEscape */ json_encode(
+    ['[data-role=mxq-root]' => ['Meetanshi_AIReporting/js/ask-ai' => $config]],
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+) ?>
+</script>

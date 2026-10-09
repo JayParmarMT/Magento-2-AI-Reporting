@@ -212,4 +212,105 @@ class SalesReportTest extends TestCase
         $this->assertSame('10', $result[1]['orders']);
         $this->assertSame(0, $result[0]['orders']);
     }
+
+    // ── Range-based figures (Sales & Revenue page) ───────────────────────
+
+    public function testGetRangeTotalsCountsOnlySalesButReportsExcludedOrders(): void
+    {
+        $captured = [];
+        $this->connection->method('fetchRow')->willReturnCallback(
+            function (string $sql, array $bind) use (&$captured) {
+                $captured = [$sql, $bind];
+                return [
+                    'all_orders' => '5', 'orders' => '3', 'revenue' => '250.555', 'gross' => '300', 'refunded' => '49.445',
+                    'refund_orders' => '1', 'discount' => '10', 'discounted_orders' => '1', 'discounted_revenue' => '90',
+                    'tax' => '20', 'shipping' => '15', 'pending_payment' => '1', 'canceled' => '1',
+                ];
+            }
+        );
+        $start = new \DateTimeImmutable('2026-01-01', new \DateTimeZone('UTC'));
+
+        $totals = $this->report->getRangeTotals($start, $start->modify('+1 month'));
+
+        [$sql, $bind] = $captured;
+        $this->assertStringContainsString("SUM(IF(o.state NOT IN ('canceled','pending_payment'), ((o.base_grand_total - IFNULL(o.base_total_refunded, 0))", $sql);
+        $this->assertStringContainsString("SUM(o.state = 'pending_payment')", $sql);
+        $this->assertStringNotContainsString('{{', $sql);
+        $this->assertSame(['2026-01-01 00:00:00', '2026-02-01 00:00:00'], $bind);
+        $this->assertSame(250.56, $totals['revenue']);
+        $this->assertSame(3, $totals['orders']);
+        $this->assertSame(5, $totals['all_orders']);
+        $this->assertSame(1, $totals['canceled']);
+    }
+
+    public function testGetRevenueSeriesFillsEveryDayOfTheRange(): void
+    {
+        $this->connection->method('fetchAll')->willReturn([
+            ['bucket' => '2026-03-02', 'orders' => '2', 'revenue' => '80.50'],
+        ]);
+        $start = new \DateTimeImmutable('2026-03-01', new \DateTimeZone('UTC'));
+
+        $series = $this->report->getRevenueSeries($start, $start->modify('+3 days'), 'day');
+
+        $this->assertSame(['2026-03-01', '2026-03-02', '2026-03-03'], array_column($series, 'key'));
+        $this->assertSame([0, 2, 0], array_column($series, 'orders'));
+        $this->assertSame(80.5, $series[1]['revenue']);
+    }
+
+    public function testGetRevenueSeriesByMonthStartsAtTheFirstMonth(): void
+    {
+        $this->connection->method('fetchAll')->willReturn([]);
+        $start = new \DateTimeImmutable('2026-01-15', new \DateTimeZone('UTC'));
+
+        $series = $this->report->getRevenueSeries($start, new \DateTimeImmutable('2026-03-10', new \DateTimeZone('UTC')), 'month');
+
+        $this->assertSame(['2026-01', '2026-02', '2026-03'], array_column($series, 'key'));
+        $this->assertSame('Jan 2026', $series[0]['label']);
+    }
+
+    public function testGetStatusBreakdownMarksExcludedStates(): void
+    {
+        $this->connection->method('fetchAll')->willReturn([
+            ['status' => 'complete', 'state' => 'complete', 'label' => 'Complete', 'orders' => '4', 'value' => '400'],
+            ['status' => 'canceled', 'state' => 'canceled', 'label' => 'Canceled', 'orders' => '1', 'value' => '50'],
+        ]);
+        $start = new \DateTimeImmutable('2026-01-01', new \DateTimeZone('UTC'));
+
+        $rows = $this->report->getStatusBreakdown($start, $start->modify('+1 day'));
+
+        $this->assertTrue($rows[0]['counted']);
+        $this->assertFalse($rows[1]['counted']);
+        $this->assertSame(4, $rows[0]['orders']);
+    }
+
+    public function testGetPromotionBreakdownCreditsDiscountOnlyToDiscountRules(): void
+    {
+        $captured = '';
+        $this->connection->method('fetchAll')->willReturnCallback(function (string $sql) use (&$captured) {
+            $captured = $sql;
+            return [[
+                'rule_id' => '2', 'name' => 'Free shipping over $50', 'coupon_type' => '1', 'simple_action' => 'by_percent',
+                'discount_amount' => '0', 'simple_free_shipping' => '1', 'is_active' => '1', 'from_date' => null,
+                'to_date' => null, 'code' => '', 'orders' => '3', 'discount' => '0', 'revenue' => '300',
+            ]];
+        });
+        $start = new \DateTimeImmutable('2026-01-01', new \DateTimeZone('UTC'));
+
+        $rows = $this->report->getPromotionBreakdown($start, $start->modify('+1 month'));
+
+        $this->assertStringContainsString('FIND_IN_SET(r.rule_id, o.applied_rule_ids)', $captured);
+        $this->assertStringContainsString('IF(r.discount_amount > 0,', $captured);
+        $this->assertStringContainsString("IF(r.coupon_type = 1, '', COALESCE(o.coupon_code, ''))", $captured);
+        $this->assertTrue($rows[0]['free_shipping']);
+        $this->assertSame(3, $rows[0]['orders']);
+        $this->assertSame('', $rows[0]['code']);
+    }
+
+    public function testGetPeakHourIsNullWithoutOrders(): void
+    {
+        $this->connection->method('fetchOne')->willReturn(false);
+        $start = new \DateTimeImmutable('2026-01-01', new \DateTimeZone('UTC'));
+
+        $this->assertNull($this->report->getPeakHour($start, $start->modify('+1 day')));
+    }
 }

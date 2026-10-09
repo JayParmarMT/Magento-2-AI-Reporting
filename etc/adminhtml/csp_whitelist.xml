@@ -2,7 +2,7 @@
 <!--
 /**
  * Meetanshi AIReporting — Admin CSP Whitelist
- * Allow Chart.js CDN for admin chart rendering
+ * Allow Chart.js CDN for admin chart rendering, and Google Fonts for the Executive Dashboard
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -15,6 +15,16 @@
         <policy id="script-src">
             <values>
                 <value id="chartjs_cdn" type="host">https://cdn.jsdelivr.net</value>
+            </values>
+        </policy>
+        <policy id="style-src">
+            <values>
+                <value id="google_fonts_css" type="host">https://fonts.googleapis.com</value>
+            </values>
+        </policy>
+        <policy id="font-src">
+            <values>
+                <value id="google_fonts_files" type="host">https://fonts.gstatic.com</value>
             </values>
         </policy>
     </policies>

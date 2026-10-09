@@ -18,11 +18,9 @@ class ClaudeModel implements OptionSourceInterface
     public function toOptionArray(): array
     {
         return [
-            ['value' => 'claude-3-5-haiku-latest',  'label' => 'Claude 3.5 Haiku (Fast, Recommended)'],
-            ['value' => 'claude-3-5-sonnet-latest',  'label' => 'Claude 3.5 Sonnet'],
-            ['value' => 'claude-3-7-sonnet-latest',  'label' => 'Claude 3.7 Sonnet'],
-            ['value' => 'claude-sonnet-4-0',         'label' => 'Claude Sonnet 4'],
-            ['value' => 'claude-opus-4-0',           'label' => 'Claude Opus 4'],
+            ['value' => 'claude-opus-5-5',   'label' => 'Claude Opus 5.5 (Recommended)'],
+            ['value' => 'claude-sonnet-5-5', 'label' => 'Claude Sonnet 5.5 (Faster, lower cost)'],
+            ['value' => 'claude-haiku-4-5',  'label' => 'Claude Haiku 4.5 (Fastest, lowest cost)'],
         ];
     }
 }

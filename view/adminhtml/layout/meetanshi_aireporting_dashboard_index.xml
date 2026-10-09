@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
 /**
- * Meetanshi AIReporting
+ * Meetanshi AIReporting — AI Analytics & Executive Dashboard (content area only)
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -11,11 +11,15 @@
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <update handle="meetanshi_aireporting_default"/>
+    <update handle="meetanshi_aireporting_mxd"/>
+    <head>
+        <css src="Meetanshi_AIReporting::css/executive_dashboard.css"/>
+    </head>
     <body>
         <referenceContainer name="content">
             <block class="Meetanshi\AIReporting\Block\Adminhtml\Dashboard"
                    name="meetanshi_aireporting_dashboard"
-                   template="Meetanshi_AIReporting::dashboard_enhanced.phtml"/>
+                   template="Meetanshi_AIReporting::executive_dashboard.phtml"/>
         </referenceContainer>
     </body>
 </page>

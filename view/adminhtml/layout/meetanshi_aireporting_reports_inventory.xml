@@ -1,12 +1,29 @@
 <?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting — Inventory & Stock Intelligence Report (content area only)
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <update handle="meetanshi_aireporting_default"/>
+    <update handle="meetanshi_aireporting_mxd"/>
+    <head>
+        <css src="Meetanshi_AIReporting::css/inventory_report.css"/>
+    </head>
     <body>
         <referenceContainer name="content">
-            <block class="Meetanshi\AIReporting\Block\Adminhtml\Reports\Inventory"
+            <block class="Magento\Backend\Block\Template"
                    name="meetanshi_aireporting_reports_inventory"
-                   template="Meetanshi_AIReporting::reports/inventory.phtml"/>
+                   template="Meetanshi_AIReporting::reports/inventory.phtml">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">Meetanshi\AIReporting\ViewModel\InventoryAnalytics</argument>
+                </arguments>
+            </block>
         </referenceContainer>
     </body>
 </page>

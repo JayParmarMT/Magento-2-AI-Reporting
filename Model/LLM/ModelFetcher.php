@@ -14,6 +14,7 @@ namespace Meetanshi\AIReporting\Model\LLM;
 use Magento\Framework\HTTP\Client\Curl;
 use Magento\Framework\Serialize\Serializer\Json;
 use Meetanshi\AIReporting\Model\Config;
+use Meetanshi\AIReporting\Model\Config\Source\ClaudeModel;
 use Psr\Log\LoggerInterface;
 
 class ModelFetcher
@@ -22,7 +23,8 @@ class ModelFetcher
         private readonly Config $config,
         private readonly Curl $curl,
         private readonly Json $json,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly ClaudeModel $claudeModels
     ) {
     }
 
@@ -207,15 +209,7 @@ class ModelFetcher
      */
     private function claudeStaticFallback(string $message): array
     {
-        $models = [
-            ['value' => 'claude-3-5-haiku-latest',  'label' => 'Claude 3.5 Haiku (Fast)'],
-            ['value' => 'claude-3-5-sonnet-latest', 'label' => 'Claude 3.5 Sonnet'],
-            ['value' => 'claude-3-7-sonnet-latest', 'label' => 'Claude 3.7 Sonnet'],
-            ['value' => 'claude-sonnet-4-0',        'label' => 'Claude Sonnet 4'],
-            ['value' => 'claude-opus-4-0',          'label' => 'Claude Opus 4'],
-        ];
-
-        return ['success' => true, 'models' => $models, 'message' => $message];
+        return ['success' => true, 'models' => $this->claudeModels->toOptionArray(), 'message' => $message];
     }
 
     /**

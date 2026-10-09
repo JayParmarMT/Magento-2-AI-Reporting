@@ -25,4 +25,12 @@
         </arguments>
     </type>
 
+    <type name="Magento\Framework\Console\CommandListInterface">
+        <arguments>
+            <argument name="commands" xsi:type="array">
+                <item name="meetanshi_aireporting_readonly_grants" xsi:type="object">Meetanshi\AIReporting\Console\Command\ReadOnlyGrants</item>
+            </argument>
+        </arguments>
+    </type>
+
 </config>

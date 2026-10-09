@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
 /**
- * Meetanshi AIReporting — Default layout: load CSS and Chart.js on all module pages
+ * Meetanshi AIReporting — Default layout: load CSS, Chart.js, and remove duplicate page title
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -15,4 +15,7 @@
         <css src="Meetanshi_AIReporting::css/menu.css"/>
         <css src="Meetanshi_AIReporting::css/dashboard_enhanced.css"/>
     </head>
+    <body>
+        <referenceBlock name="page.main.title" remove="true"/>
+    </body>
 </page>

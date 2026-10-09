@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Meetanshi AIReporting — shared head of the redesigned pages (Executive Dashboard, Ask AI):
+ * IBM Plex Sans, JetBrains Mono and Material Symbols, plus the shared .mxd styles.
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <css src="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" src_type="url"/>
+        <css src="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&amp;display=block" src_type="url"/>
+        <css src="Meetanshi_AIReporting::css/mxd_base.css"/>
+    </head>
+</page>

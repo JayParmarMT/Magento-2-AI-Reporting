@@ -1,0 +1,464 @@
+/**
+ * Meetanshi AIReporting — shared styles of the redesigned admin pages (Executive Dashboard, Ask AI)
+ *
+ * Design tokens, resets of Magento's global admin element styles, icons, typography and
+ * shared components. Everything is scoped to .mxd so Magento's menu, header and other pages
+ * are untouched. Pixel units on purpose: the admin sets html { font-size: 62.5% }.
+ */
+
+
+.mxd {
+    --mxd-brand: #ee672f;
+    --mxd-brand-dark: #ea5b0c;
+    --mxd-brand-ink: #c2410c; /* brand text/icons on hover: 4.4:1+ on the light surfaces (#ee672f is ~2.7–3:1) */
+    --mxd-brand-50: #fff7ed;
+    --mxd-brand-100: #ffedd5;
+    --mxd-brand-200: #fed7aa;
+    --mxd-ink: #0b1c30;
+    --mxd-ink-2: #594139;
+    --mxd-ink-3: #8c7168;
+    --mxd-secondary: #586377;
+    --mxd-bg: #f8f9ff;
+    --mxd-surface: #ffffff;
+    --mxd-surface-low: #eff4ff;
+    --mxd-surface-mid: #e5eeff;
+    --mxd-surface-high: #dce9ff;
+    --mxd-line: #e2e8f0;
+    --mxd-green: #10b981;
+    --mxd-green-dark: #047857;
+    --mxd-green-50: #ecfdf5;
+    --mxd-amber: #f59e0b;
+    --mxd-amber-dark: #b45309;
+    --mxd-amber-50: #fffbeb;
+    --mxd-red: #ef4444;
+    --mxd-red-dark: #b91c1c;
+    --mxd-red-50: #fef2f2;
+    --mxd-dark: #1e293b;
+    --mxd-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+    --mxd-sans: 'IBM Plex Sans', 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+    --mxd-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+    background: var(--mxd-bg);
+    color: var(--mxd-ink);
+    font-family: var(--mxd-sans);
+    font-size: 14px;
+    line-height: 20px;
+    margin: 0 0 32px;
+    border-radius: 8px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+.mxd *,
+.mxd *::before,
+.mxd *::after {
+    box-sizing: border-box;
+}/* ── Neutralise Magento admin element styles inside the dashboard ───────── */
+
+.mxd button {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    margin: 0;
+    padding: 0;
+    text-shadow: none;
+    min-height: 0;
+    cursor: pointer;
+}
+
+/*
+ * Magento paints button:hover / :focus / :active grey (specificity 0-1-1). These state resets sit
+ * just above that (0-1-2, via html + :where) and below every component rule (.mxd .x = 0-2-0), so a
+ * component keeps its padding, radius, font and background in every state unless it styles that
+ * state itself. Never list :hover / :focus here as plain selectors: .mxd button:hover is 0-2-1 and
+ * would strip the components' styles on hover.
+ */
+html .mxd button:where(:hover, :focus, :active) {
+    background-color: transparent;
+    color: inherit;
+    text-decoration: none;
+}
+
+.mxd button:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+
+.mxd a,
+html .mxd a:where(:hover, :focus, :active, :visited) {
+    text-decoration: none;
+}
+
+.mxd .mxd-input,
+.mxd .mxd-input:where(:focus),
+.mxd select,
+.mxd select:where(:focus) {
+    border: 0;
+    box-shadow: none;
+    font-family: var(--mxd-sans);
+    font-size: 12px;
+    height: auto;
+    line-height: 16px;
+    color: var(--mxd-ink);
+}
+
+.mxd h1,
+.mxd h2,
+.mxd h3,
+.mxd p {
+    margin: 0;
+    padding: 0;
+}
+
+.mxd [hidden] {
+    display: none !important;
+}
+
+/* Hover hint for text fields (focus keeps each component's own style) */
+.mxd :is(.mxd-input, .mxs-input):hover:not(:focus):not(:disabled) {
+    box-shadow: 0 0 0 1px var(--mxd-brand-200);
+}/* ── Icons (Material Symbols) and small utilities ───────────────────────── */
+
+.mxd .mxd-ico {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    vertical-align: middle;
+    overflow: hidden;
+    -webkit-font-feature-settings: 'liga';
+    font-feature-settings: 'liga';
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    flex-shrink: 0;
+}
+
+.mxd .mxd-ico--xs { font-size: 13px; width: 13px; }
+.mxd .mxd-ico--sm { font-size: 16px; width: 16px; }
+.mxd .mxd-ico--md { font-size: 18px; width: 18px; }
+.mxd .mxd-ico--lg { font-size: 26px; width: 26px; }
+
+.mxd-muted { color: var(--mxd-ink-2); }
+.mxd-mono { font-family: var(--mxd-mono); font-size: 12px; line-height: 18px; }
+.mxd-text-brand { color: var(--mxd-brand); }
+.mxd-text-brand-dark { color: var(--mxd-brand-dark); }
+.mxd-text-green { color: #059669; }
+.mxd-text-amber { color: var(--mxd-amber-dark); }
+.mxd-text-red { color: var(--mxd-red-dark); }
+
+.mxd-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.mxd-dot--brand { width: 6px; height: 6px; background: var(--mxd-brand); }
+.mxd-dot--off { background: #94a3b8; }
+.mxd-dot--live {
+    background: var(--mxd-green);
+    animation: mxd-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes mxd-pulse {
+    50% { opacity: 0.45; }
+}
+
+@keyframes mxd-spin {
+    to { transform: rotate(360deg); }
+}
+
+.mxd-label {
+    font-family: var(--mxd-mono);
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.mxd-sub {
+    color: var(--mxd-ink-2);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.mxd-empty {
+    color: var(--mxd-ink-2);
+    font-size: 13px;
+    padding: 24px 0;
+    text-align: center;
+}/* ── Typography ─────────────────────────────────────────────────────────── */
+
+.mxd .mxd-h1 {
+    font-family: var(--mxd-sans);
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--mxd-ink);
+}
+
+.mxd .mxd-h2 {
+    font-family: var(--mxd-sans);
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--mxd-ink);
+}
+
+.mxd .mxd-h3 {
+    font-family: var(--mxd-sans);
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 700;
+    color: var(--mxd-ink);
+}
+
+.mxd .mxd-h3--light { color: #f8f9ff; }
+
+.mxd-crumbs {
+    align-items: center;
+    color: var(--mxd-ink-2);
+    display: flex;
+    font-family: var(--mxd-mono);
+    font-size: 11px;
+    font-weight: 600;
+    gap: 4px;
+    letter-spacing: 0.06em;
+    line-height: 14px;
+    text-transform: uppercase;
+}
+
+.mxd-crumbs strong { color: var(--mxd-brand); font-weight: 700; }
+
+.mxd-platform {
+    align-items: center;
+    background: var(--mxd-surface-mid);
+    border-radius: 12px;
+    color: var(--mxd-secondary);
+    display: inline-flex;
+    font-family: var(--mxd-mono);
+    font-size: 11px;
+    gap: 6px;
+    line-height: 14px;
+    padding: 2px 8px;
+}
+
+.mxd-platform .mxd-sep { color: #e0c0b4; }
+.mxd-platform strong { font-weight: 600; }
+
+.mxd .mxd-btn,
+.mxd .mxd-btn:visited {
+    align-items: center;
+    background: var(--mxd-surface-mid);
+    border-radius: 8px;
+    color: var(--mxd-ink);
+    display: inline-flex;
+    font-family: var(--mxd-mono);
+    font-size: 13px;
+    font-weight: 500;
+    gap: 4px;
+    line-height: 16px;
+    padding: 6px 12px;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.mxd .mxd-btn:hover,
+.mxd .mxd-btn:focus {
+    background: var(--mxd-surface-high);
+    color: var(--mxd-ink);
+}
+
+.mxd .mxd-btn--primary,
+.mxd .mxd-btn--primary:visited {
+    background: var(--mxd-brand);
+    box-shadow: var(--mxd-shadow);
+    color: #fff;
+    font-weight: 600;
+}
+
+.mxd .mxd-btn--primary:hover,
+.mxd .mxd-btn--primary:focus {
+    background: var(--mxd-brand-dark);
+    color: #fff;
+}
+
+.mxd-error {
+    background: var(--mxd-red-50);
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    color: var(--mxd-red-dark);
+    padding: 10px 14px;
+}
+
+.mxd-card {
+    background: var(--mxd-surface);
+    border-radius: 8px;
+    box-shadow: var(--mxd-shadow);
+    padding: 20px;
+}
+
+.mxd-card--lg { padding: 32px; }
+
+.mxd-card--column {
+    display: flex;
+    flex-direction: column;
+}
+
+.mxd-card__head { margin-bottom: 20px; }
+
+.mxd-card__head--split {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+}
+
+.mxd-card__titlerow {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.mxd-card__titlerow--split { justify-content: space-between; }
+
+.mxd-card__foot {
+    align-items: center;
+    color: var(--mxd-ink-2);
+    display: flex;
+    font-size: 12px;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 20px;
+}
+
+.mxd .mxd-link,
+.mxd .mxd-link:visited {
+    align-items: center;
+    color: var(--mxd-brand);
+    display: inline-flex;
+    font-weight: 600;
+    gap: 2px;
+}
+
+.mxd .mxd-link:hover { text-decoration: underline; }
+
+.mxd-tag {
+    background: var(--mxd-brand-50);
+    border: 1px solid var(--mxd-brand-200);
+    border-radius: 4px;
+    color: var(--mxd-brand);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+
+.mxd-tag--mono { font-family: var(--mxd-mono); font-size: 11px; font-weight: 700; }
+
+.mxd-pill {
+    align-items: center;
+    border-radius: 12px;
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 700;
+    gap: 4px;
+    line-height: 14px;
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+
+.mxd-pill .mxd-dot { width: 6px; height: 6px; background: currentColor; }
+.mxd-pill--green { background: var(--mxd-green-50); color: var(--mxd-green-dark); }
+.mxd-pill--amber { background: var(--mxd-amber-50); color: var(--mxd-amber-dark); }
+.mxd-pill--red { background: var(--mxd-red-50); color: var(--mxd-red-dark); }
+.mxd-pill--grey { background: #f1f5f9; color: #64748b; }
+.mxd-pill--darkgreen { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+.mxd-pill--darkgrey { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
+.mxd .mxd-iconbtn,
+.mxd .mxd-iconbtn:visited {
+    align-items: center;
+    border-radius: 8px;
+    color: var(--mxd-ink-2);
+    display: inline-flex;
+    justify-content: center;
+    padding: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.mxd .mxd-iconbtn:hover,
+.mxd .mxd-iconbtn:focus {
+    background: var(--mxd-surface-mid);
+    color: var(--mxd-brand-ink);
+}
+
+.mxd .mxd-iconbtn--ai,
+.mxd .mxd-iconbtn--ai:focus {
+    background: var(--mxd-brand-50);
+    color: var(--mxd-brand);
+}
+
+.mxd .mxd-iconbtn--ai:hover {
+    background: var(--mxd-brand);
+    color: #fff;
+}
+
+.mxd-segmented {
+    background: var(--mxd-surface-low);
+    border-radius: 8px;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+}
+
+.mxd .mxd-segmented button {
+    border-radius: 6px;
+    color: var(--mxd-ink-2);
+    font-family: var(--mxd-mono);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 14px;
+    padding: 4px 8px;
+}
+
+.mxd .mxd-segmented button:hover { color: var(--mxd-ink); }
+
+.mxd .mxd-segmented button.is-active {
+    background: var(--mxd-brand);
+    box-shadow: var(--mxd-shadow);
+    color: #fff;
+}
+
+.mxd-card--table {
+    border: 1px solid var(--mxd-line);
+    overflow: hidden;
+    padding: 0;
+}
+
+.mxd .mxd-linkbtn,
+.mxd .mxd-linkbtn:visited,
+.mxd .mxd-linkbtn:hover {
+    color: #fdba74;
+    font-family: var(--mxd-mono);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.mxd .mxd-linkbtn:hover { text-decoration: underline; }

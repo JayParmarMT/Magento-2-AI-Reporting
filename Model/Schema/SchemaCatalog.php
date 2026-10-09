@@ -98,9 +98,32 @@ class SchemaCatalog
     ];
 
     /**
+     * Words that describe a measure, period, filter or action rather than a kind of data; never reported
+     * as "matches nothing in the schema".
+     */
+    private const MEASURE_WORDS = [
+        'spend', 'spent', 'spender', 'spending', 'selling', 'seller', 'sold', 'bought', 'buyer', 'purchase',
+        'purchased', 'registered', 'signed', 'placed', 'running', 'growth', 'trend', 'compare', 'comparison',
+        'breakdown', 'performance', 'performing', 'popular', 'highest', 'lowest', 'biggest', 'largest',
+        'smallest', 'average', 'percentage', 'percent', 'ratio', 'repeat', 'returning', 'loyal', 'inactive',
+        'frequent', 'between', 'during', 'since', 'before', 'after', 'within', 'earned', 'earning', 'income',
+        'profit', 'money', 'worth', 'cheap', 'expensive', 'currently', 'monthly', 'weekly', 'daily', 'yearly',
+        'quarter', 'quarterly', 'hourly', 'least', 'fewest', 'without', 'never', 'every', 'which', 'where',
+        'whose', 'there', 'their', 'other', 'another', 'group', 'grouped', 'sorted', 'ordered', 'along', 'including',
+        'excluding', 'except', 'based', 'having', 'something', 'anything', 'please', 'thanks', 'hello',
+        'exist', 'exists', 'existing', 'available', 'contain', 'contains', 'include', 'includes', 'happened',
+        'shown', 'given', 'wanted', 'really', 'overall', 'details', 'information', 'amount', 'amounts',
+    ];
+
+    /**
      * @var array<string, array{comment: string, columns: string[]}>|null
      */
     private ?array $tables = null;
+
+    /**
+     * All table names, column names and comments as one lower-case string (for word lookups).
+     */
+    private ?string $vocabulary = null;
 
     /**
      * Number of tables each name word occurs in (for weighting rare words higher).
@@ -300,6 +323,49 @@ class SchemaCatalog
     }
 
     /**
+     * Words of the question (5+ letters) that occur in no table name, column name or table comment
+     * of this store, nor in $knownText (e.g. the core schema text): a sign that the question asks for
+     * data the store does not record. Lenient on purpose — any substring match counts as known.
+     *
+     * @return string[]
+     */
+    public function findUnknownWords(string $question, string $knownText = ''): array
+    {
+        if (!$this->getTables()) {
+            return [];
+        }
+
+        $haystack   = $this->getVocabulary() . ' ' . strtolower($knownText);
+        $tableNames = implode("\n", array_keys($this->getTables()));
+        $skip     = array_flip([...self::STOP_WORDS, ...self::MEASURE_WORDS]);
+        $words    = preg_split('/[^a-z0-9]+/', strtolower($question), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $unknown  = [];
+
+        foreach ($words as $word) {
+            if (strlen($word) < 5 || isset($skip[$word]) || ctype_digit($word)) {
+                continue;
+            }
+            $term       = $this->singular($word);
+            $stem       = (string) preg_replace('/(ing|ed|ers|er|ly)$/', '', $term);
+            $candidates = strlen($stem) >= 4 ? [$term, $stem] : [$term];
+            foreach ($candidates as $candidate) {
+                if (str_contains($haystack, $candidate)) {
+                    continue 2;
+                }
+            }
+            // Synonyms only count when a table is named after them ("point" is part of many column names)
+            foreach (self::SYNONYMS[$term] ?? [] as $synonym) {
+                if (preg_match('/(^|_)' . preg_quote($synonym, '/') . '/m', $tableNames)) {
+                    continue 2;
+                }
+            }
+            $unknown[] = $word;
+        }
+
+        return array_values(array_unique($unknown));
+    }
+
+    /**
      * Significant words of a question: singular forms, joined word pairs ("gift card" → giftcard)
      * and synonyms that appear in table names.
      *
@@ -432,6 +498,20 @@ class SchemaCatalog
         $frequency = $this->wordFrequency[$term] ?? 1;
 
         return 1 + log($total / max(1, $frequency)) / 2;
+    }
+
+    private function getVocabulary(): string
+    {
+        if ($this->vocabulary === null) {
+            $parts = [];
+            foreach ($this->getTables() as $table => $info) {
+                $parts[] = $table . ' ' . str_replace('_', '', $table) . ' ' . strtolower($info['comment'])
+                    . ' ' . implode(' ', $info['columns']);
+            }
+            $this->vocabulary = implode(' ', $parts);
+        }
+
+        return $this->vocabulary;
     }
 
     private function singular(string $word): string

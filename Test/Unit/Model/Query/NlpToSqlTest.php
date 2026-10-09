@@ -18,6 +18,7 @@ use Meetanshi\AIReporting\Exception\DirectAnswerException;
 use Meetanshi\AIReporting\Exception\LlmException;
 use Meetanshi\AIReporting\Model\LLM\ProviderInterface;
 use Meetanshi\AIReporting\Model\LLM\ProviderPool;
+use Meetanshi\AIReporting\Model\Query\ExampleFinder;
 use Meetanshi\AIReporting\Model\Query\NlpToSql;
 use Meetanshi\AIReporting\Model\Query\SqlGuard;
 use Meetanshi\AIReporting\Model\Schema\ModuleCatalog;
@@ -51,8 +52,11 @@ class NlpToSqlTest extends TestCase
         );
     }
 
-    private function createNlpToSql(SchemaCatalog $schemaCatalog, ModuleCatalog $moduleCatalog): NlpToSql
-    {
+    private function createNlpToSql(
+        SchemaCatalog $schemaCatalog,
+        ModuleCatalog $moduleCatalog,
+        ?ExampleFinder $exampleFinder = null
+    ): NlpToSql {
         $resourceConnection = $this->createStub(ResourceConnection::class);
         $resourceConnection->method('getConnection')->willReturn($this->createStub(AdapterInterface::class));
 
@@ -62,7 +66,8 @@ class NlpToSqlTest extends TestCase
             $this->createReportContext($this->createMock(AdapterInterface::class), 'America/Chicago'),
             new SqlGuard($this->createMock(DeploymentConfig::class)),
             $schemaCatalog,
-            $moduleCatalog
+            $moduleCatalog,
+            $exampleFinder ?? $this->createStub(ExampleFinder::class)
         );
     }
 
@@ -88,14 +93,25 @@ class NlpToSqlTest extends TestCase
         return $this->createNlpToSql($this->createSchemaCatalog(self::storeSchema()), $moduleCatalog);
     }
 
-    private function capturePrompt(NlpToSql $nlpToSql, string $question, string $reply = 'SELECT 1'): string
-    {
+    /**
+     * System prompt and question prompt as sent to the provider, joined.
+     *
+     * @param array<int, array{question: string, sql: string}> $history
+     */
+    private function capturePrompt(
+        NlpToSql $nlpToSql,
+        string $question,
+        string $reply = 'SELECT 1',
+        array $history = []
+    ): string {
         $prompt = '';
-        $this->provider->method('complete')->willReturnCallback(function (string $text) use (&$prompt, $reply) {
-            $prompt = $text;
-            return $reply;
-        });
-        $nlpToSql->convert($question);
+        $this->provider->method('complete')->willReturnCallback(
+            function (string $text, string $system = '') use (&$prompt, $reply) {
+                $prompt = $system . "\n" . $text;
+                return $reply;
+            }
+        );
+        $nlpToSql->convert($question, $history);
 
         return $prompt;
     }
@@ -368,5 +384,125 @@ class NlpToSqlTest extends TestCase
             '- sales_shipment_tracking does NOT exist in this database. Existing tables with similar names: sales_shipment_track',
             $prompt
         );
+    }
+
+    // ── System prompt, assumptions, unknown words, examples, follow-ups ──
+
+    public function testSchemaAndRulesGoInAStableSystemPrompt(): void
+    {
+        $nlpToSql = $this->createNlpToSqlForStore();
+        $calls    = [];
+        $this->provider->method('complete')->willReturnCallback(
+            function (string $prompt, string $system = '') use (&$calls) {
+                $calls[] = [$prompt, $system];
+                return 'SELECT 1';
+            }
+        );
+
+        $nlpToSql->convert('Orders today');
+        $nlpToSql->convert('Size chart entries');
+
+        $this->assertSame($calls[0][1], $calls[1][1], 'The system prompt must not change between questions');
+        $this->assertStringContainsString('- sales_order (entity_id, increment_id', $calls[0][1]);
+        $this->assertStringContainsString('Rules:', $calls[0][1]);
+        $this->assertStringNotContainsString('Orders today', $calls[0][1]);
+        $this->assertStringContainsString('Question: Orders today', $calls[0][0]);
+        $this->assertStringNotContainsString('- sales_order (entity_id, increment_id', $calls[0][0]);
+    }
+
+    public function testAssumptionLineIsReturnedSeparatelyFromTheSql(): void
+    {
+        $this->provider->method('complete')->willReturn(
+            "ASSUMPTION: 'returns' read as credit memos.\nSELECT COUNT(*) FROM sales_creditmemo"
+        );
+
+        $this->assertSame('SELECT COUNT(*) FROM sales_creditmemo', $this->nlpToSql->convert('How many returns?'));
+        $this->assertSame("'returns' read as credit memos.", $this->nlpToSql->getLastAssumption());
+    }
+
+    public function testAssumptionIsResetForTheNextQuestion(): void
+    {
+        $this->provider->method('complete')->willReturnOnConsecutiveCalls(
+            "ASSUMPTION: something\nSELECT 1",
+            'SELECT 2'
+        );
+
+        $this->nlpToSql->convert('first');
+        $this->nlpToSql->convert('second');
+
+        $this->assertSame('', $this->nlpToSql->getLastAssumption());
+    }
+
+    public function testWordsMatchingNothingInTheSchemaAreFlagged(): void
+    {
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'How many gift registries were created?');
+
+        $this->assertStringContainsString('No table, column or table comment matches: registries.', $prompt);
+    }
+
+    public function testLoyaltyIsFlaggedOnAStoreWithoutRewardTablesDespiteTheRuleExample(): void
+    {
+        $schema = self::storeSchema();
+        unset($schema['amasty_rewards_history']);
+        $nlpToSql = $this->createNlpToSql($this->createSchemaCatalog($schema), $this->createStub(ModuleCatalog::class));
+
+        $prompt = $this->capturePrompt($nlpToSql, 'How many customers have loyalty cards?');
+
+        $this->assertStringContainsString('No table, column or table comment matches: loyalty, cards.', $prompt);
+    }
+
+    public function testWordsWithAMatchingTableOrMeasureWordsAreNotFlagged(): void
+    {
+        // "loyalty" → the rewards table; "spend" describes a measure
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'Top customers by loyalty points and spend');
+
+        $this->assertStringNotContainsString('WORDS WITH NO MATCH', $prompt);
+    }
+
+    public function testSimilarSavedReportsAreIncludedAsExamples(): void
+    {
+        $examples = $this->createStub(ExampleFinder::class);
+        $examples->method('find')->willReturn([
+            ['question' => 'Top 10 best selling products', 'sql' => "SELECT oi.sku\nFROM sales_order_item oi LIMIT 10"],
+        ]);
+        $nlpToSql = $this->createNlpToSql(
+            $this->createSchemaCatalog(self::storeSchema()),
+            $this->createStub(ModuleCatalog::class),
+            $examples
+        );
+
+        $prompt = $this->capturePrompt($nlpToSql, 'Best selling products this month');
+
+        $this->assertStringContainsString('SAVED REPORTS SIMILAR TO THIS QUESTION', $prompt);
+        $this->assertStringContainsString(
+            "Q: Top 10 best selling products\nSQL: SELECT oi.sku FROM sales_order_item oi LIMIT 10",
+            $prompt
+        );
+    }
+
+    public function testFollowUpGetsEarlierTurnsAndTheirTables(): void
+    {
+        $history = [['question' => 'How many size chart entries are active?', 'sql' => 'SELECT COUNT(*) FROM meetanshi_sizechart']];
+
+        $prompt = $this->capturePrompt($this->createNlpToSqlForStore(), 'And by month?', 'SELECT 1', $history);
+
+        $this->assertStringContainsString('EARLIER IN THIS CONVERSATION', $prompt);
+        $this->assertStringContainsString("Q: How many size chart entries are active?\nSQL: SELECT COUNT(*) FROM meetanshi_sizechart", $prompt);
+        // The follow-up names no table: tables are matched on the earlier question too
+        $this->assertStringContainsString('- meetanshi_sizechart (', $prompt);
+        $this->assertStringContainsString('Question: And by month?', $prompt);
+    }
+
+    public function testRepairKeepsTheAssumptionOfTheFirstAttempt(): void
+    {
+        $this->provider->method('complete')->willReturnOnConsecutiveCalls(
+            "ASSUMPTION: 'returns' read as credit memos.\nSELECT COUNT(*) FROM sales_creditmemos",
+            'SELECT COUNT(*) FROM sales_creditmemo'
+        );
+
+        $this->nlpToSql->convert('How many returns?');
+        $this->nlpToSql->repair('How many returns?', 'SELECT COUNT(*) FROM sales_creditmemos', "Table doesn't exist");
+
+        $this->assertSame("'returns' read as credit memos.", $this->nlpToSql->getLastAssumption());
     }
 }

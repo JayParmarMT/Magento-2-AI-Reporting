@@ -15,12 +15,12 @@ use Magento\Backend\App\Action;
 use Magento\Backend\App\Action\Context;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Exception\LocalizedException;
+use Meetanshi\AIReporting\Exception\DirectAnswerException;
 use Meetanshi\AIReporting\Model\Config;
 use Meetanshi\AIReporting\Model\Query\QueryExecutor;
 use Meetanshi\AIReporting\Model\Query\QueryRunner;
 use Meetanshi\AIReporting\Model\Query\QueryTokenStorage;
-use Meetanshi\AIReporting\Model\QueryLogFactory;
-use Meetanshi\AIReporting\Model\ResourceModel\QueryLog as QueryLogResource;
+use Meetanshi\AIReporting\Model\QueryLogger;
 use Meetanshi\AIReporting\Model\ResourceModel\SavedReport as SavedReportResource;
 use Meetanshi\AIReporting\Model\SavedReportFactory;
 use Psr\Log\LoggerInterface;
@@ -37,8 +37,7 @@ class Execute extends Action
         private readonly QueryRunner $queryRunner,
         private readonly QueryExecutor $queryExecutor,
         private readonly Config $config,
-        private readonly QueryLogFactory $queryLogFactory,
-        private readonly QueryLogResource $queryLogResource,
+        private readonly QueryLogger $queryLogger,
         private readonly LoggerInterface $logger,
         private readonly SavedReportFactory $savedReportFactory,
         private readonly SavedReportResource $savedReportResource,
@@ -66,10 +65,11 @@ class Execute extends Action
             return $resultJson->setData(['success' => false, 'message' => __('Please enter a query.')]);
         }
 
-        $startTime = microtime(true);
-        $sqlQuery  = '';
-        $status    = 'success';
-        $errorMsg  = '';
+        $startTime  = microtime(true);
+        $sqlQuery   = '';
+        $assumption = '';
+        $repaired   = false;
+        $errorMsg   = '';
 
         try {
             if ($reportId > 0) {
@@ -88,6 +88,8 @@ class Execute extends Action
                 $run         = $this->queryRunner->run($nlpQuery);
                 $sqlQuery    = $run['sql'];
                 $queryResult = $run['result'];
+                $assumption  = $run['assumption'];
+                $repaired    = (bool) $run['repaired'];
             }
 
             $response = [
@@ -98,11 +100,15 @@ class Execute extends Action
                 'rows'              => $queryResult['rows'],
                 'row_count'         => $queryResult['row_count'],
                 'execution_time_ms' => $queryResult['execution_time_ms'],
-                'provider'          => $this->config->getLlmProvider()
+                'provider'          => $this->config->getLlmProvider(),
+                'assumption'        => $assumption,
+                'repaired'          => $repaired,
             ];
 
+        } catch (DirectAnswerException $e) {
+            // Not a data question (greeting, how-to, data the store does not keep): the AI's plain-text reply
+            $response = ['success' => false, 'direct_answer' => $e->getAnswer(), 'message' => $e->getAnswer()];
         } catch (\Exception $e) {
-            $status   = 'error';
             $errorMsg = $e->getMessage();
             $this->logger->error('Meetanshi AIReporting Execute error', [
                 'query' => $nlpQuery,
@@ -111,17 +117,16 @@ class Execute extends Action
             $response = ['success' => false, 'message' => $errorMsg];
         }
 
-        // Step 3: Log the query if logging is enabled
-        if ($this->config->isQueryLoggingEnabled()) {
-            $this->logQuery(
-                $nlpQuery,
-                $sqlQuery,
-                $status,
-                $errorMsg,
-                (int) round((microtime(true) - $startTime) * 1000),
-                $response['row_count'] ?? 0
-            );
-        }
+        // Step 3: Log the query (when "Log All Queries" is enabled)
+        $this->queryLogger->log(
+            $nlpQuery,
+            $sqlQuery,
+            $response['success'] || isset($response['direct_answer']),
+            $errorMsg,
+            (int) round((microtime(true) - $startTime) * 1000),
+            $response['row_count'] ?? 0,
+            $this->getAdminUserId()
+        );
 
         return $resultJson->setData($response);
     }
@@ -131,32 +136,6 @@ class Execute extends Action
         $user = $this->_auth ? $this->_auth->getUser() : null;
 
         return $user ? (int) $user->getId() : 0;
-    }
-
-    private function logQuery(
-        string $nlpQuery,
-        string $sqlQuery,
-        string $status,
-        string $errorMsg,
-        int $executionTimeMs,
-        int $rowsReturned
-    ): void {
-        try {
-            $log = $this->queryLogFactory->create();
-            $log->setData([
-                'nlp_query'         => $nlpQuery,
-                'sql_query'         => $sqlQuery,
-                'llm_provider'      => $this->config->getLlmProvider(),
-                'status'            => $status,
-                'error_message'     => $errorMsg ?: null,
-                'execution_time_ms' => $executionTimeMs,
-                'rows_returned'     => $rowsReturned,
-                'admin_user_id'     => $this->getAdminUserId()
-            ]);
-            $this->queryLogResource->save($log);
-        } catch (\Exception $e) {
-            $this->logger->warning('Meetanshi AIReporting: Failed to save query log', ['error' => $e->getMessage()]);
-        }
     }
 
     protected function _isAllowed(): bool

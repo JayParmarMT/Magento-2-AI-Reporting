@@ -1,249 +1,338 @@
 <?php
-/** @var \Meetanshi\AIReporting\Block\Adminhtml\Reports\Customer $block */
-$kpi          = $block->getKpiCards();
-$topCustomers = $block->getTopCustomers();
-$rfm          = $block->getRfmSegmentation();
-$newVsReturn  = $block->getNewVsReturningPerPeriod();
-$clvDist      = $block->getClvDistributionPerPeriod();
-$repeatRate   = $block->getRepeatPurchaseRate();
+/**
+ * Meetanshi AIReporting — Customer Intelligence & Retention Analytics
+ *
+ * Content area only (Magento's admin menu and header are untouched). The skeleton below is
+ * filled by Meetanshi_AIReporting/js/customer-report from the view model's data, on load and
+ * whenever the range changes. Styles are scoped to .mxd (css/prebuilt_report.css).
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
+ */
+
+/** @var \Magento\Backend\Block\Template $block */
+/** @var \Magento\Framework\Escaper $escaper */
+/** @var \Meetanshi\AIReporting\ViewModel\CustomerAnalytics $viewModel */
+$viewModel = $block->getData('view_model');
+$config    = $viewModel->getJsConfig();
 ?>
-<div class="meetanshi-aireporting-wrap">
+<div class="mxd mxc" data-role="mxc-root">
+    <div class="mxc-body">
 
-    <div class="ai-header">
-        <span class="ai-provider-badge">👥 <?= $block->escapeHtml(__('Pre-built Report')) ?></span>
-    </div>
-
-    <!-- Period Tabs -->
-    <div class="ai-period-tabs">
-        <button class="ai-period-tab active" data-period="month"><?= $block->escapeHtml(__('This Month')) ?></button>
-        <button class="ai-period-tab" data-period="week"><?= $block->escapeHtml(__('This Week')) ?></button>
-        <button class="ai-period-tab" data-period="today"><?= $block->escapeHtml(__('Today')) ?></button>
-        <button class="ai-period-tab" data-period="year"><?= $block->escapeHtml(__('This Year')) ?></button>
-    </div>
-
-    <!-- KPI Cards (per period) -->
-    <div class="ai-stats-grid" id="ai-kpi-grid">
-        <?php foreach (['today','week','month','year'] as $period): ?>
-        <div class="ai-kpi-panel" data-period="<?= $period ?>" style="<?= $period !== 'month' ? 'display:none' : '' ?>">
-            <div class="ai-stats-grid">
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Total Customers')) ?></div>
-                    <div class="ai-stat-value"><?= (int)($kpi[$period]['total_customers'] ?? 0) ?></div>
+        <!-- Header -->
+        <section class="mxc-card mxc-header">
+            <div class="mxc-header__title">
+                <nav class="mxd-crumbs" aria-label="<?= $escaper->escapeHtmlAttr(__('Breadcrumb')) ?>">
+                    <span><?= $escaper->escapeHtml(__('Meetanshi Extensions')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <span><?= $escaper->escapeHtml(__('Pre-built Reports')) ?></span>
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                    <strong><?= $escaper->escapeHtml(__('Customer Analytics')) ?></strong>
+                </nav>
+                <div class="mxc-titlerow">
+                    <h1 class="mxd-h1 mxc-h1"><?= $escaper->escapeHtml(__('Customer Intelligence & Retention Analytics')) ?></h1>
+                    <div class="mxc-badges">
+                        <span class="mxc-badge mxc-badge--brand">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
+                            <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
+                        </span>
+                        <span class="mxc-badge">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">dataset</span>
+                            <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
+                        </span>
+                        <?php if ($viewModel->getStoreLabel() !== ''): ?>
+                            <span class="mxc-badge mxc-badge--slate">
+                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                                <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                            </span>
+                        <?php endif; ?>
+                    </div>
                 </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('New Customers')) ?></div>
-                    <div class="ai-stat-value ai-stat-green"><?= (int)($kpi[$period]['new_customers'] ?? 0) ?></div>
+                <p class="mxc-note">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
+                    <span>
+                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
+                        <?= $escaper->escapeHtml(__('Buyers identified by order email (guest checkouts included) · Net revenue after refunds')) ?>
+                    </span>
+                </p>
+            </div>
+
+            <div class="mxc-header__actions">
+                <div class="mxc-rangebox">
+                    <div class="mxc-range" role="group" aria-label="<?= $escaper->escapeHtmlAttr(__('Date range')) ?>" data-role="range">
+                        <?php foreach ($viewModel->getPresetRanges() as $key => $label): ?>
+                            <button type="button" data-range="<?= $escaper->escapeHtmlAttr($key) ?>"
+                                    class="<?= $key === $config['period']['range']['key'] ? 'is-active' : '' ?>"><?= $escaper->escapeHtml($label) ?></button>
+                        <?php endforeach; ?>
+                        <button type="button" class="mxc-range__cal" data-role="custom-toggle" data-range="custom"
+                                aria-expanded="false" title="<?= $escaper->escapeHtmlAttr(__('Custom date range')) ?>">
+                            <span class="mxd-ico mxd-ico--md" aria-hidden="true">calendar_today</span>
+                        </button>
+                    </div>
+                    <div class="mxc-custom" data-role="custom-range" hidden>
+                        <input type="date" class="mxd-input" data-role="custom-start" aria-label="<?= $escaper->escapeHtmlAttr(__('From')) ?>">
+                        <span class="mxd-muted">–</span>
+                        <input type="date" class="mxd-input" data-role="custom-end" aria-label="<?= $escaper->escapeHtmlAttr(__('To')) ?>">
+                        <button type="button" class="mxd-btn mxd-btn--primary" data-role="custom-apply"><?= $escaper->escapeHtml(__('Apply')) ?></button>
+                    </div>
+                    <span class="mxc-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($config['period']['range']['label']) ?></span>
                 </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Rate')) ?></div>
-                    <div class="ai-stat-value ai-stat-blue"><?= $kpi[$period]['repeat_rate'] ?? 0 ?>%</div>
+                <div class="mxc-header__buttons">
+                    <a class="mxd-btn" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
+                       title="<?= $escaper->escapeHtmlAttr(__('Every buyer with RFM scores, segment, CLV tier and preferred category')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
+                        <span><?= $escaper->escapeHtml(__('CSV')) ?></span>
+                    </a>
+                    <button type="button" class="mxd-btn" data-role="print"
+                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
+                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
+                    </button>
+                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
+                        <span class="mxd-ico mxd-ico--sm mxc-ico-soft" aria-hidden="true">auto_awesome</span>
+                        <span><?= $escaper->escapeHtml(__('Ask Copilot about Customers')) ?></span>
+                    </button>
                 </div>
-                <div class="ai-stat-card">
-                    <div class="ai-stat-label"><?= $block->escapeHtml(__('Customers w/ Orders')) ?></div>
-                    <div class="ai-stat-value ai-stat-purple"><?= (int)($kpi[$period]['customers_with_orders'] ?? 0) ?></div>
+            </div>
+        </section>
+
+        <div class="mxd-error" data-role="error" hidden></div>
+
+        <div class="mxc-period" data-role="period">
+            <!-- KPI cards -->
+            <div class="mxc-kpis" data-role="kpis"></div>
+
+            <!-- Ticker -->
+            <div class="mxc-ticker">
+                <div class="mxc-ticker__metrics" data-role="ticker"></div>
+                <div class="mxc-ticker__sql">
+                    <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">speed</span>
+                    <span class="mxd-mono" data-role="latency"></span>
                 </div>
             </div>
         </div>
-        <?php endforeach; ?>
-    </div>
 
-    <!-- Charts Row -->
-    <div class="ai-charts-row">
-        <!-- New vs Returning -->
-        <div class="ai-chart-card ai-chart-wide">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('New vs Returning Customers')) ?> <span id="ai-nvr-period-label" class="ai-chart-subtitle"></span></h3>
+        <!-- Acquisition + CLTV -->
+        <div class="mxc-row mxc-row--2">
+            <section class="mxc-card mxc-card--column">
+                <header class="mxc-card__head mxc-card__head--split">
+                    <div>
+                        <h2 class="mxd-h2" data-role="acq-title"><?= $escaper->escapeHtml(__('Customer Acquisition & Retention Dynamics')) ?></h2>
+                        <p class="mxd-sub" data-role="acq-sub"></p>
+                    </div>
+                    <div class="mxc-legend">
+                        <span><i class="mxc-swatch mxc-swatch--brand"></i><?= $escaper->escapeHtml(__('New Customers')) ?></span>
+                        <span><i class="mxc-swatch mxc-swatch--navy"></i><?= $escaper->escapeHtml(__('Returning Customers')) ?></span>
+                    </div>
+                </header>
+                <div class="mxc-chart"><canvas data-role="acq-chart"></canvas></div>
+                <div class="mxc-callout" data-role="acq-callout"></div>
+            </section>
+
+            <section class="mxc-card mxc-card--column">
+                <header class="mxc-card__head mxc-card__head--split">
+                    <div>
+                        <div class="mxc-titleline">
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Customer Lifetime Value (CLTV) Distribution')) ?></h2>
+                            <span class="mxc-tag"><?= $escaper->escapeHtml(__('All-time')) ?></span>
+                        </div>
+                        <p class="mxd-sub"><?= $escaper->escapeHtml(__('Buyers by lifetime net spend, and each tier\'s share of customer revenue')) ?></p>
+                    </div>
+                    <div class="mxd-segmented" data-role="tier-mode" role="group" aria-label="<?= $escaper->escapeHtmlAttr(__('Donut shows')) ?>">
+                        <button type="button" class="is-active" data-mode="buyers"><?= $escaper->escapeHtml(__('Buyers')) ?></button>
+                        <button type="button" data-mode="revenue"><?= $escaper->escapeHtml(__('Revenue')) ?></button>
+                    </div>
+                </header>
+                <div class="mxc-clv">
+                    <div class="mxc-donut">
+                        <canvas data-role="tier-chart"></canvas>
+                        <div class="mxc-donut__center">
+                            <span class="mxc-donut__value" data-role="avg-ltv"></span>
+                            <span class="mxc-donut__label"><?= $escaper->escapeHtml(__('Avg LTV')) ?></span>
+                        </div>
+                    </div>
+                    <div class="mxc-tiers" data-role="tiers"></div>
+                </div>
+                <footer class="mxc-card__foot">
+                    <span><?= $escaper->escapeHtml(__('*Net of refunds; cancelled and unpaid orders excluded. Base currency.')) ?></span>
+                    <a class="mxd-link" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?segment=vip') ?>">
+                        <span><?= $escaper->escapeHtml(__('Export VIP tier')) ?></span>
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                    </a>
+                </footer>
+            </section>
+        </div>
+
+        <!-- RFM + velocity -->
+        <div class="mxc-row mxc-row--7-5">
+            <section class="mxc-card mxc-card--column">
+                <header class="mxc-card__head mxc-card__head--split">
+                    <div>
+                        <div class="mxc-titleline">
+                            <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('RFM Customer Segmentation Matrix')) ?></h2>
+                            <span class="mxc-badge mxc-badge--brand"><?= $escaper->escapeHtml(__('Automated Scoring')) ?></span>
+                        </div>
+                        <p class="mxd-sub"><?= $escaper->escapeHtml(__('Every buyer scored 1–5 on recency, frequency and monetary spend (all-time). Click a segment to filter.')) ?></p>
+                    </div>
+                    <button type="button" class="mxc-iconbtn" data-role="rfm-export"
+                            title="<?= $escaper->escapeHtmlAttr(__('Export the buyers shown below (CSV)')) ?>">
+                        <span class="mxd-ico mxd-ico--md" aria-hidden="true">download</span>
+                    </button>
+                </header>
+                <div class="mxc-segpills" data-role="segments"></div>
+                <div class="mxc-tablewrap mxc-tablewrap--scroll">
+                    <table class="mxc-table mxc-table--compact">
+                        <thead>
+                        <tr>
+                            <th><?= $escaper->escapeHtml(__('Customer')) ?></th>
+                            <th><?= $escaper->escapeHtml(__('Recency')) ?></th>
+                            <th class="mxc-r"><?= $escaper->escapeHtml(__('Orders')) ?></th>
+                            <th class="mxc-r"><?= $escaper->escapeHtml(__('Spent')) ?></th>
+                            <th class="mxc-c"><?= $escaper->escapeHtml(__('R / F / M')) ?></th>
+                            <th><?= $escaper->escapeHtml(__('Segment')) ?></th>
+                            <th class="mxc-c"><?= $escaper->escapeHtml(__('Action')) ?></th>
+                        </tr>
+                        </thead>
+                        <tbody data-role="rfm-rows"></tbody>
+                    </table>
+                </div>
+                <p class="mxc-tablenote" data-role="rfm-note"></p>
+            </section>
+
+            <section class="mxc-card mxc-card--column mxc-velocity">
+                <header class="mxc-card__head">
+                    <div class="mxc-titleline mxc-titleline--split">
+                        <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Repeat Purchase & Churn Velocity')) ?></h2>
+                        <span class="mxd-ico mxd-ico--md mxd-text-brand" aria-hidden="true">insights</span>
+                    </div>
+                    <p class="mxd-sub"><?= $escaper->escapeHtml(__('All-time repeat behaviour, re-order pacing and the most valuable lapsed buyer')) ?></p>
+                </header>
+                <div class="mxc-velocity__body" data-role="velocity"></div>
+            </section>
+        </div>
+
+        <!-- Top customers -->
+        <section class="mxc-card">
+            <header class="mxc-card__head mxc-card__head--split">
+                <div>
+                    <div class="mxc-titleline">
+                        <h2 class="mxd-h2"><?= $escaper->escapeHtml(__('Top Customers by Lifetime Value (CLTV) & Order Cadence')) ?></h2>
+                        <span class="mxc-tag"><?= $escaper->escapeHtml(__('All-time')) ?></span>
+                    </div>
+                    <p class="mxd-sub" data-role="top-sub"></p>
+                </div>
+                <div class="mxc-controls">
+                    <label class="mxc-search">
+                        <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">search</span>
+                        <input type="text" class="mxd-input" data-role="top-search"
+                               placeholder="<?= $escaper->escapeHtmlAttr(__('Filter customer or email...')) ?>"
+                               aria-label="<?= $escaper->escapeHtmlAttr(__('Filter customer or email')) ?>">
+                    </label>
+                    <label class="mxc-selectpill">
+                        <span class="mxd-muted"><?= $escaper->escapeHtml(__('Segment:')) ?></span>
+                        <select data-role="top-segment" aria-label="<?= $escaper->escapeHtmlAttr(__('Segment')) ?>">
+                            <option value=""><?= $escaper->escapeHtml(__('All Buyers')) ?></option>
+                        </select>
+                        <span class="mxd-ico mxd-ico--sm mxd-muted" aria-hidden="true">arrow_drop_down</span>
+                    </label>
+                    <button type="button" class="mxd-btn" data-role="top-export">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
+                        <span><?= $escaper->escapeHtml(__('Export CSV')) ?></span>
+                    </button>
+                </div>
+            </header>
+            <div class="mxc-tablewrap">
+                <table class="mxc-table">
+                    <thead>
+                    <tr>
+                        <th class="mxc-c">#</th>
+                        <th><?= $escaper->escapeHtml(__('Customer Profile')) ?></th>
+                        <th><?= $escaper->escapeHtml(__('Account Type')) ?></th>
+                        <th class="mxc-r"><?= $escaper->escapeHtml(__('Total Orders')) ?></th>
+                        <th class="mxc-r"><?= $escaper->escapeHtml(__('Avg Order Value')) ?></th>
+                        <th class="mxc-r"><?= $escaper->escapeHtml(__('Total CLTV')) ?></th>
+                        <th><?= $escaper->escapeHtml(__('Last Order Date')) ?></th>
+                        <th><?= $escaper->escapeHtml(__('Preferred Category')) ?></th>
+                        <th class="mxc-c"><?= $escaper->escapeHtml(__('Status')) ?></th>
+                    </tr>
+                    </thead>
+                    <tbody data-role="top-rows"></tbody>
+                </table>
             </div>
-            <canvas id="chart-new-vs-returning" height="80"></canvas>
-        </div>
+            <footer class="mxc-pager">
+                <span data-role="pager-info"></span>
+                <div class="mxc-pager__buttons" data-role="pager"></div>
+            </footer>
+        </section>
 
-        <!-- CLV Distribution -->
-        <div class="ai-chart-card">
-            <div class="ai-chart-card-header">
-                <h3><?= $block->escapeHtml(__('Customer Lifetime Value Distribution')) ?> <span id="ai-clv-period-label" class="ai-chart-subtitle"></span></h3>
+        <!-- Copilot analysis -->
+        <section class="mxc-copilot" data-role="copilot">
+            <header class="mxc-copilot__head">
+                <div class="mxc-titleline">
+                    <span class="mxd-ico mxd-ico--lg mxd-text-brand" aria-hidden="true">auto_awesome</span>
+                    <h3 class="mxd-h3 mxd-h3--light"><?= $escaper->escapeHtml(__('Store Intelligence Copilot Analysis')) ?></h3>
+                    <span class="mxc-copilot__model"><?= $escaper->escapeHtml(__('Rule-based · from the figures above')) ?></span>
+                </div>
+                <span class="mxd-mono mxc-copilot__runtime" data-role="runtime"></span>
+            </header>
+            <div class="mxc-copilot__insight" data-role="insight"></div>
+            <div class="mxc-copilot__actions">
+                <div class="mxc-copilot__buttons">
+                    <a class="mxd-btn mxd-btn--primary" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?segment=winback') ?>"
+                       title="<?= $escaper->escapeHtmlAttr(__('Every buyer with no order for over 90 days (CSV), ready for a win-back email campaign')) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">outgoing_mail</span>
+                        <span><?= $escaper->escapeHtml(__('Export Win-Back List')) ?></span>
+                    </a>
+                    <a class="mxc-darkbtn" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?segment=vip') ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_upload</span>
+                        <span><?= $escaper->escapeHtml(__('Export VIP Customer Segment')) ?></span>
+                    </a>
+                    <button type="button" class="mxc-darkbtn" data-role="ask-toggle" aria-expanded="false">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">chat</span>
+                        <span><?= $escaper->escapeHtml(__('Ask Follow-up')) ?></span>
+                    </button>
+                </div>
+                <div class="mxc-sqlbar">
+                    <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">database</span>
+                    <span class="mxc-sqlbar__text" data-role="sql-text"></span>
+                    <button type="button" class="mxc-linkbtn" data-role="sql-copy">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
+                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy Raw SQL')) ?></span>
+                    </button>
+                </div>
             </div>
-            <canvas id="chart-clv-dist" height="180"></canvas>
-        </div>
-    </div>
-
-    <!-- Repeat Purchase Rate -->
-    <div class="ai-chart-card" style="margin-bottom:20px;">
-        <div class="ai-chart-card-header">
-            <h3><?= $block->escapeHtml(__('Repeat Purchase Rate')) ?></h3>
-        </div>
-        <div class="ai-stats-grid" style="padding:16px;">
-            <div class="ai-stat-card">
-                <div class="ai-stat-label"><?= $block->escapeHtml(__('One-time Buyers')) ?></div>
-                <div class="ai-stat-value"><?= (int)($repeatRate['one_time_customers'] ?? 0) ?></div>
+            <div class="mxc-ask" data-role="ask-panel" hidden>
+                <p class="mxc-ask__engine">
+                    <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                    <span class="mxd-mono"><?= $escaper->escapeHtml(__('Follow-ups use %1: %2', $config['provider'], $config['model'])) ?></span>
+                </p>
+                <form class="mxc-ask__form" data-role="ask-form">
+                    <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
+                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask about your customers (e.g. \'Which customers ordered only once this year?\')...')) ?>"
+                           aria-label="<?= $escaper->escapeHtmlAttr(__('Ask about your customers')) ?>">
+                    <button type="submit" class="mxd-btn mxd-btn--primary" data-role="ask-submit">
+                        <span><?= $escaper->escapeHtml(__('Ask')) ?></span>
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
+                    </button>
+                </form>
+                <div class="mxc-quick">
+                    <?php foreach ([
+                        __('Which customers ordered only once this year?'),
+                        __('Top 10 customers by net revenue in the last 90 days'),
+                        __('Customers who have not ordered in the last 6 months'),
+                    ] as $question): ?>
+                        <button type="button" class="mxc-chip" data-question="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <div class="mxc-answer" data-role="answer" hidden></div>
             </div>
-            <div class="ai-stat-card">
-                <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Buyers')) ?></div>
-                <div class="ai-stat-value ai-stat-green"><?= (int)($repeatRate['repeat_customers'] ?? 0) ?></div>
-            </div>
-            <div class="ai-stat-card">
-                <div class="ai-stat-label"><?= $block->escapeHtml(__('Repeat Rate')) ?></div>
-                <div class="ai-stat-value ai-stat-blue"><?= $repeatRate['repeat_rate'] ?? 0 ?>%</div>
-            </div>
-        </div>
+        </section>
     </div>
-
-    <!-- RFM Segmentation Table -->
-    <?php if (!empty($rfm)): ?>
-    <div class="ai-table-card" style="margin-bottom:20px;">
-        <div class="ai-chart-card-header">
-            <h3><?= $block->escapeHtml(__('RFM Segmentation (Top 50 Customers)')) ?></h3>
-            <span class="ai-help-text"><?= $block->escapeHtml(__('R=Recency, F=Frequency, M=Monetary (1-5 scale)')) ?></span>
-        </div>
-        <table class="ai-table">
-            <thead><tr>
-                <th><?= $block->escapeHtml(__('Customer')) ?></th>
-                <th><?= $block->escapeHtml(__('Email')) ?></th>
-                <th><?= $block->escapeHtml(__('Last Order')) ?></th>
-                <th><?= $block->escapeHtml(__('Orders')) ?></th>
-                <th><?= $block->escapeHtml(__('Total Spent')) ?></th>
-                <th><?= $block->escapeHtml(__('R')) ?></th>
-                <th><?= $block->escapeHtml(__('F')) ?></th>
-                <th><?= $block->escapeHtml(__('M')) ?></th>
-                <th><?= $block->escapeHtml(__('Segment')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($rfm as $row): ?>
-            <?php
-                $label = $block->getRfmLabel((int)$row['r_score'], (int)$row['f_score'], (int)$row['m_score']);
-                $badgeClass = $block->getRfmBadgeClass($label);
-            ?>
-            <tr>
-                <td><?= $block->escapeHtml($row['customer_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($row['customer_email']) ?></td>
-                <td><?= (int)$row['recency_days'] ?> days ago</td>
-                <td><?= (int)$row['frequency'] ?></td>
-                <td><?= $block->escapeHtml($block->formatCurrency((float)$row['monetary'])) ?></td>
-                <td><span class="ai-score-badge"><?= (int)$row['r_score'] ?></span></td>
-                <td><span class="ai-score-badge"><?= (int)$row['f_score'] ?></span></td>
-                <td><span class="ai-score-badge"><?= (int)$row['m_score'] ?></span></td>
-                <td><span class="ai-badge <?= $block->escapeHtmlAttr($badgeClass) ?>"><?= $block->escapeHtml($label) ?></span></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-    <?php endif; ?>
-
-    <!-- Top Customers by CLV -->
-    <?php if (!empty($topCustomers)): ?>
-    <div class="ai-table-card">
-        <div class="ai-chart-card-header">
-            <h3><?= $block->escapeHtml(__('Top 20 Customers by Lifetime Value')) ?></h3>
-        </div>
-        <table class="ai-table">
-            <thead><tr>
-                <th>#</th>
-                <th><?= $block->escapeHtml(__('Customer')) ?></th>
-                <th><?= $block->escapeHtml(__('Email')) ?></th>
-                <th><?= $block->escapeHtml(__('Orders')) ?></th>
-                <th><?= $block->escapeHtml(__('Lifetime Value')) ?></th>
-                <th><?= $block->escapeHtml(__('Avg Order')) ?></th>
-                <th><?= $block->escapeHtml(__('Last Order')) ?></th>
-            </tr></thead>
-            <tbody>
-            <?php foreach ($topCustomers as $i => $cust): ?>
-            <tr>
-                <td><strong><?= $i + 1 ?></strong></td>
-                <td><?= $block->escapeHtml($cust['customer_name']) ?></td>
-                <td class="ai-text-muted"><?= $block->escapeHtml($cust['customer_email']) ?></td>
-                <td><?= (int)$cust['total_orders'] ?></td>
-                <td><strong class="ai-text-green"><?= $block->escapeHtml($block->formatCurrency((float)$cust['lifetime_value'])) ?></strong></td>
-                <td><?= $block->escapeHtml($block->formatCurrency((float)$cust['avg_order_value'])) ?></td>
-                <td><?= $block->escapeHtml(substr($cust['last_order_date'], 0, 10)) ?></td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-    <?php endif; ?>
-
 </div>
-
-<script>
-require(['jquery', 'chartjs'], function($, Chart) {
-    var nvrByPeriod = <?= /* @noEscape */ json_encode($newVsReturn, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var clvByPeriod = <?= /* @noEscape */ json_encode($clvDist, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-
-    var periodLabels = {
-        today: '<?= $block->escapeJs(__('(Today)')) ?>',
-        week:  '<?= $block->escapeJs(__('(This Week)')) ?>',
-        month: '<?= $block->escapeJs(__('(This Month)')) ?>',
-        year:  '<?= $block->escapeJs(__('(This Year)')) ?>'
-    };
-
-    var nvrChart = null, clvChart = null;
-    var EMPTY_MSG = '<?= $block->escapeJs(__('No data in this period')) ?>';
-
-    function drawEmpty(canvas) {
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.save();
-        ctx.font = '14px sans-serif'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
-        ctx.fillText(EMPTY_MSG, canvas.width / 2, canvas.height / 2);
-        ctx.restore();
-    }
-
-    function renderNvr(period) {
-        var data = nvrByPeriod[period] || [];
-        $('#ai-nvr-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-new-vs-returning');
-        if (nvrChart) { nvrChart.destroy(); nvrChart = null; }
-        var hasData = data.some(function(r){ return (parseInt(r.new_customers)||0) > 0 || (parseInt(r.returning_customers)||0) > 0; });
-        if (!data.length || !hasData) { drawEmpty(canvas); return; }
-
-        nvrChart = new Chart(canvas, {
-            type: 'bar',
-            data: {
-                labels: data.map(function(r){ return r.label; }),
-                datasets: [
-                    { label: '<?= $block->escapeJs(__('New Customers')) ?>', data: data.map(function(r){ return parseInt(r.new_customers || 0); }), backgroundColor: 'rgba(99,102,241,0.8)' },
-                    { label: '<?= $block->escapeJs(__('Returning Customers')) ?>', data: data.map(function(r){ return parseInt(r.returning_customers || 0); }), backgroundColor: 'rgba(16,185,129,0.8)' }
-                ]
-            },
-            options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } } }
-        });
-    }
-
-    function renderClv(period) {
-        var data = clvByPeriod[period] || [];
-        $('#ai-clv-period-label').text(periodLabels[period] || '');
-        var canvas = document.getElementById('chart-clv-dist');
-        if (clvChart) { clvChart.destroy(); clvChart = null; }
-        var hasData = data.some(function(r){ return (parseInt(r.customer_count)||0) > 0; });
-        if (!data.length || !hasData) { drawEmpty(canvas); return; }
-
-        clvChart = new Chart(canvas, {
-            type: 'doughnut',
-            data: {
-                labels: data.map(function(r){ return r.clv_range; }),
-                datasets: [{
-                    data: data.map(function(r){ return parseInt(r.customer_count); }),
-                    backgroundColor: ['#e5e7eb','#a5b4fc','#818cf8','#6366f1','#4f46e5']
-                }]
-            },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-        });
-    }
-
-    function renderAll(period) {
-        renderNvr(period);
-        renderClv(period);
-    }
-
-    $('.ai-period-tab').on('click', function() {
-        $('.ai-period-tab').removeClass('active');
-        $(this).addClass('active');
-        var period = $(this).data('period');
-        $('.ai-kpi-panel').hide();
-        $('.ai-kpi-panel[data-period="' + period + '"]').show();
-        renderAll(period);
-    });
-
-    renderAll('month');
-});
+<script type="text/x-magento-init">
+<?= /* @noEscape */ json_encode(
+    ['[data-role=mxc-root]' => ['Meetanshi_AIReporting/js/customer-report' => $config]],
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+) ?>
 </script>

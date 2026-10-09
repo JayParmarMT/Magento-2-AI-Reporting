@@ -1,89 +1,330 @@
 <?php
 /**
- * Meetanshi AIReporting — Saved Reports Template
+ * Meetanshi AIReporting — Saved AI Reports
  *
- * @var \Meetanshi\AIReporting\Block\Adminhtml\SavedReports $block
+ * Content area only (Magento's admin menu and header are untouched). KPIs, the report table,
+ * the inspection panel and the audit log are filled by Meetanshi_AIReporting/js/saved-reports
+ * from the view model's data. Styles are scoped to .mxd.mxs (css/saved_reports.css).
+ *
+ * @category  Meetanshi
+ * @package   Meetanshi_AIReporting
+ * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
  */
-$reports = $block->getSavedReports();
+
+/** @var \Magento\Backend\Block\Template $block */
+/** @var \Magento\Framework\Escaper $escaper */
+/** @var \Meetanshi\AIReporting\ViewModel\SavedReports $viewModel */
+$viewModel = $block->getData('view_model');
+$config = $viewModel->getJsConfig();
 ?>
-<div class="meetanshi-aireporting-wrap">
+<div class="mxd mxs" data-role="mxs-root">
 
-    <div class="ai-header">
-        <a href="<?= $block->escapeUrl($block->getQueryUrl()) ?>" class="ai-btn ai-btn-primary">
-            + <?= $block->escapeHtml(__('New Query')) ?>
-        </a>
-    </div>
-
-    <?php if ($reports->getSize() === 0): ?>
-        <div class="ai-empty-state">
-            <p><?= $block->escapeHtml(__('No saved reports yet. Go to "Ask AI" to create your first report.')) ?></p>
-            <a href="<?= $block->escapeUrl($block->getQueryUrl()) ?>" class="ai-btn ai-btn-primary">
-                <?= $block->escapeHtml(__('Ask AI Now')) ?>
+    <!-- Command bar -->
+    <section class="mxs-head">
+        <div class="mxs-head__title">
+            <nav class="mxd-crumbs" aria-label="<?= $escaper->escapeHtmlAttr(__('Breadcrumb')) ?>">
+                <span><?= $escaper->escapeHtml(__('Meetanshi Extensions')) ?></span>
+                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                <span><?= $escaper->escapeHtml(__('AI Reporting')) ?></span>
+                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">chevron_right</span>
+                <strong><?= $escaper->escapeHtml(__('Saved Reports Hub')) ?></strong>
+            </nav>
+            <div class="mxs-head__titlerow">
+                <h1 class="mxd-h1"><?= $escaper->escapeHtml(__('Saved AI Reports & Analytical Queries')) ?></h1>
+                <span class="mxs-scope">
+                    <span class="mxs-scope__dot"></span>
+                    <?= $escaper->escapeHtml(__('Admin Scoped')) ?>
+                </span>
+            </div>
+            <div class="mxs-badges">
+                <span class="mxs-badge" title="<?= $escaper->escapeHtmlAttr($viewModel->isDedicatedConnection()
+                    ? __('Saved reports run on the dedicated "aireporting" database connection from env.php, inside READ ONLY transactions.')
+                    : __('Saved reports run inside READ ONLY transactions. Add a dedicated read-only "aireporting" connection in env.php for a stricter setup.')) ?>">
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">lock</span>
+                    <?= $escaper->escapeHtml($viewModel->isDedicatedConnection()
+                        ? __('Read-Only DB Connection Active')
+                        : __('Read-Only Transactions Active')) ?>
+                </span>
+                <span class="mxs-badge">
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">memory</span>
+                    <span class="mxs-badge__mono"><?= $escaper->escapeHtml($viewModel->getEngineLabel()) ?></span>
+                    <span class="mxd-dot <?= $viewModel->isProviderConfigured() ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                </span>
+                <span class="mxs-badge">
+                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">storefront</span>
+                    <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
+                </span>
+            </div>
+        </div>
+        <div class="mxs-head__actions">
+            <button type="button" class="mxs-btn mxs-btn--ghost" data-role="audit-open">
+                <span class="mxd-ico mxd-ico--md" aria-hidden="true">history</span>
+                <span><?= $escaper->escapeHtml(__('Query Audit Log')) ?></span>
+            </button>
+            <a class="mxs-btn mxs-btn--primary" href="<?= $escaper->escapeUrl($viewModel->getAskAiUrl()) ?>">
+                <span class="mxd-ico mxd-ico--md mxs-spin-hover" aria-hidden="true">add</span>
+                <span><?= $escaper->escapeHtml(__('New Natural Language Query')) ?></span>
             </a>
         </div>
-    <?php else: ?>
-        <table class="ai-table ai-saved-table">
-            <thead>
-                <tr>
-                    <th><?= $block->escapeHtml(__('Title')) ?></th>
-                    <th><?= $block->escapeHtml(__('NLP Query')) ?></th>
-                    <th><?= $block->escapeHtml(__('Chart Type')) ?></th>
-                    <th><?= $block->escapeHtml(__('Created')) ?></th>
-                    <th><?= $block->escapeHtml(__('Actions')) ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($reports as $report): ?>
-                    <tr>
-                        <td><strong><?= $block->escapeHtml($report->getTitle()) ?></strong></td>
-                        <td class="ai-nlp-cell"><?= $block->escapeHtml($report->getNlpQuery()) ?></td>
-                        <td>
-                            <span class="ai-chart-badge ai-chart-badge--<?= $block->escapeHtmlAttr($report->getChartType()) ?>">
-                                <?= $block->escapeHtml(ucfirst($report->getChartType())) ?>
-                            </span>
-                        </td>
-                        <td><?= $block->escapeHtml($report->getData('created_at')) ?></td>
-                        <td>
-                            <button class="ai-btn ai-btn-sm ai-run-saved"
-                                    data-report-id="<?= (int) $report->getId() ?>"
-                                    data-chart="<?= $block->escapeHtmlAttr($report->getChartType()) ?>"
-                                    data-nlp="<?= $block->escapeHtmlAttr($report->getNlpQuery()) ?>">
-                                ▶ <?= $block->escapeHtml(__('Run')) ?>
-                            </button>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    <?php endif; ?>
+    </section>
 
+    <div class="mxs-body">
+        <?php if (!$viewModel->isEnabled()): ?>
+            <div class="mxs-notice mxs-notice--warn">
+                <span class="mxd-ico mxd-ico--md" aria-hidden="true">warning</span>
+                <span><?= $escaper->escapeHtml(__('Meetanshi AI Reporting is disabled, so saved reports cannot be run or exported. Enable it in Stores > Configuration > Meetanshi > AI Reporting.')) ?></span>
+            </div>
+        <?php endif; ?>
+
+        <!-- KPI strip -->
+        <div class="mxs-kpis" data-role="kpis"></div>
+
+        <!-- Filters and bulk actions -->
+        <section class="mxs-card mxs-filters">
+            <div class="mxs-filters__main">
+                <label class="mxs-search">
+                    <span class="mxd-ico mxd-ico--md" aria-hidden="true">search</span>
+                    <input type="search" class="mxs-input" data-role="search" maxlength="200"
+                           placeholder="<?= $escaper->escapeHtmlAttr(__('Filter saved reports by title, NLP query, or SQL keyword...')) ?>"
+                           aria-label="<?= $escaper->escapeHtmlAttr(__('Filter saved reports')) ?>">
+                </label>
+                <label class="mxs-select">
+                    <span class="mxs-select__label"><?= $escaper->escapeHtml(__('Chart Format:')) ?></span>
+                    <select data-role="chart-filter" aria-label="<?= $escaper->escapeHtmlAttr(__('Chart format')) ?>"></select>
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">expand_more</span>
+                </label>
+                <label class="mxs-select">
+                    <span class="mxs-select__label"><?= $escaper->escapeHtml(__('Sort:')) ?></span>
+                    <select data-role="sort" aria-label="<?= $escaper->escapeHtmlAttr(__('Sort reports')) ?>">
+                        <option value="created"><?= $escaper->escapeHtml(__('Newest first')) ?></option>
+                        <option value="oldest"><?= $escaper->escapeHtml(__('Oldest first')) ?></option>
+                        <option value="run"><?= $escaper->escapeHtml(__('Recently run')) ?></option>
+                        <option value="runs"><?= $escaper->escapeHtml(__('Most run')) ?></option>
+                        <option value="title"><?= $escaper->escapeHtml(__('Title A–Z')) ?></option>
+                    </select>
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">expand_more</span>
+                </label>
+            </div>
+            <div class="mxs-filters__actions">
+                <button type="button" class="mxs-iconbtn" data-role="refresh"
+                        title="<?= $escaper->escapeHtmlAttr(__('Refresh report registry')) ?>"
+                        aria-label="<?= $escaper->escapeHtmlAttr(__('Refresh report registry')) ?>">
+                    <span class="mxd-ico mxd-ico--md" aria-hidden="true">sync</span>
+                </button>
+                <div class="mxs-dropdown">
+                    <button type="button" class="mxs-btn mxs-btn--soft" data-role="export-toggle" aria-haspopup="true" aria-expanded="false">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">download</span>
+                        <span data-role="export-label"><?= $escaper->escapeHtml(__('Bulk Export (JSON/CSV)')) ?></span>
+                    </button>
+                    <div class="mxs-menu mxs-menu--right" data-role="export-menu" role="menu" hidden>
+                        <button type="button" role="menuitem" data-export="json">
+                            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">data_object</span>
+                            <?= $escaper->escapeHtml(__('Report definitions (JSON)')) ?>
+                        </button>
+                        <button type="button" role="menuitem" data-export="csv">
+                            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">table_view</span>
+                            <?= $escaper->escapeHtml(__('Report definitions (CSV)')) ?>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bulk selection bar -->
+        <div class="mxs-bulk" data-role="bulk" hidden>
+            <span class="mxs-bulk__count" data-role="bulk-count"></span>
+            <button type="button" class="mxs-bulk__btn" data-bulk="json">
+                <span class="mxd-ico mxd-ico--sm" aria-hidden="true">data_object</span><?= $escaper->escapeHtml(__('Export JSON')) ?>
+            </button>
+            <button type="button" class="mxs-bulk__btn" data-bulk="csv">
+                <span class="mxd-ico mxd-ico--sm" aria-hidden="true">table_view</span><?= $escaper->escapeHtml(__('Export CSV')) ?>
+            </button>
+            <button type="button" class="mxs-bulk__btn mxs-bulk__btn--danger" data-bulk="delete">
+                <span class="mxd-ico mxd-ico--sm" aria-hidden="true">delete</span><?= $escaper->escapeHtml(__('Delete')) ?>
+            </button>
+            <button type="button" class="mxs-bulk__btn mxs-bulk__btn--plain" data-bulk="clear"><?= $escaper->escapeHtml(__('Clear selection')) ?></button>
+        </div>
+
+        <!-- Saved reports table -->
+        <section class="mxs-card mxs-tablecard">
+            <div class="mxs-tablewrap">
+                <table class="mxs-table">
+                    <thead>
+                        <tr>
+                            <th class="mxs-col-check">
+                                <input type="checkbox" class="mxs-check" data-role="check-all"
+                                       aria-label="<?= $escaper->escapeHtmlAttr(__('Select all reports on this page')) ?>">
+                            </th>
+                            <th class="mxs-col-title"><?= $escaper->escapeHtml(__('Report Title')) ?></th>
+                            <th class="mxs-col-prompt"><?= $escaper->escapeHtml(__('Natural Language Prompt (NLP Query)')) ?></th>
+                            <th class="mxs-c"><?= $escaper->escapeHtml(__('Format')) ?></th>
+                            <th><?= $escaper->escapeHtml(__('Last Executed')) ?></th>
+                            <th class="mxs-r" title="<?= $escaper->escapeHtmlAttr(__('Duration of the latest logged run of this SQL. Runs that came from an Ask AI question include the AI response time.')) ?>"><?= $escaper->escapeHtml(__('Latency')) ?></th>
+                            <th><?= $escaper->escapeHtml(__('Security')) ?></th>
+                            <th class="mxs-r mxs-col-actions"><?= $escaper->escapeHtml(__('Actions')) ?></th>
+                        </tr>
+                    </thead>
+                    <tbody data-role="rows"></tbody>
+                </table>
+            </div>
+            <div class="mxs-empty" data-role="empty" hidden>
+                <div class="mxs-empty__icon"><span class="mxd-ico mxd-ico--lg" aria-hidden="true">bookmark_add</span></div>
+                <p class="mxd-h3" data-role="empty-title"></p>
+                <p class="mxs-empty__text" data-role="empty-text"></p>
+                <a class="mxs-btn mxs-btn--primary" data-role="empty-cta" href="<?= $escaper->escapeUrl($viewModel->getAskAiUrl()) ?>">
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">auto_awesome</span>
+                    <span><?= $escaper->escapeHtml(__('Ask AI Now')) ?></span>
+                </a>
+                <button type="button" class="mxs-btn mxs-btn--soft" data-role="empty-reset" hidden>
+                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">filter_alt_off</span>
+                    <span><?= $escaper->escapeHtml(__('Clear filters')) ?></span>
+                </button>
+            </div>
+            <footer class="mxs-pager" data-role="pager">
+                <div class="mxs-pager__info">
+                    <span data-role="pager-info"></span>
+                    <span class="mxs-pager__sep" aria-hidden="true">|</span>
+                    <label class="mxs-pager__per">
+                        <span><?= $escaper->escapeHtml(__('Per page:')) ?></span>
+                        <select data-role="per-page" aria-label="<?= $escaper->escapeHtmlAttr(__('Reports per page')) ?>">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
+                    </label>
+                </div>
+                <nav class="mxs-pager__pages" data-role="pages" aria-label="<?= $escaper->escapeHtmlAttr(__('Pagination')) ?>"></nav>
+            </footer>
+        </section>
+
+        <!-- Selected query inspection -->
+        <section class="mxs-card mxs-inspect" data-role="inspect" hidden></section>
+
+        <!-- Query guard banner -->
+        <section class="mxs-guard">
+            <div class="mxs-guard__intro">
+                <div class="mxs-guard__logo"><span class="mxd-ico mxd-ico--lg" aria-hidden="true">verified</span></div>
+                <div>
+                    <div class="mxs-guard__titlerow">
+                        <h3 class="mxd-h3 mxd-h3--light"><?= $escaper->escapeHtml(__('Meetanshi Query Guard Active')) ?></h3>
+                        <span class="mxs-guard__chip"><?= $escaper->escapeHtml(__('SELECT-only · Read-only')) ?></span>
+                    </div>
+                    <p class="mxs-guard__text">
+                        <?= $escaper->escapeHtml(__(
+                            'Saved AI reports run inside isolated READ ONLY transactions with a %1s statement timeout and a %2-row limit. Writes, credential tables and sensitive columns are blocked before any query reaches your Magento database.',
+                            $viewModel->getQueryTimeout(),
+                            $viewModel->getMaxRows()
+                        )) ?>
+                    </p>
+                </div>
+            </div>
+            <div class="mxs-guard__actions">
+                <?php if ($viewModel->canConfigure()): ?>
+                    <a class="mxs-btn mxs-btn--dark" href="<?= $escaper->escapeUrl($viewModel->getConfigUrl()) ?>">
+                        <?= $escaper->escapeHtml(__('Configure LLM Providers')) ?>
+                    </a>
+                <?php endif; ?>
+                <button type="button" class="mxs-btn mxs-btn--primary" data-role="export-all">
+                    <?= $escaper->escapeHtml(__('Export All Saved Queries')) ?>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Row "more" menu (one shared popover) -->
+    <div class="mxs-menu mxs-menu--floating" data-role="row-menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-menu="inspect">
+            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">code</span><?= $escaper->escapeHtml(__('Inspect SQL')) ?>
+        </button>
+        <button type="button" role="menuitem" data-menu="copy">
+            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">content_copy</span><?= $escaper->escapeHtml(__('Copy SQL')) ?>
+        </button>
+        <button type="button" role="menuitem" data-menu="question">
+            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">chat</span><?= $escaper->escapeHtml(__('Copy question')) ?>
+        </button>
+        <button type="button" role="menuitem" class="is-danger" data-menu="delete">
+            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">delete</span><?= $escaper->escapeHtml(__('Delete report')) ?>
+        </button>
+    </div>
+
+    <!-- Audit log drawer -->
+    <div class="mxs-overlay" data-role="audit" hidden>
+        <aside class="mxs-drawer" role="dialog" aria-modal="true" aria-labelledby="mxs-audit-title">
+            <header class="mxs-drawer__head">
+                <div>
+                    <h2 class="mxd-h2" id="mxs-audit-title"><?= $escaper->escapeHtml(__('Query Audit Log')) ?></h2>
+                    <p class="mxd-sub"><?= $escaper->escapeHtml(__('Your latest AI questions, saved report runs and exports.')) ?></p>
+                </div>
+                <button type="button" class="mxs-iconbtn" data-role="audit-close" aria-label="<?= $escaper->escapeHtmlAttr(__('Close')) ?>">
+                    <span class="mxd-ico mxd-ico--md" aria-hidden="true">close</span>
+                </button>
+            </header>
+            <div class="mxs-drawer__body" data-role="audit-list"></div>
+            <?php if (!$viewModel->isQueryLoggingEnabled() && $viewModel->canConfigure()): ?>
+                <footer class="mxs-drawer__foot">
+                    <a class="mxs-btn mxs-btn--soft" href="<?= $escaper->escapeUrl($viewModel->getConfigUrl()) ?>">
+                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">settings</span>
+                        <span><?= $escaper->escapeHtml(__('Open AI Reporting configuration')) ?></span>
+                    </a>
+                </footer>
+            <?php endif; ?>
+        </aside>
+    </div>
+
+    <!-- Edit modal -->
+    <div class="mxs-overlay mxs-overlay--center" data-role="edit" hidden>
+        <form class="mxs-modal" data-role="edit-form" role="dialog" aria-modal="true" aria-labelledby="mxs-edit-title">
+            <header class="mxs-modal__head">
+                <h2 class="mxd-h2" id="mxs-edit-title"><?= $escaper->escapeHtml(__('Edit Saved Report')) ?></h2>
+                <button type="button" class="mxs-iconbtn" data-role="modal-close" aria-label="<?= $escaper->escapeHtmlAttr(__('Close')) ?>">
+                    <span class="mxd-ico mxd-ico--md" aria-hidden="true">close</span>
+                </button>
+            </header>
+            <div class="mxs-modal__body">
+                <label class="mxs-field">
+                    <span class="mxs-field__label"><?= $escaper->escapeHtml(__('Report title')) ?></span>
+                    <input type="text" class="mxs-input mxs-input--boxed" data-role="edit-title" maxlength="255" required>
+                </label>
+                <fieldset class="mxs-field">
+                    <legend class="mxs-field__label"><?= $escaper->escapeHtml(__('Chart format')) ?></legend>
+                    <div class="mxs-formats" data-role="edit-formats"></div>
+                </fieldset>
+                <div class="mxs-field">
+                    <span class="mxs-field__label"><?= $escaper->escapeHtml(__('Question')) ?></span>
+                    <p class="mxs-field__readonly" data-role="edit-question"></p>
+                    <span class="mxd-sub"><?= $escaper->escapeHtml(__('The question and its SQL stay as saved. Ask AI again to change them.')) ?></span>
+                </div>
+                <p class="mxs-modal__error" data-role="edit-error" hidden></p>
+            </div>
+            <footer class="mxs-modal__foot">
+                <button type="button" class="mxs-btn mxs-btn--soft" data-role="modal-close"><?= $escaper->escapeHtml(__('Cancel')) ?></button>
+                <button type="submit" class="mxs-btn mxs-btn--primary" data-role="edit-save"><?= $escaper->escapeHtml(__('Save Changes')) ?></button>
+            </footer>
+        </form>
+    </div>
+
+    <!-- Delete confirmation -->
+    <div class="mxs-overlay mxs-overlay--center" data-role="confirm" hidden>
+        <div class="mxs-modal mxs-modal--sm" role="alertdialog" aria-modal="true" aria-labelledby="mxs-confirm-title" aria-describedby="mxs-confirm-text">
+            <header class="mxs-modal__head">
+                <h2 class="mxd-h2" id="mxs-confirm-title"><?= $escaper->escapeHtml(__('Delete saved report?')) ?></h2>
+            </header>
+            <div class="mxs-modal__body">
+                <p id="mxs-confirm-text" data-role="confirm-text"></p>
+                <p class="mxs-modal__error" data-role="confirm-error" hidden></p>
+            </div>
+            <footer class="mxs-modal__foot">
+                <button type="button" class="mxs-btn mxs-btn--soft" data-role="modal-close"><?= $escaper->escapeHtml(__('Cancel')) ?></button>
+                <button type="button" class="mxs-btn mxs-btn--danger" data-role="confirm-ok"><?= $escaper->escapeHtml(__('Delete')) ?></button>
+            </footer>
+        </div>
+    </div>
+
+    <div class="mxs-toast" data-role="toast" role="status" aria-live="polite" hidden></div>
 </div>
-
-<script>
-require(['jquery'], function ($) {
-    'use strict';
-
-    // Handle Run button click on saved reports
-    $(document).on('click', '.ai-run-saved', function () {
-        const $btn = $(this);
-        const reportId = parseInt($btn.data('report-id'), 10);
-        const chart = $btn.data('chart');
-        const nlp = $btn.data('nlp');
-
-        if (!reportId) {
-            alert('<?= $block->escapeJs(__('This report could not be found.')) ?>');
-            return;
-        }
-
-        // Pass only the report id; the server loads the SQL itself
-        sessionStorage.setItem('ai_run_saved_report', JSON.stringify({
-            report_id: reportId,
-            chart: chart,
-            nlp: nlp
-        }));
-
-        // Redirect to the query page
-        window.location.href = '<?= $block->escapeJs($block->getQueryUrl()) ?>';
-    });
-});
+<script type="text/x-magento-init">
+<?= /* @noEscape */ json_encode(
+    ['[data-role=mxs-root]' => ['Meetanshi_AIReporting/js/saved-reports' => $config]],
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+) ?>
 </script>

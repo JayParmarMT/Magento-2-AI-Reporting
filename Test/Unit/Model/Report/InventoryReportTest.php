@@ -180,4 +180,153 @@ class InventoryReportTest extends TestCase
 
         $this->assertSame([], $this->report->getInventoryTurnover());
     }
+
+    // ── getSkuRows / getSkuRowsSql ───────────────────────────────────────
+
+    public function testGetSkuRowsDerivesAvailabilityCoverStatusAndTier(): void
+    {
+        $longAgo = gmdate('Y-m-d H:i:s', time() - 200 * 86400);
+        $this->connection->method('fetchAll')->willReturn([
+            $this->skuRow('HEALTHY', 100, 21, 30),
+            $this->skuRow('LOW', 8, 0, 0, $longAgo),
+            $this->skuRow('GONE', 0, 0, 3, null, 0),
+            $this->skuRow('FAST', 40, 0, 90),
+            $this->skuRow('NEVER', 120, 0, 0, null),
+        ]);
+
+        $rows = array_column($this->report->getSkuRows(...$this->last30Days()), null, 'sku');
+
+        // 30 sold in 30 days = 1/day; 100 on hand - 21 reserved = 79 available = 79 days of cover
+        $this->assertSame(79.0, $rows['HEALTHY']['available']);
+        $this->assertSame(79.0, $rows['HEALTHY']['cover_days']);
+        $this->assertSame(0.3, $rows['HEALTHY']['turnover']);
+        $this->assertSame(1000.0, $rows['HEALTHY']['value']);
+        $this->assertSame(['ok', 'optimal', false, false], $this->flags($rows['HEALTHY']));
+
+        $this->assertSame(['low', 'critical', true, true], $this->flags($rows['LOW']));
+        $this->assertNull($rows['LOW']['cover_days']);
+        $this->assertSame(200, $rows['LOW']['idle_days']);
+
+        $this->assertSame(['out', 'out', true, false], $this->flags($rows['GONE']));
+        $this->assertNull($rows['GONE']['turnover']);
+
+        // 90 sold in 30 days = 3/day: 40 units last 13.3 days, under the 14-day mark
+        $this->assertSame(13.3, $rows['FAST']['cover_days']);
+        $this->assertSame(['depleting', 'buffer', true, false], $this->flags($rows['FAST']));
+
+        $this->assertSame(['idle', 'high', false, true], $this->flags($rows['NEVER']));
+        $this->assertNull($rows['NEVER']['last_sold_at']);
+    }
+
+    public function testSkuRowsCountAvailableBelowZeroAsOutOfStock(): void
+    {
+        $this->connection->method('fetchAll')->willReturn([$this->skuRow('OVERSOLD', 5, 7, 7)]);
+
+        $row = $this->report->getSkuRows(...$this->last30Days())[0];
+
+        $this->assertSame(-2.0, $row['available']);
+        $this->assertSame(0.0, $row['cover_days']);
+        $this->assertSame('out', $row['status']);
+    }
+
+    public function testSkuRowsSqlReadsReservationsOnlyWithMsi(): void
+    {
+        $legacy = $this->report->getSkuRowsSql('2026-01-01 00:00:00', '2026-02-01 00:00:00');
+
+        $connection = $this->createMock(AdapterInterface::class);
+        $msi = (new InventoryReport($this->createReportContext($connection, 'UTC', true)))
+            ->getSkuRowsSql('2026-01-01 00:00:00', '2026-02-01 00:00:00');
+
+        $this->assertStringNotContainsString('inventory_reservation', $legacy);
+        $this->assertStringContainsString('0 AS reserved', $legacy);
+        $this->assertStringContainsString('inventory_reservation', $msi);
+        $this->assertStringContainsString("o.created_at >= '2026-01-01 00:00:00' AND o.created_at < '2026-02-01 00:00:00'", $msi);
+        $this->assertStringContainsString("o.state NOT IN ('canceled','pending_payment')", $msi);
+    }
+
+    // ── summarize ────────────────────────────────────────────────────────
+
+    public function testSummarizeTotalsTiersAndTabCounts(): void
+    {
+        $longAgo = gmdate('Y-m-d H:i:s', time() - 200 * 86400);
+        $this->connection->method('fetchAll')->willReturn([
+            $this->skuRow('HEALTHY', 100, 21, 30),
+            $this->skuRow('LOW', 8, 0, 0, $longAgo),
+            $this->skuRow('GONE', 0, 0, 3, null, 0),
+            $this->skuRow('NEVER', 120, 0, 0, null),
+        ]);
+        $rows = $this->report->getSkuRows(...$this->last30Days());
+
+        $result  = $this->report->summarize($rows, 30);
+        $summary = $result['summary'];
+        $tiers   = array_column($result['tiers'], null, 'key');
+
+        $this->assertSame(4, $summary['skus']);
+        $this->assertSame(3, $summary['in_stock']);
+        $this->assertSame(1, $summary['out_of_stock']);
+        $this->assertSame(1, $summary['low_stock']);
+        $this->assertSame(2, $summary['risk']);
+        $this->assertSame(2, $summary['idle']);
+        $this->assertSame(2, $summary['selling']);
+        $this->assertSame(228.0, $summary['units_on_hand']);
+        $this->assertSame(21.0, $summary['units_reserved']);
+        $this->assertSame(33.0, $summary['units_sold']);
+        $this->assertSame(2280.0, $summary['stock_value']);
+        $this->assertSame(1280.0, $summary['idle_value']);
+        // 33 sold / 228 on hand over 30 days, scaled to a year
+        $this->assertSame(0.14, $summary['turnover']);
+        $this->assertSame(1.7, $summary['turnover_annualized']);
+
+        $this->assertSame(['high', 'optimal', 'buffer', 'critical', 'out'], array_keys($tiers));
+        $this->assertSame(1, $tiers['high']['skus']);
+        $this->assertSame(1, $tiers['optimal']['skus']);
+        $this->assertSame(0, $tiers['buffer']['skus']);
+        $this->assertSame(1, $tiers['critical']['skus']);
+        $this->assertSame(1, $tiers['out']['skus']);
+    }
+
+    /**
+     * A getSkuRowsSql() result row: list price 10.
+     */
+    private function skuRow(
+        string $sku,
+        float $qty,
+        float $reserved,
+        float $sold,
+        ?string $lastSoldAt = '',
+        int $isInStock = 1
+    ): array {
+        return [
+            'product_id'   => crc32($sku),
+            'sku'          => $sku,
+            'product_name' => $sku . ' product',
+            'qty'          => (string) $qty,
+            'is_in_stock'  => (string) $isInStock,
+            'price'        => '10.0000',
+            'status'       => '1',
+            'reserved'     => (string) $reserved,
+            'sold'         => (string) $sold,
+            'last_sold_at' => $lastSoldAt === '' ? gmdate('Y-m-d H:i:s', time() - 86400) : $lastSoldAt,
+        ];
+    }
+
+    /**
+     * [status, tier, risk, idle]
+     */
+    private function flags(array $row): array
+    {
+        return [$row['status'], $row['tier'], $row['risk'], $row['idle']];
+    }
+
+    /**
+     * The 30 days up to and including today (UTC, as in createReportContext()).
+     *
+     * @return \DateTimeImmutable[]
+     */
+    private function last30Days(): array
+    {
+        $tomorrow = new \DateTimeImmutable('tomorrow', new \DateTimeZone('UTC'));
+
+        return [$tomorrow->modify('-30 days'), $tomorrow];
+    }
 }

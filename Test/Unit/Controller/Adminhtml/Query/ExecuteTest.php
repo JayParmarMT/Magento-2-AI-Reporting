@@ -22,8 +22,7 @@ use Meetanshi\AIReporting\Model\Config;
 use Meetanshi\AIReporting\Model\Query\QueryExecutor;
 use Meetanshi\AIReporting\Model\Query\QueryRunner;
 use Meetanshi\AIReporting\Model\Query\QueryTokenStorage;
-use Meetanshi\AIReporting\Model\QueryLogFactory;
-use Meetanshi\AIReporting\Model\ResourceModel\QueryLog as QueryLogResource;
+use Meetanshi\AIReporting\Model\QueryLogger;
 use Meetanshi\AIReporting\Model\ResourceModel\SavedReport as SavedReportResource;
 use Meetanshi\AIReporting\Model\SavedReport;
 use Meetanshi\AIReporting\Model\SavedReportFactory;
@@ -84,8 +83,7 @@ class ExecuteTest extends TestCase
             $this->queryRunner,
             $this->queryExecutor,
             $this->config,
-            $this->createMock(QueryLogFactory::class),
-            $this->createMock(QueryLogResource::class),
+            $this->createMock(QueryLogger::class),
             $this->createMock(LoggerInterface::class),
             $savedReportFactory,
             $this->createMock(SavedReportResource::class),
@@ -201,9 +199,10 @@ class ExecuteTest extends TestCase
         $this->givenValidAjaxPost();
         $this->params = ['query' => 'How many orders?'];
         $this->queryRunner->method('run')->with('How many orders?')->willReturn([
-            'sql'      => 'SELECT COUNT(*) FROM sales_order',
-            'result'   => ['columns' => ['c'], 'rows' => [['c' => '3']], 'row_count' => 1, 'execution_time_ms' => 2],
-            'repaired' => false,
+            'sql'        => 'SELECT COUNT(*) FROM sales_order',
+            'result'     => ['columns' => ['c'], 'rows' => [['c' => '3']], 'row_count' => 1, 'execution_time_ms' => 2],
+            'repaired'   => false,
+            'assumption' => 'Counted all orders, including canceled ones.',
         ]);
 
         $this->tokenStorage->expects($this->once())
@@ -216,5 +215,6 @@ class ExecuteTest extends TestCase
         $this->assertTrue($this->response['success']);
         $this->assertSame('abc', $this->response['query_token']);
         $this->assertSame(1, $this->response['row_count']);
+        $this->assertSame('Counted all orders, including canceled ones.', $this->response['assumption']);
     }
 }
