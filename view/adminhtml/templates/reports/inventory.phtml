@@ -169,7 +169,7 @@ $thresholds = $config['thresholds'];
                         'turnover' => __('Turnover & Run-Rate'),
                     ] as $tab => $label): ?>
                         <button type="button" role="tab" data-tab="<?= $escaper->escapeHtmlAttr($tab) ?>"
-                                class="mxi-tab<?= $tab === 'all' ? ' is-active' : '' ?>" aria-selected="<?= $tab === 'all' ? 'true' : 'false' ?>">
+                                class="mxi-tab<?= /* @noEscape */ $tab === 'all' ? ' is-active' : '' ?>" aria-selected="<?= /* @noEscape */ $tab === 'all' ? 'true' : 'false' ?>">
                             <span><?= $escaper->escapeHtml($label) ?></span>
                             <span class="mxi-tab__count" data-role="count-<?= $escaper->escapeHtmlAttr($tab) ?>"></span>
                         </button>
@@ -287,7 +287,7 @@ $thresholds = $config['thresholds'];
             </div>
             <div class="mxi-ask" data-role="ask-panel" hidden>
                 <p class="mxi-ask__engine">
-                    <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                    <span class="mxd-dot <?= /* @noEscape */ $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
                     <span class="mxd-mono"><?= $escaper->escapeHtml(__('Follow-ups use %1: %2', $config['provider'], $config['model'])) ?></span>
                 </p>
                 <form class="mxi-ask__form" data-role="ask-form">

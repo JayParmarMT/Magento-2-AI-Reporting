@@ -33,4 +33,11 @@
         </arguments>
     </type>
 
+    <!-- The report store scope only needs the admin session when it remembers or recalls a scope -->
+    <type name="Meetanshi\AIReporting\Model\Report\ReportScope">
+        <arguments>
+            <argument name="session" xsi:type="object">Magento\Backend\Model\Session\Proxy</argument>
+        </arguments>
+    </type>
+
 </config>

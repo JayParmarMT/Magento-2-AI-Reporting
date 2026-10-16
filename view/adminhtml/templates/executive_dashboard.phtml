@@ -35,22 +35,33 @@
             </nav>
             <div class="mxd-titlerow">
                 <h1 class="mxd-h1"><?= $escaper->escapeHtml(__('AI Analytics & Executive Dashboard')) ?></h1>
-                <span class="mxd-platform">
-                    <span class="mxd-dot mxd-dot--brand"></span>
-                    <span><?= $escaper->escapeHtml($block->getPlatformLabel()) ?></span>
-                    <span class="mxd-sep">•</span>
-                    <strong><?= $escaper->escapeHtml($block->getStoreLabel()) ?></strong>
-                </span>
+                <?php $scopeOptions = $block->getScopeOptions(); ?>
+                <?php if ($scopeOptions): ?>
+                    <label class="mxd-scope"
+                           title="<?= $escaper->escapeHtmlAttr(__('Every figure, chart and export follows the selected website or store view. One website is shown in its own base currency and timezone.')) ?>">
+                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                        <span><?= $escaper->escapeHtml(__('Store:')) ?></span>
+                        <select class="mxd-scope__select" data-role="scope" aria-label="<?= $escaper->escapeHtmlAttr(__('Store scope')) ?>">
+                            <?php foreach ($scopeOptions as $option): ?>
+                                <option value="<?= $escaper->escapeHtmlAttr($option['value']) ?>"<?= /* @noEscape */ $option['value'] === $block->getScopeKey() ? ' selected' : '' ?>><?= $escaper->escapeHtml(($option['level'] === 2 ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : '') . $option['label']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                <?php elseif ($block->getStoreLabel() !== ''): ?>
+                    <span class="mxd-platform">
+                        <strong><?= $escaper->escapeHtml($block->getStoreLabel()) ?></strong>
+                    </span>
+                <?php endif; ?>
             </div>
         </div>
         <div class="mxd-commandbar__actions">
             <div class="mxd-engine" data-role="engine">
                 <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">psychology</span>
-                <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                <span class="mxd-dot <?= /* @noEscape */ $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
                 <span class="mxd-mono"><?= $escaper->escapeHtml($config['provider'] . ': ' . $config['model']) ?></span>
                 <span class="mxd-ico mxd-ico--xs mxd-muted" aria-hidden="true"
                       title="<?= $escaper->escapeHtmlAttr($config['aiConfigured']
-                          ? __('AI provider used by Ask AI, Chat and the assistant below. Change it in Stores > Configuration > Meetanshi > AI Reporting.')
+                          ? __('AI provider used by Ask AI and Chat. Change it in Stores > Configuration > Meetanshi > AI Reporting.')
                           : __('The AI provider is not configured yet. Set it up in Stores > Configuration > Meetanshi > AI Reporting.')) ?>">info</span>
             </div>
             <div class="mxd-range">
@@ -238,45 +249,6 @@
             </footer>
         </section>
 
-        <!-- AI assistant -->
-        <section class="mxd-assistant" data-role="assistant">
-            <div class="mxd-assistant__intro">
-                <div class="mxd-assistant__logo"><span class="mxd-ico mxd-ico--lg" aria-hidden="true">auto_awesome</span></div>
-                <div>
-                    <div class="mxd-card__titlerow">
-                        <h3 class="mxd-h3 mxd-h3--light">
-                            <?= $escaper->escapeHtml($config['aiConfigured'] ? __('Meetanshi AI Assistant is Active') : __('Meetanshi AI Assistant is not configured')) ?>
-                        </h3>
-                        <span class="mxd-pill <?= $config['aiConfigured'] ? 'mxd-pill--darkgreen' : 'mxd-pill--darkgrey' ?>">
-                            <?= $escaper->escapeHtml($config['provider']) ?>
-                        </span>
-                    </div>
-                    <p class="mxd-assistant__text"><?= $escaper->escapeHtml(__('Ask questions about your store data. Answers come from read-only queries on this store\'s database.')) ?></p>
-                </div>
-            </div>
-            <div class="mxd-assistant__ask">
-                <form class="mxd-ask" data-role="ask-form">
-                    <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
-                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask AI about this dashboard (e.g. \'Which SKUs had 0 purchases?\')...')) ?>"
-                           aria-label="<?= $escaper->escapeHtmlAttr(__('Ask AI about this dashboard')) ?>">
-                    <button type="submit" class="mxd-btn mxd-btn--primary" data-role="ask-submit">
-                        <span><?= $escaper->escapeHtml(__('Query')) ?></span>
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
-                    </button>
-                </form>
-                <div class="mxd-quick">
-                    <span class="mxd-quick__label"><?= $escaper->escapeHtml(__('Quick:')) ?></span>
-                    <?php foreach ([
-                        __('Which products had zero sales this month?'),
-                        __('Refund rate by payment method'),
-                        __('Net revenue by month this year'),
-                    ] as $question): ?>
-                        <button type="button" class="mxd-chip" data-question="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <div class="mxd-answer" data-role="answer" hidden></div>
-        </section>
     </div>
 </div>
 <script type="text/x-magento-init">

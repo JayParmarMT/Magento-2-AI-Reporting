@@ -6,6 +6,8 @@
  * except the daily trajectory, which is always the last 30 days. Net revenue = grand total
  * minus refunds, in the base currency; canceled / pending-payment orders are not sales.
  * Shared by the page template and the reports/salesData and reports/salesExport controllers.
+ * Follows the store scope chosen in the header (ReportScope): all store views, one website (in its own
+ * base currency and timezone) or one store view.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -72,18 +74,40 @@ class SalesRevenue implements ArgumentInterface
 
     public function getStoreLabel(): string
     {
+        $scope = $this->activateScope();
+        if ($scope->isMultiStore()) {
+            return (string) __('Store: %1', $scope->getLabel());
+        }
         $name = $this->aiContext->getStoreName();
 
         return $name !== '' ? (string) __('Store: %1', $name) : '';
     }
 
+    /**
+     * Options of the store scope switcher; empty on a single-store install.
+     *
+     * @return array<int, array{value: string, label: string, level: int}>
+     */
+    public function getScopeOptions(): array
+    {
+        return $this->activateScope()->getOptions();
+    }
+
+    public function getScopeKey(): string
+    {
+        return $this->activateScope()->getKey();
+    }
+
     public function getTimezoneLabel(): string
     {
+        $this->activateScope();
+
         return $this->aiContext->getTimezoneLabel();
     }
 
     public function getCurrencyLabel(): string
     {
+        $this->activateScope();
         $code   = $this->reportContext->getCurrencyCode();
         $symbol = $this->reportContext->getCurrencySymbol();
 
@@ -103,6 +127,7 @@ class SalesRevenue implements ArgumentInterface
      */
     public function getData(string $range = ReportRange::DEFAULT_RANGE, ?string $customStart = null, ?string $customEnd = null): array
     {
+        $scope     = $this->activateScope();
         $startedAt = microtime(true);
         $resolved  = $this->reportRange->resolve($range, $customStart, $customEnd);
         [$start, $end, $days] = [$resolved['start'], $resolved['end'], $resolved['days']];
@@ -127,6 +152,7 @@ class SalesRevenue implements ArgumentInterface
 
         return [
             'range'      => $this->reportRange->toArray($resolved),
+            'scope'      => ['key' => $scope->getKey(), 'label' => $scope->getLabel()],
             'unit'       => $unit,
             'totals'     => $totals + [
                 'aov'            => $totals['orders'] > 0 ? round($totals['revenue'] / $totals['orders'], 2) : 0.0,
@@ -167,6 +193,7 @@ class SalesRevenue implements ArgumentInterface
      */
     public function getOrderLines(string $range, ?string $customStart, ?string $customEnd): array
     {
+        $this->activateScope();
         $resolved = $this->reportRange->resolve($range, $customStart, $customEnd);
         $rows     = $this->report->getOrderLines($resolved['start'], $resolved['end']);
 
@@ -181,11 +208,15 @@ class SalesRevenue implements ArgumentInterface
 
     public function getRangeLabel(string $range, ?string $customStart, ?string $customEnd): string
     {
+        $this->activateScope();
+
         return $this->reportRange->resolve($range, $customStart, $customEnd)['label'];
     }
 
     public function getCurrencyCode(): string
     {
+        $this->activateScope();
+
         return $this->reportContext->getCurrencyCode();
     }
 
@@ -197,6 +228,7 @@ class SalesRevenue implements ArgumentInterface
         return [
             'data'          => $this->getData(),
             'currency'      => $this->reportContext->getCurrencyCode(),
+            'scope'         => $this->activateScope()->getKey(),
             'regionPreview' => self::REGION_PREVIEW,
             'formKey'       => $this->formKey->getFormKey(),
             'dataUrl'       => $this->urlBuilder->getUrl('meetanshi_aireporting/reports/salesData'),
@@ -212,6 +244,17 @@ class SalesRevenue implements ArgumentInterface
             'provider'      => $this->aiContext->getProviderLabel(),
             'model'         => $this->aiContext->getModel(),
         ];
+    }
+
+    /**
+     * The page follows the scope picked in its header (or remembered from the last report page).
+     */
+    private function activateScope(): \Meetanshi\AIReporting\Model\Report\ReportScope
+    {
+        $scope = $this->reportContext->getScope();
+        $scope->activate();
+
+        return $scope;
     }
 
     /**

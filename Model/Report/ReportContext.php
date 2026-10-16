@@ -6,6 +6,10 @@
  * figures that match the store: table prefix, store timezone, base currency,
  * which orders count as sales, net revenue, EAV attribute ids and stock source.
  *
+ * With a website or store view selected in ReportScope (pages that support it activate it), orders are
+ * filtered by store view and amounts, dates, prices and stock are those of that website: its base
+ * currency (no conversion to the global currency), its timezone, its website prices and its MSI stock.
+ *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
  * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
@@ -19,12 +23,14 @@ use Magento\Catalog\Api\Data\CategoryInterface;
 use Magento\Catalog\Api\Data\ProductInterface;
 use Magento\CatalogInventory\Api\StockConfigurationInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\App\ObjectManager;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\EntityManager\MetadataPool;
 use Magento\Framework\Module\Manager as ModuleManager;
 use Magento\Framework\Pricing\PriceCurrencyInterface;
 use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
+use Magento\Store\Model\ScopeInterface;
 
 class ReportContext
 {
@@ -35,10 +41,15 @@ class ReportContext
 
     private const XML_PATH_BASE_CURRENCY = 'currency/options/base';
 
-    private ?\DateTimeZone $timezoneObject = null;
     private ?bool $msiEnabled = null;
-    private ?string $currencyCode = null;
     private array $attributeIds = [];
+
+    /** Per scope key: timezone, base currency code, MSI stock id */
+    private array $timezones = [];
+    private array $currencyCodes = [];
+    private array $stockIds = [];
+
+    private ?ReportScope $scope;
 
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
@@ -47,8 +58,38 @@ class ReportContext
         private readonly PriceCurrencyInterface $priceCurrency,
         private readonly MetadataPool $metadataPool,
         private readonly ModuleManager $moduleManager,
-        private readonly StockConfigurationInterface $stockConfiguration
+        private readonly StockConfigurationInterface $stockConfiguration,
+        ?ReportScope $scope = null
     ) {
+        // Optional so that installs with compiled DI from before this argument keep working
+        $this->scope = $scope;
+    }
+
+    /**
+     * Store scope of the current report (All Store Views unless the page activated another one).
+     */
+    public function getScope(): ReportScope
+    {
+        return $this->scope ??= ObjectManager::getInstance()->get(ReportScope::class);
+    }
+
+    /**
+     * " AND o.store_id IN (…)" for the selected website or store view; '' for All Store Views.
+     */
+    public function storeFilter(string $alias = 'o'): string
+    {
+        $ids = $this->getScope()->getStoreIds();
+
+        return $ids ? sprintf(' AND %s.store_id IN (%s)', $alias, implode(',', array_map('intval', $ids))) : '';
+    }
+
+    /**
+     * Factor turning an order's base amounts into the report currency: base_to_global_rate for All Store
+     * Views (global base currency); 1 for one website or store view (that website's own base currency).
+     */
+    private function rateExpr(string $alias): string
+    {
+        return $this->getScope()->getWebsiteId() !== null ? '1' : sprintf('IFNULL(%s.base_to_global_rate, 1)', $alias);
     }
 
     public function getConnection(): AdapterInterface
@@ -83,52 +124,53 @@ class ReportContext
     }
 
     /**
-     * Net order revenue (grand total minus refunds) converted to the global base currency.
+     * Net order revenue (grand total minus refunds) in the report currency (see rateExpr()).
      */
     public function orderRevenueExpr(string $alias = 'o'): string
     {
         return sprintf(
-            '((%1$s.base_grand_total - IFNULL(%1$s.base_total_refunded, 0)) * IFNULL(%1$s.base_to_global_rate, 1))',
-            $alias
+            '((%1$s.base_grand_total - IFNULL(%1$s.base_total_refunded, 0)) * %2$s)',
+            $alias,
+            $this->rateExpr($alias)
         );
     }
 
     /**
-     * Gross order value (ignores refunds) in the global base currency, for status breakdowns.
+     * Gross order value (ignores refunds) in the report currency, for status breakdowns.
      */
     public function orderValueExpr(string $alias = 'o'): string
     {
-        return sprintf('(%1$s.base_grand_total * IFNULL(%1$s.base_to_global_rate, 1))', $alias);
+        return sprintf('(%1$s.base_grand_total * %2$s)', $alias, $this->rateExpr($alias));
     }
 
     /**
-     * Convert any order-level base amount column to the global base currency.
+     * Any base amount column of an order (or invoice / credit memo, by its alias) in the report currency.
      */
     public function orderAmountExpr(string $column, string $orderAlias = 'o'): string
     {
-        return sprintf('(IFNULL(%s, 0) * IFNULL(%s.base_to_global_rate, 1))', $column, $orderAlias);
+        return sprintf('(IFNULL(%s, 0) * %s)', $column, $this->rateExpr($orderAlias));
     }
 
     /**
-     * Net item revenue: row total after discount, minus refunded amount, in global base currency.
+     * Net item revenue: row total after discount, minus refunded amount, in the report currency.
      */
     public function itemRevenueExpr(string $itemAlias = 'oi', string $orderAlias = 'o'): string
     {
         return sprintf(
             '((IFNULL(%1$s.base_row_total, 0) - IFNULL(%1$s.base_discount_amount, 0)'
             . ' - IFNULL(%1$s.base_amount_refunded, 0) + IFNULL(%1$s.base_discount_refunded, 0))'
-            . ' * IFNULL(%2$s.base_to_global_rate, 1))',
+            . ' * %2$s)',
             $itemAlias,
-            $orderAlias
+            $this->rateExpr($orderAlias)
         );
     }
 
     /**
-     * Item price in global base currency.
+     * Item price in the report currency.
      */
     public function itemPriceExpr(string $itemAlias = 'oi', string $orderAlias = 'o'): string
     {
-        return sprintf('(IFNULL(%s.base_price, 0) * IFNULL(%s.base_to_global_rate, 1))', $itemAlias, $orderAlias);
+        return sprintf('(IFNULL(%s.base_price, 0) * %s)', $itemAlias, $this->rateExpr($orderAlias));
     }
 
     /**
@@ -144,17 +186,25 @@ class ReportContext
 
     // ── Time ──────────────────────────────────────────────────────────────
 
+    /**
+     * Store timezone; for one website or store view, the timezone configured for it.
+     */
     public function getTimezone(): \DateTimeZone
     {
-        if ($this->timezoneObject === null) {
+        $key = $this->getScope()->getKey();
+        if (!isset($this->timezones[$key])) {
+            $storeId = $this->getScope()->getValueStoreId();
+            $name = $storeId > 0
+                ? $this->scopeConfig->getValue('general/locale/timezone', ScopeInterface::SCOPE_STORE, $storeId)
+                : null;
             try {
-                $this->timezoneObject = new \DateTimeZone((string) ($this->timezone->getConfigTimezone() ?: 'UTC'));
+                $this->timezones[$key] = new \DateTimeZone((string) ($name ?: $this->timezone->getConfigTimezone() ?: 'UTC'));
             } catch (\Exception $e) {
-                $this->timezoneObject = new \DateTimeZone('UTC');
+                $this->timezones[$key] = new \DateTimeZone('UTC');
             }
         }
 
-        return $this->timezoneObject;
+        return $this->timezones[$key];
     }
 
     /**
@@ -317,15 +367,21 @@ class ReportContext
     // ── Currency ──────────────────────────────────────────────────────────
 
     /**
-     * Global base currency code — the currency every report amount is expressed in.
+     * Currency every report amount is expressed in: the global base currency, or for one website or
+     * store view that website's base currency.
      */
     public function getCurrencyCode(): string
     {
-        if ($this->currencyCode === null) {
-            $this->currencyCode = (string) ($this->scopeConfig->getValue(self::XML_PATH_BASE_CURRENCY) ?: 'USD');
+        $key = $this->getScope()->getKey();
+        if (!isset($this->currencyCodes[$key])) {
+            $websiteId = $this->getScope()->getWebsiteId();
+            $code = $websiteId !== null
+                ? $this->scopeConfig->getValue(self::XML_PATH_BASE_CURRENCY, ScopeInterface::SCOPE_WEBSITES, $websiteId)
+                : $this->scopeConfig->getValue(self::XML_PATH_BASE_CURRENCY);
+            $this->currencyCodes[$key] = (string) ($code ?: 'USD');
         }
 
-        return $this->currencyCode;
+        return $this->currencyCodes[$key];
     }
 
     public function getCurrencySymbol(): string
@@ -391,6 +447,33 @@ class ReportContext
         return " AND {$alias}.created_in <= UNIX_TIMESTAMP() AND {$alias}.updated_in > UNIX_TIMESTAMP()";
     }
 
+    /**
+     * Catalog product names: the selected store view's name, else the admin name.
+     *
+     * @param int[] $productIds
+     * @return array<int, string>
+     */
+    public function getProductNames(array $productIds): array
+    {
+        $productIds = array_values(array_filter(array_map('intval', $productIds)));
+        if (!$productIds) {
+            return [];
+        }
+        $link    = $this->getProductLinkField();
+        $nameId  = $this->getAttributeId('catalog_product', 'name');
+        $storeId = (int) $this->getScope()->getStoreViewId();
+
+        return array_map('strval', $this->getConnection()->fetchPairs($this->resolveTables("
+            SELECT e.entity_id, COALESCE(sv.value, dv.value, e.sku)
+            FROM {{catalog_product_entity}} e
+            LEFT JOIN {{catalog_product_entity_varchar}} dv
+                ON dv.{$link} = e.{$link} AND dv.attribute_id = {$nameId} AND dv.store_id = 0
+            LEFT JOIN {{catalog_product_entity_varchar}} sv
+                ON sv.{$link} = e.{$link} AND sv.attribute_id = {$nameId} AND sv.store_id = {$storeId}
+            WHERE e.entity_id IN (" . implode(',', $productIds) . "){$this->currentVersionCondition('e')}
+        ")));
+    }
+
     // ── Stock ─────────────────────────────────────────────────────────────
 
     public function isMsiEnabled(): bool
@@ -419,15 +502,25 @@ class ReportContext
         $manageStock = "IF(si.item_id IS NULL, {$manageStockDefault},"
             . " IF(si.use_config_manage_stock = 1, {$manageStockDefault}, si.manage_stock)) = 1";
 
+        // One website or store view: only that website's products, and (MSI) only its stock's sources
+        $websiteId = $this->getScope()->getWebsiteId();
+        $websiteJoin = $websiteId !== null
+            ? " JOIN {{catalog_product_website}} pw ON pw.product_id = e.entity_id AND pw.website_id = {$websiteId}"
+            : '';
+
         if ($this->isMsiEnabled()) {
+            $stockJoin = $websiteId !== null
+                ? ' JOIN {{inventory_source_stock_link}} stl ON stl.source_code = isi.source_code AND stl.stock_id = ' . $this->getStockId()
+                : '';
+
             return $this->resolveTables("
                 SELECT e.entity_id AS product_id, e.sku,
                        SUM(isi.quantity) AS qty,
                        MAX(isi.status) AS is_in_stock,
                        IFNULL(MAX(si.min_qty), 0) AS min_qty
                 FROM {{inventory_source_item}} isi
-                JOIN {{inventory_source}} src ON src.source_code = isi.source_code AND src.enabled = 1
-                JOIN {{catalog_product_entity}} e ON e.sku = isi.sku
+                JOIN {{inventory_source}} src ON src.source_code = isi.source_code AND src.enabled = 1{$stockJoin}
+                JOIN {{catalog_product_entity}} e ON e.sku = isi.sku{$websiteJoin}
                 LEFT JOIN {{cataloginventory_stock_item}} si ON si.product_id = e.entity_id AND si.stock_id = 1
                 WHERE e.type_id IN ({$typeList}) AND {$manageStock}
                 GROUP BY e.entity_id, e.sku
@@ -437,8 +530,28 @@ class ReportContext
         return $this->resolveTables("
             SELECT e.entity_id AS product_id, e.sku, si.qty, si.is_in_stock, si.min_qty
             FROM {{cataloginventory_stock_item}} si
-            JOIN {{catalog_product_entity}} e ON e.entity_id = si.product_id
+            JOIN {{catalog_product_entity}} e ON e.entity_id = si.product_id{$websiteJoin}
             WHERE si.stock_id = 1 AND e.type_id IN ({$typeList}) AND {$manageStock}
         ");
+    }
+
+    /**
+     * MSI stock that serves the selected website (Default Stock = 1 for All Store Views or without MSI).
+     */
+    public function getStockId(): int
+    {
+        $code = $this->getScope()->getWebsiteCode();
+        if ($code === null || !$this->isMsiEnabled()) {
+            return 1;
+        }
+        if (!isset($this->stockIds[$code])) {
+            $this->stockIds[$code] = (int) ($this->getConnection()->fetchOne(
+                "SELECT stock_id FROM {$this->resourceConnection->getTableName('inventory_stock_sales_channel')}
+                 WHERE type = 'website' AND code = ?",
+                [$code]
+            ) ?: 1);
+        }
+
+        return $this->stockIds[$code];
     }
 }

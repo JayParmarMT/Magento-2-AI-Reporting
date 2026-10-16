@@ -142,7 +142,9 @@ curl_close($ch);
 
 if (!$loginPage) {
     fwrite(STDERR, "ERROR: Cannot reach admin URL: {$adminUrl}\n");
-    @unlink($cookieFile);
+    if (is_file($cookieFile)) {
+        unlink($cookieFile);
+    }
     exit(1);
 }
 
@@ -163,7 +165,9 @@ if (empty($formKey)) {
 
 if (empty($formKey)) {
     fwrite(STDERR, "ERROR: Cannot extract form_key from login page. Check admin URL.\n");
-    @unlink($cookieFile);
+    if (is_file($cookieFile)) {
+        unlink($cookieFile);
+    }
     exit(1);
 }
 
@@ -369,7 +373,9 @@ foreach ($filtered as $p) {
 
 // ── Cleanup ──────────────────────────────────────────────────────────────────
 
-@unlink($cookieFile);
+if (is_file($cookieFile)) {
+    unlink($cookieFile);
+}
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@
  * Meetanshi AIReporting — Saved AI Reports
  *
  * Content area only (Magento's admin menu and header are untouched). KPIs, the report table,
- * the inspection panel and the audit log are filled by Meetanshi_AIReporting/js/saved-reports
+ * and the audit log are filled by Meetanshi_AIReporting/js/saved-reports
  * from the view model's data. Styles are scoped to .mxd.mxs (css/saved_reports.css).
  *
  * @category  Meetanshi
@@ -31,29 +31,6 @@ $config = $viewModel->getJsConfig();
             </nav>
             <div class="mxs-head__titlerow">
                 <h1 class="mxd-h1"><?= $escaper->escapeHtml(__('Saved AI Reports & Analytical Queries')) ?></h1>
-                <span class="mxs-scope">
-                    <span class="mxs-scope__dot"></span>
-                    <?= $escaper->escapeHtml(__('Admin Scoped')) ?>
-                </span>
-            </div>
-            <div class="mxs-badges">
-                <span class="mxs-badge" title="<?= $escaper->escapeHtmlAttr($viewModel->isDedicatedConnection()
-                    ? __('Saved reports run on the dedicated "aireporting" database connection from env.php, inside READ ONLY transactions.')
-                    : __('Saved reports run inside READ ONLY transactions. Add a dedicated read-only "aireporting" connection in env.php for a stricter setup.')) ?>">
-                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">lock</span>
-                    <?= $escaper->escapeHtml($viewModel->isDedicatedConnection()
-                        ? __('Read-Only DB Connection Active')
-                        : __('Read-Only Transactions Active')) ?>
-                </span>
-                <span class="mxs-badge">
-                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">memory</span>
-                    <span class="mxs-badge__mono"><?= $escaper->escapeHtml($viewModel->getEngineLabel()) ?></span>
-                    <span class="mxd-dot <?= $viewModel->isProviderConfigured() ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
-                </span>
-                <span class="mxs-badge">
-                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">storefront</span>
-                    <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
-                </span>
             </div>
         </div>
         <div class="mxs-head__actions">
@@ -197,45 +174,10 @@ $config = $viewModel->getJsConfig();
             </footer>
         </section>
 
-        <!-- Selected query inspection -->
-        <section class="mxs-card mxs-inspect" data-role="inspect" hidden></section>
-
-        <!-- Query guard banner -->
-        <section class="mxs-guard">
-            <div class="mxs-guard__intro">
-                <div class="mxs-guard__logo"><span class="mxd-ico mxd-ico--lg" aria-hidden="true">verified</span></div>
-                <div>
-                    <div class="mxs-guard__titlerow">
-                        <h3 class="mxd-h3 mxd-h3--light"><?= $escaper->escapeHtml(__('Meetanshi Query Guard Active')) ?></h3>
-                        <span class="mxs-guard__chip"><?= $escaper->escapeHtml(__('SELECT-only · Read-only')) ?></span>
-                    </div>
-                    <p class="mxs-guard__text">
-                        <?= $escaper->escapeHtml(__(
-                            'Saved AI reports run inside isolated READ ONLY transactions with a %1s statement timeout and a %2-row limit. Writes, credential tables and sensitive columns are blocked before any query reaches your Magento database.',
-                            $viewModel->getQueryTimeout(),
-                            $viewModel->getMaxRows()
-                        )) ?>
-                    </p>
-                </div>
-            </div>
-            <div class="mxs-guard__actions">
-                <?php if ($viewModel->canConfigure()): ?>
-                    <a class="mxs-btn mxs-btn--dark" href="<?= $escaper->escapeUrl($viewModel->getConfigUrl()) ?>">
-                        <?= $escaper->escapeHtml(__('Configure LLM Providers')) ?>
-                    </a>
-                <?php endif; ?>
-                <button type="button" class="mxs-btn mxs-btn--primary" data-role="export-all">
-                    <?= $escaper->escapeHtml(__('Export All Saved Queries')) ?>
-                </button>
-            </div>
-        </section>
     </div>
 
     <!-- Row "more" menu (one shared popover) -->
     <div class="mxs-menu mxs-menu--floating" data-role="row-menu" role="menu" hidden>
-        <button type="button" role="menuitem" data-menu="inspect">
-            <span class="mxd-ico mxd-ico--sm" aria-hidden="true">code</span><?= $escaper->escapeHtml(__('Inspect SQL')) ?>
-        </button>
         <button type="button" role="menuitem" data-menu="copy">
             <span class="mxd-ico mxd-ico--sm" aria-hidden="true">content_copy</span><?= $escaper->escapeHtml(__('Copy SQL')) ?>
         </button>

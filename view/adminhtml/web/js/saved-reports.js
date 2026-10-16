@@ -1,8 +1,8 @@
 /**
  * Meetanshi AIReporting — Saved AI Reports
  *
- * Renders the KPI strip, the report table (search, format filter, sort, paging, selection),
- * the SQL inspection panel and the audit log drawer from the page data, and wires the row
+ * Renders the KPI strip, the report table (search, format filter, sort, paging, selection)
+ * and the audit log drawer from the page data, and wires the row
  * actions: run (opens Ask AI, which runs the report by id), edit (report/update), CSV export
  * of the result (report/exportData), delete (report/delete) and definition exports (JSON/CSV).
  *
@@ -14,21 +14,12 @@ define(['jquery', 'mage/translate'], function ($, $t) {
     'use strict';
 
     var SAVED_RUN_KEY = 'ai_run_saved_report',
-        CHART_ICONS = {table: 'table_chart', bar: 'bar_chart', line: 'show_chart', pie: 'pie_chart'},
-        SQL_KEYWORDS = ('SELECT FROM WHERE AND OR NOT IN IS NULL AS ON JOIN LEFT RIGHT INNER OUTER CROSS STRAIGHT_JOIN '
-            + 'GROUP BY ORDER HAVING LIMIT OFFSET DESC ASC DISTINCT UNION ALL WITH CASE WHEN THEN ELSE END BETWEEN '
-            + 'LIKE EXISTS INTERVAL OVER PARTITION ROLLUP USING DAY MONTH YEAR WEEK HOUR MINUTE TRUE FALSE').split(' '),
-        CLAUSE_STARTS = ['FROM', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'LIMIT', 'UNION', 'LEFT', 'RIGHT', 'INNER',
-            'CROSS', 'JOIN'],
-        JOIN_PREFIXES = ['LEFT', 'RIGHT', 'INNER', 'CROSS', 'OUTER', 'STRAIGHT_JOIN'],
-        // Keywords that are functions when a "(" follows: LEFT(name, 3), YEAR(created_at)
-        FUNCTION_KEYWORDS = ['LEFT', 'RIGHT', 'DAY', 'MONTH', 'YEAR', 'WEEK', 'HOUR', 'MINUTE'],
-        SQL_TOKEN = /('(?:[^'\\]|\\.|'')*'|"(?:[^"\\]|\\.)*"|`[^`]*`|--[^\n]*|#[^\n]*|\/\*[\s\S]*?\*\/|\b\d+(?:\.\d+)?\b|\b[A-Za-z_][A-Za-z0-9_]*\b)/g;
+        CHART_ICONS = {table: 'table_chart', bar: 'bar_chart', line: 'show_chart', pie: 'pie_chart'};
 
     return function (config, element) {
         var $root = $(element),
             reports = config.reports || [],
-            state = {query: '', chart: '', sort: 'created', page: 1, perPage: 10, selected: {}, activeId: null},
+            state = {query: '', chart: '', sort: 'created', page: 1, perPage: 10, selected: {}},
             menuReportId = null,
             confirmIds = [],
             editId = null,
@@ -272,8 +263,7 @@ define(['jquery', 'mage/translate'], function ($, $t) {
                 $t('Top Velocity Query'),
                 top ? '<span class="mxs-kpi__pill">' + esc(fmt(top.runs === 1 ? '%1 Run' : '%1 Runs', numberFmt.format(top.runs))) + '</span>'
                     : '<span class="mxs-kpi__icon">' + icon('trending_up') + '</span>',
-                top ? '<button type="button" class="mxs-kpi__title" data-action="inspect" data-id="' + top.id + '" title="' + esc(top.title) + '">'
-                        + esc(top.title) + '</button>'
+                top ? '<span class="mxs-kpi__title" title="' + esc(top.title) + '">' + esc(top.title) + '</span>'
                         + '<span class="mxs-kpi__quote" title="' + esc(top.nlp) + '">“' + esc(top.nlp) + '”</span>'
                     : '<span class="mxs-kpi__title mxs-kpi__title--muted">' + esc($t('No runs yet')) + '</span>'
                         + '<span class="mxs-kpi__quote">' + esc(config.logging ? $t('Run a saved report to see it here.') : $t('Runs are tracked in the query log.')) + '</span>',
@@ -360,20 +350,19 @@ define(['jquery', 'mage/translate'], function ($, $t) {
         }
 
         function rowHtml(report) {
-            var active = report.id === state.activeId,
-                runnable = config.canRun && report.guard.ok,
+            var runnable = config.canRun && report.guard.ok,
                 tables = report.tables.length
                     ? ' · ' + $t('Table:') + ' ' + report.tables[0] + (report.tables.length > 1 ? ' +' + (report.tables.length - 1) : '')
                     : '';
 
-            return '<tr data-id="' + report.id + '"' + (active ? ' class="is-active"' : '') + '>'
+            return '<tr data-id="' + report.id + '">'
                 + '<td class="mxs-col-check"><input type="checkbox" class="mxs-check" data-role="row-check"'
                     + (state.selected[report.id] ? ' checked' : '')
                     + ' aria-label="' + esc(fmt('Select %1', report.title)) + '"></td>'
                 + '<td class="mxs-col-title"><div class="mxs-title">'
                     + '<span class="mxs-title__bar" aria-hidden="true"></span>'
                     + '<div class="mxs-title__text">'
-                    + '<button type="button" class="mxs-title__name" data-action="inspect" title="' + esc($t('Inspect SQL')) + '">' + esc(report.title).replace(/_/g, '_<wbr>') + '</button>'
+                    + '<span class="mxs-title__name">' + esc(report.title).replace(/_/g, '_<wbr>') + '</span>'
                     + '<span class="mxs-meta" title="' + esc(report.tables.join(', ')) + '">' + esc(fmt('ID: #%1', report.id) + tables) + '</span>'
                     + '</div></div></td>'
                 + '<td class="mxs-col-prompt">'
@@ -385,7 +374,7 @@ define(['jquery', 'mage/translate'], function ($, $t) {
                 + '<td class="mxs-r mxs-nowrap">' + latencyCell(report) + '</td>'
                 + '<td>' + guardPill(report) + '</td>'
                 + '<td class="mxs-r mxs-col-actions"><div class="mxs-rowactions">'
-                    + '<button type="button" class="mxs-run' + (active ? ' mxs-run--solid' : '') + '" data-action="run"'
+                    + '<button type="button" class="mxs-run" data-action="run"'
                         + (runnable ? '' : ' disabled title="' + esc(report.guard.ok ? $t('Running reports is not available.') : report.guard.message) + '"')
                         + '>' + icon('play_arrow', 'xs') + esc($t('Run')) + '</button>'
                     + '<button type="button" class="mxs-edit" data-action="edit">' + esc($t('Edit')) + '</button>'
@@ -469,127 +458,6 @@ define(['jquery', 'mage/translate'], function ($, $t) {
             $el('bulk').prop('hidden', !count);
             $el('bulk-count').text(fmt(count === 1 ? '%1 report selected' : '%1 reports selected', count));
             renderExportLabel();
-        }
-
-        // ── SQL inspection ──────────────────────────────────────────────────
-
-        /** Escaped, highlighted SQL. Single-line SQL gets a line break before each main clause. */
-        function highlightSql(sql) {
-            var html = '',
-                last = 0,
-                breakLines = sql.indexOf('\n') === -1,
-                previousWord = '',
-                match,
-                token,
-                upper,
-                isFunction;
-
-            SQL_TOKEN.lastIndex = 0;
-            while ((match = SQL_TOKEN.exec(sql)) !== null) {
-                token = match[0];
-                html += esc(sql.slice(last, match.index));
-                last = match.index + token.length;
-
-                if (/^['"]/.test(token)) {
-                    html += '<span class="mxs-tok-str">' + esc(token) + '</span>';
-                } else if (/^(--|#|\/\*)/.test(token)) {
-                    html += '<span class="mxs-tok-com">' + esc(token) + '</span>';
-                } else if (/^`/.test(token)) {
-                    html += '<span class="mxs-tok-id">' + esc(token) + '</span>';
-                } else if (/^\d/.test(token)) {
-                    html += '<span class="mxs-tok-num">' + esc(token) + '</span>';
-                } else {
-                    upper = token.toUpperCase();
-                    isFunction = /^\s*\(/.test(sql.slice(last));
-
-                    if (SQL_KEYWORDS.indexOf(upper) !== -1 && !(isFunction && FUNCTION_KEYWORDS.indexOf(upper) !== -1)) {
-                        if (breakLines && match.index > 0 && CLAUSE_STARTS.indexOf(upper) !== -1
-                            && !(upper === 'JOIN' && JOIN_PREFIXES.indexOf(previousWord) !== -1)
-                        ) {
-                            html = html.replace(/[ \t]+$/, '') + '\n';
-                        }
-                        html += '<span class="mxs-tok-kw">' + esc(token) + '</span>';
-                    } else if (isFunction) {
-                        html += '<span class="mxs-tok-fn">' + esc(token) + '</span>';
-                    } else {
-                        html += esc(token);
-                    }
-                    previousWord = upper;
-                    continue;
-                }
-                previousWord = '';
-            }
-
-            return html + esc(sql.slice(last));
-        }
-
-        function renderInspect() {
-            var report = findReport(state.activeId),
-                runnable,
-                fileName;
-
-            if (!report) {
-                $el('inspect').prop('hidden', true).empty();
-                return;
-            }
-
-            runnable = config.canRun && report.guard.ok;
-            fileName = (report.title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'saved_report') + '.sql';
-
-            $el('inspect').prop('hidden', false).html(
-                '<header class="mxs-inspect__head">'
-                    + '<div class="mxs-inspect__title">'
-                        + '<span class="mxs-inspect__icon">' + icon('code', 'md') + '</span>'
-                        + '<div>'
-                            + '<div class="mxs-inspect__titlerow"><span class="mxd-h3">' + esc($t('Selected Query Inspection:')) + '</span>'
-                            + '<span class="mxs-inspect__name">' + esc(report.title) + '</span></div>'
-                            + '<p class="mxd-sub">“' + esc(report.nlp) + '”</p>'
-                        + '</div>'
-                    + '</div>'
-                    + '<div class="mxs-inspect__actions">'
-                        + '<span class="mxs-limit">' + icon('speed', 'xs') + esc(fmt('LIMIT %1 Enforced', numberFmt.format(config.maxRows))) + '</span>'
-                        + '<button type="button" class="mxs-btn mxs-btn--primary" data-action="run" data-id="' + report.id + '"'
-                            + (runnable ? '' : ' disabled') + '>'
-                            + icon('auto_fix_high') + '<span>' + esc($t('Open in Ask AI Studio')) + '</span></button>'
-                    + '</div>'
-                + '</header>'
-                + '<div class="mxs-code">'
-                    + '<div class="mxs-code__bar">'
-                        + '<div class="mxs-code__file"><i></i><i></i><i></i><span>' + esc(fileName) + '</span></div>'
-                        + '<button type="button" class="mxs-code__copy" data-action="copy" data-id="' + report.id + '">'
-                            + icon('content_copy', 'xs') + esc($t('Copy SQL')) + '</button>'
-                    + '</div>'
-                    + '<pre class="mxs-code__pre"><code>' + highlightSql(report.sql) + '</code></pre>'
-                + '</div>'
-                + '<div class="mxs-inspect__meta">'
-                    + '<div>' + icon('database', 'sm') + '<span>' + esc($t('Tables:')) + ' <strong>'
-                        + esc(report.tables.length ? report.tables.join(', ') : '—') + '</strong></span></div>'
-                    + '<div>' + (report.guard.ok
-                        ? '<span class="mxd-ico mxd-ico--sm mxd-text-green" aria-hidden="true">security</span><span>'
-                            + esc($t('SQL Guard:')) + ' <strong>' + esc($t('0 Violations')) + '</strong></span>'
-                        : '<span class="mxd-ico mxd-ico--sm mxd-text-red" aria-hidden="true">gpp_bad</span><span title="' + esc(report.guard.message) + '">'
-                            + esc($t('SQL Guard:')) + ' <strong>' + esc(report.guard.message) + '</strong></span>')
-                    + '</div>'
-                    + '<div>' + icon('table_rows', 'sm') + '<span>' + esc($t('Last Result:')) + ' <strong>'
-                        + esc(report.last_run && report.last_status === 'success'
-                            ? fmt(report.last_rows === 1 ? '%1 row' : '%1 rows', numberFmt.format(report.last_rows))
-                                + (report.last_ms !== null ? ' · ' + numberFmt.format(report.last_ms) + 'ms' : '')
-                            : (report.last_run ? $t('Failed') : $t('Not run yet')))
-                        + '</strong></span></div>'
-                    + '<div>' + icon('schedule', 'sm') + '<span>' + esc($t('Last Updated:')) + ' <strong>'
-                        + esc(report.updated ? relativeTime(report.updated) : '—') + '</strong></span></div>'
-                + '</div>'
-            );
-        }
-
-        function inspect(id, scroll) {
-            state.activeId = parseInt(id, 10);
-            renderTable();
-            renderInspect();
-
-            if (scroll) {
-                $el('inspect')[0].scrollIntoView({behavior: 'smooth', block: 'start'});
-            }
         }
 
         // ── Audit log ───────────────────────────────────────────────────────
@@ -792,9 +660,6 @@ define(['jquery', 'mage/translate'], function ($, $t) {
                     deleted.forEach(function (id) {
                         delete state.selected[id];
                     });
-                    if (deleted.indexOf(state.activeId) !== -1) {
-                        state.activeId = null;
-                    }
                 }
 
                 if (response && response.success) {
@@ -869,13 +734,9 @@ define(['jquery', 'mage/translate'], function ($, $t) {
         }
 
         function renderAll() {
-            if (state.activeId === null || !findReport(state.activeId)) {
-                state.activeId = filtered().length ? filtered()[0].id : (reports.length ? reports[0].id : null);
-            }
             renderKpis();
             renderChartFilter();
             renderTable();
-            renderInspect();
         }
 
         // ── Events ──────────────────────────────────────────────────────────
@@ -948,14 +809,6 @@ define(['jquery', 'mage/translate'], function ($, $t) {
             renderTable();
         });
 
-        // Row click (outside controls) selects the report for inspection
-        $el('rows').on('click', 'tr', function (event) {
-            if ($(event.target).closest('button, a, input, label').length) {
-                return;
-            }
-            inspect($(this).data('id'), false);
-        });
-
         $root.on('click', '[data-action]', function (event) {
             var $button = $(this),
                 action = $button.data('action'),
@@ -967,9 +820,6 @@ define(['jquery', 'mage/translate'], function ($, $t) {
             event.preventDefault();
 
             switch (action) {
-                case 'inspect':
-                    inspect(report.id, true);
-                    break;
                 case 'run':
                     run(report);
                     break;
@@ -999,9 +849,7 @@ define(['jquery', 'mage/translate'], function ($, $t) {
                 return;
             }
 
-            if (action === 'inspect') {
-                inspect(report.id, true);
-            } else if (action === 'copy') {
+            if (action === 'copy') {
                 copyText(report.sql, $t('SQL copied to clipboard.'));
             } else if (action === 'question') {
                 copyText(report.nlp, $t('Question copied to clipboard.'));
@@ -1043,10 +891,6 @@ define(['jquery', 'mage/translate'], function ($, $t) {
             } else {
                 exportDefinitions(action, exportList());
             }
-        });
-
-        $el('export-all').on('click', function () {
-            exportDefinitions('json', reports.slice().sort(compare));
         });
 
         $el('audit-open').on('click', function () {

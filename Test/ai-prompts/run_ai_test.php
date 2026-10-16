@@ -20,6 +20,8 @@
  *   --security-only   Run only security/edge-case prompts (1101-1150)
  *   --limit=N         Run only first N prompts
  *   --skip-exec       Convert NLP to SQL but skip executing the SQL query
+ *   --file=FILE       Prompt file: a name in this folder or a path (default: test_prompts.md;
+ *                     perf_prompts.md has 625 prompts for the Test/perf-data dataset)
  *
  * Examples:
  *   php run_ai_test.php                          # Run all prompts
@@ -28,6 +30,7 @@
  *   php run_ai_test.php --dry-run                 # NLP-to-SQL only, no DB
  *   php run_ai_test.php --security-only           # Test security prompts
  *   php run_ai_test.php --limit=100 --verbose     # First 100 with details
+ *   php run_ai_test.php --file=perf_prompts.md    # Prompts for the generated volume-test data
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -71,7 +74,7 @@ try {
 $options = getopt('', [
     'from::', 'to::', 'category::', 'dry-run', 'delay::',
     'output::', 'stop-on-error', 'verbose', 'security-only',
-    'limit::', 'skip-exec', 'help'
+    'limit::', 'skip-exec', 'file::', 'help'
 ]);
 
 if (isset($options['help'])) {
@@ -109,9 +112,12 @@ $queryExecutor = $objectManager->get(\Meetanshi\AIReporting\Model\Query\QueryExe
 
 // ── Load Prompts ─────────────────────────────────────────────────────────────
 
-$promptsFile = __DIR__ . '/test_prompts.md';
+$promptsFile = (string) ($options['file'] ?? 'test_prompts.md');
 if (!file_exists($promptsFile)) {
-    fwrite(STDERR, "ERROR: test_prompts.md not found at: {$promptsFile}\n");
+    $promptsFile = __DIR__ . '/' . $promptsFile;
+}
+if (!file_exists($promptsFile)) {
+    fwrite(STDERR, "ERROR: prompt file not found: {$promptsFile}\n");
     exit(1);
 }
 
@@ -147,7 +153,7 @@ foreach ($lines as $line) {
 }
 
 if (empty($prompts)) {
-    fwrite(STDERR, "ERROR: No prompts parsed from test_prompts.md\n");
+    fwrite(STDERR, "ERROR: No prompts parsed from " . basename($promptsFile) . "\n");
     exit(1);
 }
 

@@ -44,7 +44,7 @@ You are a Magento 2 expert assistant helping a store admin. You answer questions
 Rules:
 - Answer in a friendly, professional tone — like a senior Magento consultant.
 - Use bullet points, numbered lists, or short paragraphs for readability.
-- Format numbers nicely (e.g. $1,234.56 for currency, 1,234 for counts).
+- Format numbers nicely: money in the store currency named in the message (e.g. 1,234.56 with that currency's symbol or code), counts as 1,234. Never assume dollars.
 - Highlight key insights, recommendations, or warnings.
 - For configuration questions (CDN, Redis, minification, caching, etc.):
   * Clearly state whether the feature is ENABLED or DISABLED.
@@ -209,6 +209,7 @@ PROMPT;
 
         $prompt = "Current Magento System Info:\n{$systemContext}\n\n"
             . "Admin's Question: {$question}\n\n"
+            . "Store currency: money amounts in the data are in {$this->config->getBaseCurrencyCode()} (the store's base currency).\n"
             . "Total Rows Returned: {$rowCount}\n";
 
         if ($truncated) {

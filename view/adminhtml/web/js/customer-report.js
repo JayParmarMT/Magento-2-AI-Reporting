@@ -11,7 +11,7 @@
  * @package   Meetanshi_AIReporting
  * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
  */
-define(['jquery', 'chartjs'], function ($, Chart) {
+define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($, Chart, chartZoom) {
     'use strict';
 
     var BRAND = '#ee672f',
@@ -40,6 +40,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             period = config.period,
             life = config.lifetime,
             charts = {},
+            acqZoom = null,
             tierMode = 'buyers',
             rfmGroup = '',
             loading = false,
@@ -357,6 +358,13 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                     }
                 }
             });
+            // Zoom / pan; kept while the range and its grouping stay the same
+            acqZoom = acqZoom || chartZoom.create($(canvas).parent(), {
+                // period is replaced on every reload; read the current series, not this render's copy
+                describe: function (i) { var rows = period.acquisition.series; return rows[i] ? rows[i].label : ''; }
+            });
+            acqZoom.setUnit({hour: 'hours', day: 'days', month: 'months'}[acq.unit] || 'points');
+            acqZoom.bind(charts.acq, acq.unit + '|' + period.range.start + '|' + period.range.end);
         }
 
         // ── CLV tiers (all-time) ────────────────────────────────────────────

@@ -11,55 +11,51 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
     <menu>
-        <!-- Top-level Meetanshi menu -->
+        <!-- Top-level Meetanshi menu. Its title is the flyout heading; its direct
+             children render at menu level 1. A level-1 item WITHOUT an action is
+             drawn as a non-clickable group title (like Stores > Settings/Currency). -->
         <add id="Meetanshi_AIReporting::meetanshi"
              title="Meetanshi AIReporting"
              module="Meetanshi_AIReporting"
              sortOrder="80"
              resource="Meetanshi_AIReporting::aireporting"/>
 
-        <!-- AI Reporting submenu -->
-        <add id="Meetanshi_AIReporting::aireporting"
-             title="AI Reporting"
-             module="Meetanshi_AIReporting"
-             sortOrder="10"
-             resource="Meetanshi_AIReporting::aireporting"
-             parent="Meetanshi_AIReporting::meetanshi"/>
-
-        <!-- Dashboard -->
+        <!-- Dashboard (level 1, has action → clickable link) -->
         <add id="Meetanshi_AIReporting::dashboard"
              title="Dashboard"
              module="Meetanshi_AIReporting"
              sortOrder="10"
              action="meetanshi_aireporting/dashboard/index"
              resource="Meetanshi_AIReporting::dashboard"
-             parent="Meetanshi_AIReporting::aireporting"/>
+             parent="Meetanshi_AIReporting::meetanshi"/>
 
-        <!-- NLP Query -->
+        <!-- NLP Query (level 1, has action → clickable link) -->
         <add id="Meetanshi_AIReporting::query"
              title="Ask AI"
              module="Meetanshi_AIReporting"
              sortOrder="20"
              action="meetanshi_aireporting/query/index"
              resource="Meetanshi_AIReporting::query"
-             parent="Meetanshi_AIReporting::aireporting"/>
+             parent="Meetanshi_AIReporting::meetanshi"/>
 
-        <!-- Saved Reports -->
+        <!-- Saved Reports (level 1, has action → clickable link) -->
         <add id="Meetanshi_AIReporting::saved_reports"
              title="Saved Reports"
              module="Meetanshi_AIReporting"
              sortOrder="30"
              action="meetanshi_aireporting/report/saved"
              resource="Meetanshi_AIReporting::saved_reports"
-             parent="Meetanshi_AIReporting::aireporting"/>
+             parent="Meetanshi_AIReporting::meetanshi"/>
 
-        <!-- ── Phase 2: Pre-built Reports ─────────────────────────── -->
+        <!-- ── Pre-built Reports ──────────────────────────────────────
+             Level 1 with NO action → renders as a group title heading, with
+             the four reports below listed as links beneath it. -->
         <add id="Meetanshi_AIReporting::reports"
              title="Pre-built Reports"
              module="Meetanshi_AIReporting"
              sortOrder="40"
              resource="Meetanshi_AIReporting::reports"
-             parent="Meetanshi_AIReporting::aireporting"/>
+             parent="Meetanshi_AIReporting::meetanshi"/>
 
         <add id="Meetanshi_AIReporting::reports_sales"
              title="Sales &amp; Revenue"
@@ -93,13 +89,14 @@
              resource="Meetanshi_AIReporting::reports_inventory"
              parent="Meetanshi_AIReporting::reports"/>
 
-        <!-- Configuration (deep-links to Stores > Configuration > Meetanshi > AI Reporting) -->
+        <!-- Configuration (level 1, has action → clickable link;
+             deep-links to Stores > Configuration > Meetanshi > AI Reporting) -->
         <add id="Meetanshi_AIReporting::configuration"
              title="Configuration"
              module="Meetanshi_AIReporting"
              sortOrder="50"
              action="adminhtml/system_config/edit/section/meetanshi_aireporting"
              resource="Meetanshi_AIReporting::config"
-             parent="Meetanshi_AIReporting::aireporting"/>
+             parent="Meetanshi_AIReporting::meetanshi"/>
     </menu>
 </config>

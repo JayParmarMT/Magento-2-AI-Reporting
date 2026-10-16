@@ -3,7 +3,8 @@
  * Meetanshi AIReporting — Executive Dashboard data
  *
  * All figures follow the ReportContext rules (net revenue in base currency, canceled and
- * pending-payment orders excluded from sales, store-local dates, buyers by email).
+ * pending-payment orders excluded from sales, store-local dates, buyers by email) and the store scope
+ * chosen in the header (ReportScope): all store views, one website or one store view.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -92,12 +93,42 @@ class Dashboard extends Template
 
     public function getCurrencySymbol(): string
     {
+        $this->activateScope();
+
         return $this->reportContext->getCurrencySymbol();
     }
 
     public function formatCurrency(float $amount): string
     {
+        $this->activateScope();
+
         return $this->reportContext->formatPrice($amount);
+    }
+
+    /**
+     * Options of the store scope switcher; empty on a single-store install.
+     *
+     * @return array<int, array{value: string, label: string, level: int}>
+     */
+    public function getScopeOptions(): array
+    {
+        return $this->activateScope()->getOptions();
+    }
+
+    public function getScopeKey(): string
+    {
+        return $this->activateScope()->getKey();
+    }
+
+    /**
+     * The dashboard follows the scope picked in its header (or remembered from the last report page).
+     */
+    private function activateScope(): \Meetanshi\AIReporting\Model\Report\ReportScope
+    {
+        $scope = $this->reportContext->getScope();
+        $scope->activate();
+
+        return $scope;
     }
 
     /**
@@ -123,6 +154,10 @@ class Dashboard extends Template
      */
     public function getStoreLabel(): string
     {
+        $scope = $this->activateScope();
+        if ($scope->isMultiStore()) {
+            return (string) __('Store: %1', $scope->getLabel());
+        }
         $name = $this->aiContext->getStoreName();
 
         return $name !== '' ? (string) __('Store: %1', $name) : '';
@@ -136,10 +171,10 @@ class Dashboard extends Template
         return [
             'data'         => $this->getDashboardData(),
             'currency'     => $this->reportContext->getCurrencyCode(),
+            'scope'        => $this->activateScope()->getKey(),
             'formKey'      => $this->getFormKey(),
             'refreshUrl'   => $this->getRefreshDataUrl(),
             'exportUrl'    => $this->getExportUrl(),
-            'chatUrl'      => $this->getUrl('meetanshi_aireporting/chat/send'),
             'askAiUrl'     => $this->getUrl('meetanshi_aireporting/query/index'),
             'productUrl'   => $this->getUrl('catalog/product/edit', ['id' => '__ID__']),
             'aiEnabled'    => $this->config->isEnabled(),
@@ -210,6 +245,7 @@ class Dashboard extends Template
      */
     public function getDashboardData(string $dateRange = 'last_6_months', ?string $customStart = null, ?string $customEnd = null): array
     {
+        $scope = $this->activateScope();
         $dateRange = isset(self::RANGE_LABELS[$dateRange]) ? $dateRange : 'last_6_months';
         $dates = $this->getDateRangeFilter($dateRange, $customStart, $customEnd);
         $start = $this->reportContext->parseLocalDate($dates['start']);
@@ -231,6 +267,7 @@ class Dashboard extends Template
                 'days'  => (int) $start->diff($end)->days,
             ],
             'currency_code'       => $this->reportContext->getCurrencyCode(),
+            'scope'               => ['key' => $scope->getKey(), 'label' => $scope->getLabel()],
             'kpis'                => $kpis,
             'revenue_trend'       => $trend,
             'trend_stats'         => $this->getTrendStats($trend),
@@ -282,7 +319,7 @@ class Dashboard extends Template
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
             WHERE {$this->reportContext->validOrderCondition()}
               AND oi.parent_item_id IS NULL
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
         "), [$from, $to]) ?: [];
 
         $stock = $this->getStockHealth();
@@ -359,7 +396,7 @@ class Dashboard extends Template
                 COALESCE(SUM(o.state = 'complete'), 0) AS complete_orders
             FROM {{sales_order}} o
             WHERE {$this->reportContext->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
         "), [$from, $to]) ?: [
             'total_orders' => 0, 'total_revenue' => 0, 'avg_order_value' => 0,
             'active_customers' => 0, 'refunded' => 0, 'complete_orders' => 0,
@@ -392,7 +429,7 @@ class Dashboard extends Template
                 ROUND(SUM({$this->reportContext->orderRevenueExpr()}), 2) AS revenue
             FROM {{sales_order}} o
             WHERE {$this->reportContext->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
             GROUP BY date
             ORDER BY date ASC
         "), [$from, $to]);
@@ -454,7 +491,7 @@ class Dashboard extends Template
                 ON cv.{$link} = ce.{$link} AND cv.attribute_id = {$nameId} AND cv.store_id = 0
             WHERE {$this->reportContext->validOrderCondition()}
               AND oi.parent_item_id IS NULL
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
             GROUP BY ce.entity_id, cv.value
             ORDER BY revenue DESC
         "), [$from, $to]);
@@ -490,19 +527,21 @@ class Dashboard extends Template
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
             WHERE {$this->reportContext->validOrderCondition()}
               AND oi.parent_item_id IS NULL
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
             GROUP BY oi.product_id, oi.sku
             ORDER BY revenue DESC
-            LIMIT " . self::MAX_PRODUCTS
-        ), [$from, $to]);
+            LIMIT " . self::MAX_PRODUCTS), [$from, $to]);
 
         $ids        = array_values(array_filter(array_map('intval', array_column($rows, 'product_id'))));
         $categories = $this->getProductCategories($ids);
         $stock      = $this->getProductStock($ids);
+        // Order lines carry the name in the language of the store view they were placed in
+        $names      = $this->reportContext->getProductNames($ids);
 
         foreach ($rows as &$row) {
             $id = (int) $row['product_id'];
             $row['product_id']  = $id;
+            $row['product_name'] = $names[$id] ?? $row['product_name'];
             $row['qty_sold']    = (float) $row['qty_sold'];
             $row['revenue']     = (float) $row['revenue'];
             $row['avg_price']   = (float) $row['avg_price'];
@@ -574,17 +613,21 @@ class Dashboard extends Template
         $link    = $this->reportContext->getProductLinkField();
         $priceId = $this->reportContext->getAttributeId('catalog_product', 'price');
         $low     = self::LOW_STOCK_QTY;
+        // Website price (price scope "Website") of the selected website, else the default price
+        $priceStore = $this->reportContext->getScope()->getValueStoreId();
 
         $row = $this->reportContext->getConnection()->fetchRow($this->reportContext->resolveTables("
             SELECT
                 COUNT(*) AS total,
                 COALESCE(SUM(s.is_in_stock = 1 AND s.qty > 0 AND s.qty <= {$low}), 0) AS low_stock,
                 COALESCE(SUM(s.is_in_stock = 0), 0) AS out_of_stock,
-                COALESCE(SUM(GREATEST(s.qty, 0) * IFNULL(p.value, 0)), 0) AS inventory_value
+                COALESCE(SUM(GREATEST(s.qty, 0) * COALESCE(pw.value, p.value, 0)), 0) AS inventory_value
             FROM ({$this->reportContext->getStockSql()}) s
             JOIN {{catalog_product_entity}} e ON e.entity_id = s.product_id{$this->reportContext->currentVersionCondition('e')}
             LEFT JOIN {{catalog_product_entity_decimal}} p
                 ON p.{$link} = e.{$link} AND p.attribute_id = {$priceId} AND p.store_id = 0
+            LEFT JOIN {{catalog_product_entity_decimal}} pw
+                ON pw.{$link} = e.{$link} AND pw.attribute_id = {$priceId} AND pw.store_id = {$priceStore}
         ")) ?: [];
 
         $total = (int) ($row['total'] ?? 0);
@@ -614,7 +657,7 @@ class Dashboard extends Template
                 ROUND(SUM({$this->reportContext->orderValueExpr()}), 2) AS revenue
             FROM {{sales_order}} o
             LEFT JOIN {{sales_order_status}} st ON st.status = o.status
-            WHERE o.created_at >= ? AND o.created_at < ?
+            WHERE o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
             GROUP BY o.status, st.label
             ORDER BY orders DESC
         "), [$from, $to]);
@@ -635,7 +678,7 @@ class Dashboard extends Template
                 ROUND(SUM({$this->reportContext->orderRevenueExpr()}), 2) AS revenue
             FROM {{sales_order}} o
             WHERE {$this->reportContext->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
             GROUP BY day_num
             ORDER BY day_num ASC
         "), [$from, $to]);
@@ -655,7 +698,7 @@ class Dashboard extends Template
             SELECT DAYOFWEEK({$local}) AS day_num, HOUR({$local}) AS hour, COUNT(*) AS orders
             FROM {{sales_order}} o
             WHERE {$this->reportContext->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
             GROUP BY day_num, hour
             ORDER BY orders DESC, SUM({$this->reportContext->orderRevenueExpr()}) DESC
             LIMIT 1
@@ -699,7 +742,7 @@ class Dashboard extends Template
                 FROM {{sales_order}} o
                 WHERE {$this->reportContext->validOrderCondition()}
                   AND o.customer_email IS NOT NULL AND o.customer_email != ''
-                  AND o.created_at >= ? AND o.created_at < ?
+                  AND o.created_at >= ? AND o.created_at < ?{$this->reportContext->storeFilter()}
                 GROUP BY o.customer_email
             ) AS customer_orders
             GROUP BY segment

@@ -1,24 +1,20 @@
 /**
  * Meetanshi AIReporting — Admin Menu Icons
+ *
+ * Magento adds an icon-font glyph to the "Dashboard" submenu item via
+ * `.admin__menu .submenu .item-dashboard > a::before` (content: '\e604').
+ * The flyout items carry their id on `data-ui-id`, not an `id` attribute, so
+ * id-based selectors never match — we target the `.item-dashboard` class inside
+ * our own top-level `.item-meetanshi` menu (the "Meetanshi AIReporting" entry),
+ * matching and out-weighing Magento's own selector.
  */
 
-/* Override Magento's default dashboard icon for our Dashboard menu item */
-.admin__menu #menu-meetanshi-aireporting-dashboard.item-dashboard > a:before {
+/* Hide the dashboard glyph in the AIReporting flyout */
+.admin__menu .item-meetanshi .submenu .item-dashboard > a::before,
+.admin__menu .item-meetanshi .submenu .item-dashboard > a::after {
     content: '' !important;
     display: none !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
-
-/* Remove any other default Magento icons from our menu items */
-#menu-meetanshi-aireporting-dashboard > a:before,
-#menu-meetanshi-aireporting-query > a:before,
-#menu-meetanshi-aireporting-saved-reports > a:before,
-#menu-meetanshi-aireporting-reports > a:before,
-#menu-meetanshi-aireporting-reports-sales > a:before,
-#menu-meetanshi-aireporting-reports-customer > a:before,
-#menu-meetanshi-aireporting-reports-product > a:before,
-#menu-meetanshi-aireporting-reports-inventory > a:before {
-    content: '' !important;
-    display: none !important;
-}
-
-

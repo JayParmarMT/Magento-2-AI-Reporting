@@ -11,7 +11,7 @@
  * @package   Meetanshi_AIReporting
  * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
  */
-define(['jquery', 'chartjs'], function ($, Chart) {
+define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($, Chart, chartZoom) {
     'use strict';
 
     var BRAND = '#ee672f',
@@ -42,6 +42,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         var $root = $(element),
             data = config.data,
             charts = {},
+            trendZoom = null,
             loading = false,
             showAllRegions = false,
             moneyFmt = new Intl.NumberFormat(undefined, {style: 'currency', currency: config.currency}),
@@ -118,9 +119,9 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         }
 
         function rangeParams() {
-            return data.range.key === 'custom'
+            return $.extend({scope: config.scope}, data.range.key === 'custom'
                 ? {range: 'custom', start: data.range.start, end: data.range.end}
-                : {range: data.range.key};
+                : {range: data.range.key});
         }
 
         function destroyChart(name) {
@@ -349,6 +350,12 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                     }
                 }
             });
+            // Zoom / pan; kept while the range and its grouping stay the same
+            trendZoom = trendZoom || chartZoom.create($(canvas).parent(), {
+                describe: function (i) { return data.series[i] ? data.series[i].label : ''; }
+            });
+            trendZoom.setUnit({hour: 'hours', day: 'days', month: 'months'}[data.unit] || 'points');
+            trendZoom.bind(charts.trend, data.unit + '|' + data.range.start + '|' + data.range.end);
         }
 
         // ── Order lifecycle (all orders placed) ─────────────────────────────
@@ -784,7 +791,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 url: config.dataUrl,
                 type: 'GET',
                 dataType: 'json',
-                data: params
+                data: $.extend({scope: config.scope}, params)
             }).done(function (response) {
                 if (response && response.success) {
                     data = response.data;
@@ -853,6 +860,11 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             $el('custom-toggle').attr('aria-expanded', 'false');
             setActiveRange('custom');
             load({range: 'custom', start: start, end: end});
+        });
+
+        // Store scope: reload the page for it (currency and timezone change with it), keeping the range
+        $el('scope').on('change', function () {
+            window.location.href = window.location.pathname + '?' + $.param($.extend(rangeParams(), {scope: $(this).val()}));
         });
 
         $el('csv-toggle').on('click', function (event) {
@@ -940,6 +952,18 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         });
 
         render();
+
+        // A range in the address (kept when the store scope changes) replaces the default one
+        (function () {
+            var query = new URLSearchParams(window.location.search),
+                range = query.get('range');
+
+            if (range && /^[a-z]+$/.test(range) && (range !== data.range.key || range === 'custom')) {
+                setActiveRange(range);
+                load(range === 'custom' ? {range: 'custom', start: query.get('start'), end: query.get('end')} : {range: range});
+            }
+        }());
+
         // Charts use the page fonts: draw again once they are ready
         if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(function () {

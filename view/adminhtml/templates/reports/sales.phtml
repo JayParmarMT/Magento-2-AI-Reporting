@@ -43,7 +43,19 @@ $range     = $config['data']['range'];
                             <span class="mxd-ico mxd-ico--xs" aria-hidden="true">dataset</span>
                             <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
                         </span>
-                        <?php if ($viewModel->getStoreLabel() !== ''): ?>
+                        <?php $scopeOptions = $viewModel->getScopeOptions(); ?>
+                        <?php if ($scopeOptions): ?>
+                            <label class="mxc-badge mxc-badge--slate mxr-scope"
+                                   title="<?= $escaper->escapeHtmlAttr(__('Every figure, chart and export follows the selected website or store view. One website is shown in its own base currency and timezone.')) ?>">
+                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                                <span><?= $escaper->escapeHtml(__('Store:')) ?></span>
+                                <select class="mxr-scope__select" data-role="scope" aria-label="<?= $escaper->escapeHtmlAttr(__('Store scope')) ?>">
+                                    <?php foreach ($scopeOptions as $option): ?>
+                                        <option value="<?= $escaper->escapeHtmlAttr($option['value']) ?>"<?= /* @noEscape */ $option['value'] === $viewModel->getScopeKey() ? ' selected' : '' ?>><?= $escaper->escapeHtml(($option['level'] === 2 ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : '') . $option['label']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                        <?php elseif ($viewModel->getStoreLabel() !== ''): ?>
                             <span class="mxc-badge mxc-badge--slate">
                                 <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
                                 <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
@@ -319,7 +331,7 @@ $range     = $config['data']['range'];
             </div>
             <div class="mxc-ask" data-role="ask-panel" hidden>
                 <p class="mxc-ask__engine">
-                    <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                    <span class="mxd-dot <?= /* @noEscape */ $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
                     <span class="mxd-mono"><?= $escaper->escapeHtml(__('Follow-ups use %1: %2', $config['provider'], $config['model'])) ?></span>
                 </p>
                 <form class="mxc-ask__form" data-role="ask-form">

@@ -114,11 +114,21 @@ class CustomerReport
     public function rfmLabel(int $r, int $f, int $m): string
     {
         $total = $r + $f + $m;
-        if ($total >= 13) return 'Champions';
-        if ($r >= 4 && $f >= 3) return 'Loyal';
-        if ($r >= 4 && $f <= 2) return 'New Customer';
-        if ($r <= 2 && $f >= 3) return 'At Risk';
-        if ($r <= 2 && $f <= 2) return 'Lost';
+        if ($total >= 13) {
+            return 'Champions';
+        }
+        if ($r >= 4 && $f >= 3) {
+            return 'Loyal';
+        }
+        if ($r >= 4 && $f <= 2) {
+            return 'New Customer';
+        }
+        if ($r <= 2 && $f >= 3) {
+            return 'At Risk';
+        }
+        if ($r <= 2 && $f <= 2) {
+            return 'Lost';
+        }
         return 'Promising';
     }
 

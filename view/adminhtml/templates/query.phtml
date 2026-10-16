@@ -8,7 +8,7 @@
 ?>
 <?php if (!$block->isEnabled()): ?>
     <div class="message message-warning">
-        <?= $block->escapeHtml(__('Meetanshi AI Reporting is disabled. Please enable it in Stores > Configuration > Meetanshi > AI Reporting.')) ?>
+        <?= $escaper->escapeHtml(__('Meetanshi AI Reporting is disabled. Please enable it in Stores > Configuration > Meetanshi > AI Reporting.')) ?>
     </div>
 <?php else: ?>
 
@@ -19,13 +19,13 @@
         <div class="ai-header-left">
             <h2>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-svg-icon"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
-                <?= $block->escapeHtml(__('Ask AI & Report Copilot')) ?>
+                <?= $escaper->escapeHtml(__('Ask AI & Report Copilot')) ?>
             </h2>
-            <p class="ai-subtitle"><?= $block->escapeHtml(__('Natural language store queries, instant SQL execution, and telemetry')) ?></p>
+            <p class="ai-subtitle"><?= $escaper->escapeHtml(__('Natural language store queries, instant SQL execution, and telemetry')) ?></p>
         </div>
         <span class="ai-provider-badge">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ai-svg-icon" style="margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            <?= $block->escapeHtml(__('LLM Engine: %1', strtoupper($block->getLlmProvider()))) ?>
+            <?= $escaper->escapeHtml(__('LLM Engine: %1', strtoupper($block->getLlmProvider()))) ?>
         </span>
     </div>
 
@@ -45,32 +45,32 @@
                 <input type="text"
                        id="ai-nlp-query"
                        class="ai-query-input"
-                       placeholder="<?= $block->escapeHtmlAttr(__('e.g. Show me top 10 products by revenue this month')) ?>"
+                       placeholder="<?= $escaper->escapeHtmlAttr(__('e.g. Show me top 10 products by revenue this month')) ?>"
                        autocomplete="off"/>
             </div>
             <button id="ai-query-btn" class="ai-btn ai-btn-primary">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-svg-icon" style="margin-right:4px;"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
-                <?= $block->escapeHtml(__('Ask AI')) ?>
+                <?= $escaper->escapeHtml(__('Ask AI')) ?>
             </button>
         </div>
 
         <!-- Suggested Queries & Keyboard Shortcuts -->
         <div class="ai-suggestions">
-            <span class="ai-suggestions-label"><?= $block->escapeHtml(__('Try:')) ?></span>
+            <span class="ai-suggestions-label"><?= $escaper->escapeHtml(__('Try:')) ?></span>
             <?php foreach ($block->getSuggestedQueries() as $suggestion): ?>
-                <button class="ai-suggestion-chip" data-query="<?= $block->escapeHtmlAttr($suggestion) ?>">
+                <button class="ai-suggestion-chip" data-query="<?= $escaper->escapeHtmlAttr($suggestion) ?>">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2" class="ai-svg-icon" style="margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    <?= $block->escapeHtml($suggestion) ?>
+                    <?= $escaper->escapeHtml($suggestion) ?>
                 </button>
             <?php endforeach; ?>
-            <span class="ai-kbd" style="margin-left: auto;"><?= $block->escapeHtml(__('Press Enter ↵')) ?></span>
+            <span class="ai-kbd" style="margin-left: auto;"><?= $escaper->escapeHtml(__('Press Enter ↵')) ?></span>
         </div>
     </div>
 
     <!-- Loading Indicator -->
     <div id="ai-loading" class="ai-loading" style="display:none;">
         <div class="ai-spinner"></div>
-        <span><?= $block->escapeHtml(__('AI Copilot is generating SQL & fetching data...')) ?></span>
+        <span><?= $escaper->escapeHtml(__('AI Copilot is generating SQL & fetching data...')) ?></span>
     </div>
 
     <!-- Error Message -->
@@ -87,10 +87,10 @@
             <div class="ai-sql-header">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                    <span><?= $block->escapeHtml(__('Executed SQL Inspector')) ?></span>
+                    <span><?= $escaper->escapeHtml(__('Executed SQL Inspector')) ?></span>
                     <span class="ai-telemetry-pill ai-telemetry-source">MySQL / InnoDB</span>
                 </div>
-                <button id="ai-copy-sql" class="ai-btn ai-btn-sm ai-btn-secondary"><?= $block->escapeHtml(__('Copy SQL')) ?></button>
+                <button id="ai-copy-sql" class="ai-btn ai-btn-sm ai-btn-secondary"><?= $escaper->escapeHtml(__('Copy SQL')) ?></button>
             </div>
             <pre id="ai-sql-display" class="ai-sql-code"></pre>
         </div>
@@ -98,21 +98,21 @@
         <!-- Chart Type Selector & Telemetry Bar -->
         <div class="ai-chart-controls">
             <div class="ai-chart-type-group">
-                <label><?= $block->escapeHtml(__('View as:')) ?></label>
+                <label><?= $escaper->escapeHtml(__('View as:')) ?></label>
                 <button class="ai-chart-btn active" data-chart="table">
-                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/grid.svg')) ?>" alt="Table" class="ai-chart-icon" />
+                    <img src="<?= $escaper->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/grid.svg')) ?>" alt="Table" class="ai-chart-icon" />
                     Table
                 </button>
                 <button class="ai-chart-btn" data-chart="bar">
-                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/bar-chart.svg')) ?>" alt="Bar" class="ai-chart-icon" />
+                    <img src="<?= $escaper->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/bar-chart.svg')) ?>" alt="Bar" class="ai-chart-icon" />
                     Bar
                 </button>
                 <button class="ai-chart-btn" data-chart="line">
-                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/line-chart.svg')) ?>" alt="Line" class="ai-chart-icon" />
+                    <img src="<?= $escaper->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/line-chart.svg')) ?>" alt="Line" class="ai-chart-icon" />
                     Line
                 </button>
                 <button class="ai-chart-btn" data-chart="pie">
-                    <img src="<?= $block->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/pie-chart.svg')) ?>" alt="Pie" class="ai-chart-icon" />
+                    <img src="<?= $escaper->escapeUrl($block->getViewFileUrl('Meetanshi_AIReporting::images/pie-chart.svg')) ?>" alt="Pie" class="ai-chart-icon" />
                     Pie
                 </button>
             </div>
@@ -125,19 +125,19 @@
         <!-- Axis Selection Controls (shown only for charts) -->
         <div id="ai-axis-controls" class="ai-axis-controls" style="display:none;">
             <div class="ai-axis-group">
-                <label for="ai-x-axis-select"><?= $block->escapeHtml(__('X-Axis (Labels):')) ?></label>
+                <label for="ai-x-axis-select"><?= $escaper->escapeHtml(__('X-Axis (Labels):')) ?></label>
                 <select id="ai-x-axis-select" class="ai-axis-select">
-                    <option value=""><?= $block->escapeHtml(__('Auto-detect')) ?></option>
+                    <option value=""><?= $escaper->escapeHtml(__('Auto-detect')) ?></option>
                 </select>
             </div>
             <div class="ai-axis-group">
-                <label for="ai-y-axis-select"><?= $block->escapeHtml(__('Y-Axis (Values):')) ?></label>
+                <label for="ai-y-axis-select"><?= $escaper->escapeHtml(__('Y-Axis (Values):')) ?></label>
                 <select id="ai-y-axis-select" class="ai-axis-select" multiple>
-                    <option value=""><?= $block->escapeHtml(__('Auto-detect')) ?></option>
+                    <option value=""><?= $escaper->escapeHtml(__('Auto-detect')) ?></option>
                 </select>
             </div>
             <button id="ai-apply-axis" class="ai-btn ai-btn-sm ai-btn-primary">
-                <?= $block->escapeHtml(__('Apply')) ?>
+                <?= $escaper->escapeHtml(__('Apply')) ?>
             </button>
         </div>
 
@@ -159,19 +159,19 @@
             <div class="ai-no-data-icon">
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5"><path d="M22 12h-6l-2 3h-4l-2-3H2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V12z"/><path d="M5.45 5.11L2 12v0h20v0l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
             </div>
-            <div class="ai-no-data-title"><?= $block->escapeHtml(__('No results found')) ?></div>
-            <div class="ai-no-data-text"><?= $block->escapeHtml(__('There is no data for this query yet. Try a different question or a wider date range.')) ?></div>
+            <div class="ai-no-data-title"><?= $escaper->escapeHtml(__('No results found')) ?></div>
+            <div class="ai-no-data-text"><?= $escaper->escapeHtml(__('There is no data for this query yet. Try a different question or a wider date range.')) ?></div>
         </div>
 
         <!-- Actions -->
         <div class="ai-actions">
             <button id="ai-download-csv" class="ai-btn ai-btn-primary">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                <?= $block->escapeHtml(__('Download CSV')) ?>
+                <?= $escaper->escapeHtml(__('Download CSV')) ?>
             </button>
             <button id="ai-save-report-btn" class="ai-btn ai-btn-success">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
-                <?= $block->escapeHtml(__('Save Report')) ?>
+                <?= $escaper->escapeHtml(__('Save Report')) ?>
             </button>
         </div>
     </div>
@@ -180,17 +180,17 @@
     <div id="ai-save-modal" class="ai-modal" style="display:none;">
         <div class="ai-modal-content">
             <div class="ai-modal-header">
-                <h3><?= $block->escapeHtml(__('Save Report')) ?></h3>
+                <h3><?= $escaper->escapeHtml(__('Save Report')) ?></h3>
                 <button id="ai-modal-close" class="ai-modal-close">✕</button>
             </div>
             <div class="ai-modal-body">
-                <label for="ai-report-title"><?= $block->escapeHtml(__('Report Title')) ?></label>
+                <label for="ai-report-title"><?= $escaper->escapeHtml(__('Report Title')) ?></label>
                 <input type="text" id="ai-report-title" class="ai-input"
-                       placeholder="<?= $block->escapeHtmlAttr(__('e.g. Monthly Revenue Report')) ?>"/>
+                       placeholder="<?= $escaper->escapeHtmlAttr(__('e.g. Monthly Revenue Report')) ?>"/>
             </div>
             <div class="ai-modal-footer">
-                <button id="ai-modal-save" class="ai-btn ai-btn-primary"><?= $block->escapeHtml(__('Save')) ?></button>
-                <button id="ai-modal-cancel" class="ai-btn ai-btn-secondary"><?= $block->escapeHtml(__('Cancel')) ?></button>
+                <button id="ai-modal-save" class="ai-btn ai-btn-primary"><?= $escaper->escapeHtml(__('Save')) ?></button>
+                <button id="ai-modal-cancel" class="ai-btn ai-btn-secondary"><?= $escaper->escapeHtml(__('Cancel')) ?></button>
             </div>
         </div>
     </div>
@@ -206,11 +206,11 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="16" y1="16" x2="16.01" y2="16"/></svg>
                     </span>
                     <div>
-                        <h3><?= $block->escapeHtml(__('Conversational Copilot')) ?></h3>
-                        <span class="ai-chat-subtitle"><?= $block->escapeHtml(__('Ask anything about your store data')) ?></span>
+                        <h3><?= $escaper->escapeHtml(__('Conversational Copilot')) ?></h3>
+                        <span class="ai-chat-subtitle"><?= $escaper->escapeHtml(__('Ask anything about your store data')) ?></span>
                     </div>
                 </div>
-                <button id="ai-chat-clear" class="ai-btn ai-btn-sm ai-btn-secondary" title="<?= $block->escapeHtmlAttr(__('Clear chat')) ?>">
+                <button id="ai-chat-clear" class="ai-btn ai-btn-sm ai-btn-secondary" title="<?= $escaper->escapeHtmlAttr(__('Clear chat')) ?>">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
             </div>
@@ -222,31 +222,31 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg>
                     </div>
                     <div class="ai-chat-msg-bubble">
-                        <p><?= $block->escapeHtml(__('Hi! I\'m your AI store assistant. Ask me anything about your sales, orders, customers, products, inventory, store settings, or installed modules.')) ?></p>
+                        <p><?= $escaper->escapeHtml(__('Hi! I\'m your AI store assistant. Ask me anything about your sales, orders, customers, products, inventory, store settings, or installed modules.')) ?></p>
                         <div class="ai-chat-quick-actions">
                             <button class="ai-chat-quick-btn" data-msg="What is today's total revenue?">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4F46E5" stroke-width="2" style="margin-right:4px;"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                                <?= $block->escapeHtml(__("Today's revenue")) ?>
+                                <?= $escaper->escapeHtml(__("Today's revenue")) ?>
                             </button>
                             <button class="ai-chat-quick-btn" data-msg="How many orders were placed this week?">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" style="margin-right:4px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                                <?= $block->escapeHtml(__('Orders this week')) ?>
+                                <?= $escaper->escapeHtml(__('Orders this week')) ?>
                             </button>
                             <button class="ai-chat-quick-btn" data-msg="Who are the top 5 customers by spending?">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0284C7" stroke-width="2" style="margin-right:4px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                                <?= $block->escapeHtml(__('Top customers')) ?>
+                                <?= $escaper->escapeHtml(__('Top customers')) ?>
                             </button>
                             <button class="ai-chat-quick-btn" data-msg="Which products are running low on stock?">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" style="margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-                                <?= $block->escapeHtml(__('Low stock alerts')) ?>
+                                <?= $escaper->escapeHtml(__('Low stock alerts')) ?>
                             </button>
                             <button class="ai-chat-quick-btn" data-msg="Show me the sales trend for the last 7 days">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2" style="margin-right:4px;"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                                <?= $block->escapeHtml(__('Sales trend')) ?>
+                                <?= $escaper->escapeHtml(__('Sales trend')) ?>
                             </button>
                             <button class="ai-chat-quick-btn" data-msg="What is the repeat purchase rate?">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9333EA" stroke-width="2" style="margin-right:4px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                                <?= $block->escapeHtml(__('Repeat buyers')) ?>
+                                <?= $escaper->escapeHtml(__('Repeat buyers')) ?>
                             </button>
                         </div>
                     </div>
@@ -266,9 +266,9 @@
                 <input type="text"
                        id="ai-chat-input"
                        class="ai-chat-input"
-                       placeholder="<?= $block->escapeHtmlAttr(__('Ask about sales, customers, settings...')) ?>"
+                       placeholder="<?= $escaper->escapeHtmlAttr(__('Ask about sales, customers, settings...')) ?>"
                        autocomplete="off" />
-                <button id="ai-chat-send" class="ai-chat-send-btn" title="<?= $block->escapeHtmlAttr(__('Send')) ?>">
+                <button id="ai-chat-send" class="ai-chat-send-btn" title="<?= $escaper->escapeHtmlAttr(__('Send')) ?>">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="22" y1="2" x2="11" y2="13"></line>
                         <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -286,10 +286,10 @@
 require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, alert) {
     'use strict';
 
-    const EXECUTE_URL  = '<?= $block->escapeJs($block->getQueryExecuteUrl()) ?>';
-    const SAVE_URL     = '<?= $block->escapeJs($block->getSaveReportUrl()) ?>';
-    const CHAT_URL     = '<?= $block->escapeJs($block->getChatSendUrl()) ?>';
-    const FORM_KEY     = '<?= $block->escapeJs($block->getFormKey()) ?>';
+    const EXECUTE_URL  = '<?= $escaper->escapeJs($block->getQueryExecuteUrl()) ?>';
+    const SAVE_URL     = '<?= $escaper->escapeJs($block->getSaveReportUrl()) ?>';
+    const CHAT_URL     = '<?= $escaper->escapeJs($block->getChatSendUrl()) ?>';
+    const FORM_KEY     = '<?= $escaper->escapeJs($block->getFormKey()) ?>';
 
     let currentSql     = '';
     let currentNlp     = '';
@@ -347,7 +347,7 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
                     currentRows    = response.rows;
 
                     $('#ai-sql-display').text(currentSql);
-                    $('#ai-row-count').text(response.row_count + ' <?= $block->escapeJs(__('rows')) ?>');
+                    $('#ai-row-count').text(response.row_count + ' <?= $escaper->escapeJs(__('rows')) ?>');
                     $('#ai-exec-time').text('⚡ ' + response.execution_time_ms + ' ms');
                     showAssumption('');
 
@@ -358,12 +358,12 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
                     renderView(activeChart);
                     $('#ai-results').show();
                 } else {
-                    showError(response.message || '<?= $block->escapeJs(__('An error occurred.')) ?>');
+                    showError(response.message || '<?= $escaper->escapeJs(__('An error occurred.')) ?>');
                 }
             },
             error: function (xhr) {
                 showLoading(false);
-                showError('<?= $block->escapeJs(__('Request failed. Please try again.')) ?>');
+                showError('<?= $escaper->escapeJs(__('Request failed. Please try again.')) ?>');
             }
         });
     }
@@ -447,9 +447,9 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
 
     $('#ai-copy-sql').on('click', function () {
         navigator.clipboard.writeText(currentSql).then(function () {
-            $('#ai-copy-sql').text('<?= $block->escapeJs(__('Copied!')) ?>');
+            $('#ai-copy-sql').text('<?= $escaper->escapeJs(__('Copied!')) ?>');
             setTimeout(function () {
-                $('#ai-copy-sql').text('<?= $block->escapeJs(__('Copy SQL')) ?>');
+                $('#ai-copy-sql').text('<?= $escaper->escapeJs(__('Copy SQL')) ?>');
             }, 2000);
         });
     });
@@ -499,19 +499,19 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
                     currentRows    = response.rows;
 
                     $('#ai-sql-display').text(currentSql);
-                    $('#ai-row-count').text(response.row_count + ' <?= $block->escapeJs(__('rows')) ?>');
+                    $('#ai-row-count').text(response.row_count + ' <?= $escaper->escapeJs(__('rows')) ?>');
                     $('#ai-exec-time').text('⚡ ' + response.execution_time_ms + ' ms');
                     showAssumption(response.assumption);
 
                     renderView(activeChart);
                     $('#ai-results').show();
                 } else {
-                    showError(response.message || '<?= $block->escapeJs(__('An error occurred.')) ?>');
+                    showError(response.message || '<?= $escaper->escapeJs(__('An error occurred.')) ?>');
                 }
             },
             error: function (xhr) {
                 showLoading(false);
-                showError('<?= $block->escapeJs(__('Request failed. Please try again.')) ?>');
+                showError('<?= $escaper->escapeJs(__('Request failed. Please try again.')) ?>');
             }
         });
     }
@@ -543,7 +543,7 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
     function showAssumption(text) {
         const $box = $('#ai-assumption');
         if (text) {
-            $box.text('<?= $block->escapeJs(__('Interpreted as:')) ?> ' + text).show();
+            $box.text('<?= $escaper->escapeJs(__('Interpreted as:')) ?> ' + text).show();
         } else {
             $box.hide().text('');
         }
@@ -593,7 +593,7 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
 
         if (typeof Chart === 'undefined') {
             console.error('Chart.js is not loaded');
-            showError('<?= $block->escapeJs(__('Chart library failed to load. Please refresh the page.')) ?>');
+            showError('<?= $escaper->escapeJs(__('Chart library failed to load. Please refresh the page.')) ?>');
             $('#ai-chart-container').hide();
             $('#ai-table-container').show();
             renderTable(columns, rows);
@@ -699,7 +699,7 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
             });
         } catch (error) {
             console.error('Chart rendering error:', error);
-            showError('<?= $block->escapeJs(__('Failed to render chart. Showing table instead.')) ?>');
+            showError('<?= $escaper->escapeJs(__('Failed to render chart. Showing table instead.')) ?>');
             $('#ai-chart-container').hide();
             $('#ai-table-container').show();
             renderTable(columns, rows);
@@ -731,7 +731,7 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
             },
             error: function () {
                 $('#ai-save-modal').hide();
-                showError('<?= $block->escapeJs(__('Failed to save report.')) ?>');
+                showError('<?= $escaper->escapeJs(__('Failed to save report.')) ?>');
             }
         });
     }
@@ -874,7 +874,7 @@ require(['jquery', 'chartjs', 'Magento_Ui/js/modal/alert'], function ($, Chart, 
             html += '<div class="ai-chat-msg-text">' + formatBotMessage(content) + '</div>';
             if (meta && meta.assumption) {
                 html += '<div class="ai-assumption ai-assumption-chat">'
-                    + escHtml('<?= $block->escapeJs(__('Interpreted as:')) ?> ' + meta.assumption) + '</div>';
+                    + escHtml('<?= $escaper->escapeJs(__('Interpreted as:')) ?> ' + meta.assumption) + '</div>';
             }
 
             if (meta && meta.sql) {

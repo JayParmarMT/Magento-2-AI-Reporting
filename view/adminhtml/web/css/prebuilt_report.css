@@ -1466,3 +1466,32 @@
     .mxc-kpi,
     .mxc-copilot { break-inside: avoid; }
 }
+
+/* ── Store scope switcher (header badge) ────────────────────────────────── */
+
+.mxd .mxr-scope {
+    cursor: pointer;
+    gap: 6px;
+    padding-right: 6px;
+}
+
+.mxd .mxr-scope__select {
+    appearance: auto;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    height: auto;
+    line-height: inherit;
+    margin: 0;
+    max-width: 280px;
+    min-height: 0;
+    padding: 0 2px;
+}
+
+.mxd .mxr-scope__select:focus-visible {
+    outline: 2px solid var(--mxd-brand);
+    outline-offset: 2px;
+}

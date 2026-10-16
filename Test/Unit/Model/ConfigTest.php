@@ -276,4 +276,24 @@ class ConfigTest extends TestCase
 
         $this->assertSame('http://localhost:11434', $this->config->getOllamaBaseUrl());
     }
+
+    // ── Base currency ────────────────────────────────────────────────────
+
+    public function testGetBaseCurrencyCodeReturnsConfiguredValue(): void
+    {
+        $this->scopeConfig->method('getValue')
+            ->with('currency/options/base')
+            ->willReturn('EUR');
+
+        $this->assertSame('EUR', $this->config->getBaseCurrencyCode());
+    }
+
+    public function testGetBaseCurrencyCodeDefaultsToUsd(): void
+    {
+        $this->scopeConfig->method('getValue')
+            ->with('currency/options/base')
+            ->willReturn(null);
+
+        $this->assertSame('USD', $this->config->getBaseCurrencyCode());
+    }
 }

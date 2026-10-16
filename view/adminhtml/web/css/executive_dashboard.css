@@ -810,176 +810,6 @@
 .mxd .mxd-pagebtn.is-active {
     background: var(--mxd-brand);
     color: #fff;
-}/* ── AI assistant ───────────────────────────────────────────────────────── */
-
-.mxd-assistant {
-    align-items: center;
-    background: var(--mxd-dark);
-    border: 1px solid #1e293b;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
-    color: #eaf1ff;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    justify-content: space-between;
-    padding: 32px;
-}
-
-.mxd-assistant__intro {
-    align-items: center;
-    display: flex;
-    gap: 12px;
-}
-
-.mxd-assistant__logo {
-    align-items: center;
-    background: var(--mxd-brand);
-    border-radius: 8px;
-    color: #fff;
-    display: flex;
-    flex-shrink: 0;
-    height: 48px;
-    justify-content: center;
-    width: 48px;
-}
-
-.mxd-assistant__text {
-    color: #cbd5e1;
-    font-size: 12px;
-    line-height: 16px;
-}
-
-.mxd-assistant__ask {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 6px;
-    max-width: 576px;
-    min-width: 280px;
-}
-
-.mxd-ask {
-    align-items: center;
-    display: flex;
-    margin: 0;
-    position: relative;
-}
-
-.mxd .mxd-ask .mxd-input {
-    background: rgba(15, 23, 42, 0.9);
-    border: 1px solid #334155;
-    border-radius: 8px;
-    color: #f8f9ff;
-    padding: 10px 104px 10px 20px;
-    width: 100%;
-}
-
-.mxd .mxd-ask .mxd-input::placeholder { color: #94a3b8; }
-
-.mxd .mxd-ask .mxd-input:focus {
-    box-shadow: 0 0 0 2px var(--mxd-brand);
-    outline: none;
-}
-
-.mxd .mxd-ask .mxd-btn {
-    font-size: 11px;
-    position: absolute;
-    right: 8px;
-}
-
-.mxd-quick {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 4px;
-}
-
-.mxd-quick__label {
-    color: #94a3b8;
-    font-family: var(--mxd-mono);
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.mxd .mxd-chip {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 12px;
-    color: #f8f9ff;
-    font-size: 11px;
-    font-weight: 500;
-    line-height: 14px;
-    padding: 3px 8px;
-    transition: background 0.15s;
-}
-
-.mxd .mxd-chip:hover {
-    background: #334155;
-    border: 1px solid #334155;
-    color: #f8f9ff;
-}
-
-.mxd-answer {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid #334155;
-    border-radius: 8px;
-    flex-basis: 100%;
-    font-size: 13px;
-    line-height: 20px;
-    padding: 16px 20px;
-}
-
-.mxd-answer p + p,
-.mxd-answer p + div,
-.mxd-answer div + p { margin-top: 8px; }
-
-.mxd-answer__q {
-    align-items: center;
-    color: #94a3b8;
-    display: flex;
-    gap: 6px;
-    font-size: 12px;
-}
-
-.mxd-answer__loading { align-items: center; color: #fdba74; display: flex; gap: 6px; }
-.mxd-answer__loading .mxd-ico { animation: mxd-spin 1s linear infinite; }
-.mxd-answer__text { color: #f1f5f9; }
-.mxd-answer__text ul { margin: 6px 0 6px 18px; padding: 0; }
-.mxd-answer__text code { background: #0f172a; border-radius: 4px; padding: 1px 4px; }
-.mxd-answer__error { color: #fca5a5; }
-
-.mxd-answer__assumption {
-    background: rgba(245, 158, 11, 0.12);
-    border-radius: 6px;
-    color: #fcd34d;
-    font-size: 12px;
-    padding: 6px 10px;
-}
-
-.mxd-answer__meta {
-    align-items: center;
-    color: #94a3b8;
-    display: flex;
-    flex-wrap: wrap;
-    font-family: var(--mxd-mono);
-    font-size: 11px;
-    gap: 12px;
-}
-
-.mxd-answer__sql {
-    background: #0f172a;
-    border-radius: 6px;
-    color: #a5f3fc;
-    font-family: var(--mxd-mono);
-    font-size: 11px;
-    margin: 8px 0 0;
-    max-height: 220px;
-    overflow: auto;
-    padding: 10px;
-    white-space: pre-wrap;
-    word-break: break-word;
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
@@ -1005,7 +835,41 @@
     .mxd-body { padding: 16px; gap: 16px; }
     .mxd-row { gap: 16px; }
     .mxd-card--lg,
-    .mxd-assistant { padding: 20px; }
     .mxd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .mxd-telemetry { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Store scope switcher (title row) ───────────────────────────────────── */
+
+.mxd .mxd-scope {
+    align-items: center;
+    background: rgba(255, 247, 237, 0.7);
+    border: 1px solid var(--mxd-brand-200);
+    border-radius: 999px;
+    cursor: pointer;
+    display: inline-flex;
+    font-weight: 600;
+    gap: 4px;
+    padding: 2px 6px 2px 10px;
+}
+
+.mxd .mxd-scope__select {
+    appearance: auto;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    height: auto;
+    line-height: inherit;
+    margin: 0;
+    max-width: 280px;
+    min-height: 0;
+    padding: 0 2px;
+}
+
+.mxd .mxd-scope__select:focus-visible {
+    outline: 2px solid var(--mxd-brand);
+    outline-offset: 2px;
 }

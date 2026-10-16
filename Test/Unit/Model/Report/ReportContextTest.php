@@ -11,8 +11,11 @@ declare(strict_types=1);
 
 namespace Meetanshi\AIReporting\Test\Unit\Model\Report;
 
+use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Store\Model\ScopeInterface;
 use Meetanshi\AIReporting\Model\Report\ReportContext;
+use Meetanshi\AIReporting\Model\Report\ReportScope;
 use PHPUnit\Framework\TestCase;
 
 class ReportContextTest extends TestCase
@@ -134,5 +137,58 @@ class ReportContextTest extends TestCase
     {
         $this->assertSame('$1,234.50', $this->context->formatPrice(1234.5));
         $this->assertSame('USD', $this->context->getCurrencyCode());
+    }
+
+    // ── Store scope ──────────────────────────────────────────────────────
+
+    public function testAllStoreViewsNeedNoStoreFilterAndConvertToTheGlobalCurrency(): void
+    {
+        $this->assertSame('', $this->context->storeFilter());
+        $this->assertStringContainsString('IFNULL(o.base_to_global_rate, 1)', $this->context->orderRevenueExpr());
+        $this->assertSame(1, $this->context->getStockId());
+    }
+
+    public function testWebsiteScopeFiltersStoresAndReportsInTheWebsiteCurrency(): void
+    {
+        $context = $this->createScopedContext(websiteId: 4, storeIds: [10, 11], valueStoreId: 10);
+
+        $this->assertSame(' AND o.store_id IN (10,11)', $context->storeFilter());
+        $this->assertSame(' AND cm.store_id IN (10,11)', $context->storeFilter('cm'));
+        // the website's base amounts are already in its currency: no conversion to the global one
+        $this->assertSame('((o.base_grand_total - IFNULL(o.base_total_refunded, 0)) * 1)', $context->orderRevenueExpr());
+        $this->assertStringNotContainsString('base_to_global_rate', $context->itemRevenueExpr());
+        $this->assertSame('EUR', $context->getCurrencyCode());
+        $this->assertSame('Europe/Berlin', $context->getTimezone()->getName());
+    }
+
+    public function testWebsiteScopeLimitsStockToTheWebsite(): void
+    {
+        $context = $this->createScopedContext(websiteId: 4, storeIds: [10, 11], valueStoreId: 10);
+
+        $this->assertStringContainsString('catalog_product_website pw ON pw.product_id = e.entity_id AND pw.website_id = 4', $context->getStockSql());
+    }
+
+    /**
+     * A context whose scope is one website (EUR, Europe/Berlin) of a multi-store install.
+     */
+    private function createScopedContext(int $websiteId, array $storeIds, int $valueStoreId): ReportContext
+    {
+        $scope = $this->createMock(ReportScope::class);
+        $scope->method('getKey')->willReturn('website:' . $websiteId);
+        $scope->method('getWebsiteId')->willReturn($websiteId);
+        $scope->method('getWebsiteCode')->willReturn('perf_eu');
+        $scope->method('getStoreIds')->willReturn($storeIds);
+        $scope->method('getValueStoreId')->willReturn($valueStoreId);
+
+        $scopeConfig = $this->createMock(ScopeConfigInterface::class);
+        $scopeConfig->method('getValue')->willReturnCallback(
+            static fn (string $path, $type = null, $id = null) => match (true) {
+                $path === 'currency/options/base' && $type === ScopeInterface::SCOPE_WEBSITES && (int) $id === $websiteId => 'EUR',
+                $path === 'general/locale/timezone' && $type === ScopeInterface::SCOPE_STORE && (int) $id === $valueStoreId => 'Europe/Berlin',
+                default => 'USD',
+            }
+        );
+
+        return $this->createReportContext($this->createMock(AdapterInterface::class), 'America/Chicago', false, 'entity_id', $scope, $scopeConfig);
     }
 }

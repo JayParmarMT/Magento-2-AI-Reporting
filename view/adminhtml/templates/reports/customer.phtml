@@ -304,7 +304,7 @@ $config    = $viewModel->getJsConfig();
             </div>
             <div class="mxc-ask" data-role="ask-panel" hidden>
                 <p class="mxc-ask__engine">
-                    <span class="mxd-dot <?= $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
+                    <span class="mxd-dot <?= /* @noEscape */ $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
                     <span class="mxd-mono"><?= $escaper->escapeHtml(__('Follow-ups use %1: %2', $config['provider'], $config['model'])) ?></span>
                 </p>
                 <form class="mxc-ask__form" data-role="ask-form">

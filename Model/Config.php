@@ -38,6 +38,7 @@ class Config
     private const XML_PATH_LLM_TIMEOUT          = 'meetanshi_aireporting/general/llm_timeout';
     private const XML_PATH_LOG_QUERIES          = 'meetanshi_aireporting/security/log_queries';
     private const XML_PATH_SHARE_RESULTS        = 'meetanshi_aireporting/security/share_results_with_llm';
+    private const XML_PATH_BASE_CURRENCY        = 'currency/options/base';
 
     public function __construct(
         private readonly ScopeConfigInterface $scopeConfig,
@@ -181,6 +182,15 @@ class Config
             self::XML_PATH_SHARE_RESULTS,
             ScopeInterface::SCOPE_STORE
         );
+    }
+
+    /**
+     * Global base currency code — the currency report amounts and AI query results are in
+     * (same source as ReportContext::getCurrencyCode()).
+     */
+    public function getBaseCurrencyCode(): string
+    {
+        return (string) ($this->scopeConfig->getValue(self::XML_PATH_BASE_CURRENCY) ?: 'USD');
     }
 
     // ── Groq ──────────────────────────────────────────────────────────────

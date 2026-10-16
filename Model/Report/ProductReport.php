@@ -216,9 +216,10 @@ class ProductReport
         "), [$from, $to]) ?: [];
 
         $catalog = $conn->fetchRow($this->context->resolveTables("
-            SELECT COUNT(*) AS sellable, COALESCE(SUM({$this->soldExpr()}), 0) AS sold
+            SELECT COUNT(*) AS sellable, COALESCE(SUM(sold.product_id IS NOT NULL), 0) AS sold
             FROM {{catalog_product_entity}} e
             {$this->statusJoin()}
+            {$this->soldJoin()}
             WHERE {$this->sellableCondition()}
         "), [$from, $to]) ?: [];
 
@@ -350,7 +351,8 @@ class ProductReport
             LEFT JOIN {{catalog_product_entity_decimal}} pr
                 ON pr.{$link} = e.{$link} AND pr.attribute_id = {$priceId} AND pr.store_id = 0
             LEFT JOIN ({$this->context->getStockSql()}) s ON s.product_id = e.entity_id
-            WHERE {$this->sellableCondition()} AND NOT {$this->soldExpr()}";
+            {$this->soldJoin()}
+            WHERE {$this->sellableCondition()} AND sold.product_id IS NULL";
 
         $totals = $conn->fetchRow($this->context->resolveTables(
             "SELECT COUNT(*) AS products, COALESCE(SUM({$value}), 0) AS stock_value {$base}"
@@ -615,18 +617,19 @@ class ProductReport
     }
 
     /**
-     * Whether product e appears on any line of a valid order in the period (binds: from, to).
+     * LEFT JOIN "sold": the products on any line of a valid order in the period (binds: from, to).
+     * The set is built once per query; a correlated EXISTS per product scanned every order line,
+     * because sales_order_item.product_id has no index (minutes on 10,000 products × 30,000 lines).
      */
-    private function soldExpr(): string
+    private function soldJoin(): string
     {
-        return "EXISTS (
-                SELECT 1
+        return "LEFT JOIN (
+                SELECT DISTINCT soi.product_id
                 FROM {{sales_order_item}} soi
                 JOIN {{sales_order}} so ON so.entity_id = soi.order_id
-                WHERE soi.product_id = e.entity_id
-                  AND {$this->context->validOrderCondition('so')}
+                WHERE {$this->context->validOrderCondition('so')}
                   AND so.created_at >= ? AND so.created_at < ?
-            )";
+            ) sold ON sold.product_id = e.entity_id";
     }
 
     private function getProductSales(string $orderBy, int $limit): array

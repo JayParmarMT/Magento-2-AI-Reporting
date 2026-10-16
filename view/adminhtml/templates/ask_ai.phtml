@@ -44,7 +44,7 @@ $ready   = $config['aiConfigured'];
         </div>
         <div class="mxq-head__side">
             <div class="mxq-engine">
-                <span class="mxd-dot <?= $ready ? 'mxq-dot--brand' : 'mxd-dot--off' ?>"></span>
+                <span class="mxd-dot <?= /* @noEscape */ $ready ? 'mxq-dot--brand' : 'mxd-dot--off' ?>"></span>
                 <strong><?= $escaper->escapeHtml($config['provider']) ?></strong>
                 <code><?= $escaper->escapeHtml($config['model']) ?></code>
                 <a class="mxd-iconbtn mxq-engine__cfg" href="<?= $escaper->escapeUrl($block->getConfigUrl()) ?>"
@@ -63,7 +63,7 @@ $ready   = $config['aiConfigured'];
                 </button>
                 <a href="<?= $escaper->escapeUrl($block->getSavedReportsUrl()) ?>">
                     <span class="mxd-ico mxd-ico--sm" aria-hidden="true">bookmarks</span>
-                    <span><?= $escaper->escapeHtml(__('Saved')) ?> (<span data-role="saved-count"><?= (int) $config['savedCount'] ?></span>)</span>
+                    <span><?= $escaper->escapeHtml(__('Saved')) ?> (<span data-role="saved-count"><?= /* @noEscape */ (int) $config['savedCount'] ?></span>)</span>
                 </a>
             </div>
         </div>
@@ -103,7 +103,7 @@ $ready   = $config['aiConfigured'];
                         <label class="mxd-label" for="mxq-page-size"><?= $escaper->escapeHtml(__('Rows per page')) ?></label>
                         <select id="mxq-page-size" class="mxq-select" data-role="opt-page-size">
                             <?php foreach ([7, 10, 25, 50] as $size): ?>
-                                <option value="<?= (int) $size ?>"><?= (int) $size ?></option>
+                                <option value="<?= /* @noEscape */ (int) $size ?>"><?= /* @noEscape */ (int) $size ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -237,7 +237,7 @@ $ready   = $config['aiConfigured'];
                     <span class="mxq-copilot__logo"><span class="mxd-ico mxd-ico--md" aria-hidden="true">smart_toy</span></span>
                     <div class="mxq-copilot__title">
                         <strong><?= $escaper->escapeHtml(__('Store Intelligence Copilot')) ?>
-                            <span class="mxd-dot <?= $ready ? 'mxq-dot--brand' : 'mxd-dot--off' ?>"></span></strong>
+                            <span class="mxd-dot <?= /* @noEscape */ $ready ? 'mxq-dot--brand' : 'mxd-dot--off' ?>"></span></strong>
                         <span><?= $escaper->escapeHtml(__('Context: %1', $context->getStoreName())) ?></span>
                     </div>
                     <button type="button" class="mxd-iconbtn" data-role="chat-reset" title="<?= $escaper->escapeHtmlAttr(__('Start a new conversation')) ?>">
@@ -300,8 +300,8 @@ $ready   = $config['aiConfigured'];
                     (int) $config['maxRows'],
                     (int) $config['queryTimeout']
                 ) . ' ' . ($config['resultSharing']
-                    ? __('Result rows are sent to the AI provider to write chat answers.')
-                    : __('Result rows stay on your server.'))) ?></span>
+                        ? __('Result rows are sent to the AI provider to write chat answers.')
+                        : __('Result rows stay on your server.'))) ?></span>
             </div>
             <div class="mxq-footer__links">
                 <a href="<?= $escaper->escapeUrl($block->getSavedReportsUrl()) ?>"><?= $escaper->escapeHtml(__('Saved Reports')) ?></a>

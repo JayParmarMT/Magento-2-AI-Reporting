@@ -12,7 +12,9 @@ declare(strict_types=1);
 namespace Meetanshi\AIReporting\Test\Unit\Model\Report;
 
 use Magento\CatalogInventory\Api\StockConfigurationInterface;
+use Magento\Backend\Model\Session as BackendSession;
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\App\RequestInterface;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\EntityManager\EntityMetadataInterface;
@@ -20,7 +22,9 @@ use Magento\Framework\EntityManager\MetadataPool;
 use Magento\Framework\Module\Manager as ModuleManager;
 use Magento\Framework\Pricing\PriceCurrencyInterface;
 use Magento\Framework\Stdlib\DateTime\TimezoneInterface;
+use Magento\Store\Model\StoreManagerInterface;
 use Meetanshi\AIReporting\Model\Report\ReportContext;
+use Meetanshi\AIReporting\Model\Report\ReportScope;
 
 trait ReportContextTrait
 {
@@ -28,7 +32,9 @@ trait ReportContextTrait
         AdapterInterface $connection,
         string $timezone = 'UTC',
         bool $msiEnabled = false,
-        string $linkField = 'entity_id'
+        string $linkField = 'entity_id',
+        ?ReportScope $scope = null,
+        ?ScopeConfigInterface $scopeConfig = null
     ): ReportContext {
         $resourceConnection = $this->createMock(ResourceConnection::class);
         $resourceConnection->method('getConnection')->willReturn($connection);
@@ -42,8 +48,10 @@ trait ReportContextTrait
         $timezoneMock = $this->createMock(TimezoneInterface::class);
         $timezoneMock->method('getConfigTimezone')->willReturn($timezone);
 
-        $scopeConfig = $this->createMock(ScopeConfigInterface::class);
-        $scopeConfig->method('getValue')->willReturn('USD');
+        if ($scopeConfig === null) {
+            $scopeConfig = $this->createMock(ScopeConfigInterface::class);
+            $scopeConfig->method('getValue')->willReturn('USD');
+        }
 
         $priceCurrency = $this->createMock(PriceCurrencyInterface::class);
         $priceCurrency->method('getCurrencySymbol')->willReturn('$');
@@ -70,7 +78,23 @@ trait ReportContextTrait
             $priceCurrency,
             $metadataPool,
             $moduleManager,
-            $stockConfiguration
+            $stockConfiguration,
+            $scope ?? $this->createAllStoresScope()
+        );
+    }
+
+    /**
+     * A ReportScope on All Store Views (single-store install).
+     */
+    private function createAllStoresScope(): ReportScope
+    {
+        $storeManager = $this->createMock(StoreManagerInterface::class);
+        $storeManager->method('hasSingleStore')->willReturn(true);
+
+        return new ReportScope(
+            $this->createMock(RequestInterface::class),
+            $storeManager,
+            $this->createMock(BackendSession::class)
         );
     }
 }

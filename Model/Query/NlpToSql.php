@@ -29,14 +29,14 @@ class NlpToSql
 Magento 2 MySQL Database Schema (READ-ONLY, SELECT queries only):
 
 ═══ ORDERS & SALES ═══
-- sales_order (entity_id, increment_id, store_id, status, state, customer_id, customer_email, customer_firstname, customer_lastname, grand_total, base_grand_total, subtotal, tax_amount, shipping_amount, discount_amount, total_qty_ordered, total_refunded, created_at, updated_at, coupon_code, shipping_method, shipping_description)
-- sales_order_item (item_id, order_id, product_id, product_type, sku, name, qty_ordered, qty_invoiced, qty_shipped, qty_refunded, price, base_price, row_total, discount_amount, created_at)
+- sales_order (entity_id, increment_id, store_id, status, state, customer_id, customer_email, customer_firstname, customer_lastname, base_grand_total, base_subtotal, base_tax_amount, base_shipping_amount, base_discount_amount, base_total_refunded, base_to_global_rate, base_currency_code, order_currency_code, grand_total, subtotal, tax_amount, shipping_amount, discount_amount, total_qty_ordered, total_refunded, created_at, updated_at, coupon_code, shipping_method, shipping_description)
+- sales_order_item (item_id, order_id, product_id, product_type, sku, name, qty_ordered, qty_invoiced, qty_shipped, qty_refunded, base_price, base_row_total, base_discount_amount, base_amount_refunded, price, row_total, discount_amount, created_at)
 - sales_order_address (entity_id, parent_id, address_type, firstname, lastname, email, city, region, region_id, country_id, postcode, telephone)
-- sales_order_payment (entity_id, parent_id, method, amount_ordered, amount_paid, amount_refunded)
-- sales_invoice (entity_id, order_id, increment_id, state, grand_total, created_at)
-- sales_creditmemo (entity_id, order_id, increment_id, state, grand_total, created_at)
+- sales_order_payment (entity_id, parent_id, method, base_amount_ordered, base_amount_paid, base_amount_refunded, amount_ordered, amount_paid, amount_refunded)
+- sales_invoice (entity_id, order_id, increment_id, state, base_grand_total, base_to_global_rate, grand_total, created_at)
+- sales_creditmemo (entity_id, order_id, increment_id, state, base_grand_total, base_to_global_rate, grand_total, created_at)
 - sales_shipment (entity_id, order_id, increment_id, created_at)
-- quote (entity_id, store_id, is_active, customer_id, customer_email, grand_total, items_count, created_at, updated_at) -- shopping carts / abandoned carts
+- quote (entity_id, store_id, is_active, customer_id, customer_email, base_grand_total, base_to_global_rate, grand_total, items_count, created_at, updated_at) -- shopping carts / abandoned carts
 
 ═══ CUSTOMERS ═══
 - customer_entity (entity_id, email, group_id, store_id, website_id, created_at, updated_at, is_active)
@@ -780,6 +780,8 @@ SCHEMA;
             $nameId = $ctx->getAttributeId('catalog_product', 'name');
             $priceId = $ctx->getAttributeId('catalog_product', 'price');
             $valid  = "o.state NOT IN ('canceled','pending_payment')";
+            // The pre-built reports' net revenue in the global base currency, so AI answers match them
+            $revenue = $ctx->orderRevenueExpr('o');
 
             $examples = [
                 '═══ JOIN NOTES & EXAMPLES (copy these patterns) ═══',
@@ -787,17 +789,17 @@ SCHEMA;
                 '- sales_order_item has NO state/status column: join sales_order to filter orders.',
                 '- catalog_product_entity has NO name or price column: use sales_order_item.name for sold products, '
                     . 'or join the EAV tables as in the last example.',
-                "Example (orders and net revenue this month): SELECT COUNT(*) AS orders, ROUND(SUM(o.base_grand_total - IFNULL(o.base_total_refunded, 0)), 2) AS revenue "
+                "Example (orders and net revenue this month): SELECT COUNT(*) AS orders, ROUND(SUM({$revenue}), 2) AS revenue "
                     . "FROM sales_order o WHERE {$valid} AND o.created_at >= '{$monthFrom}' AND o.created_at < '{$monthTo}'",
                 "Example (best sellers by quantity): SELECT oi.sku, MAX(oi.name) AS product_name, SUM(oi.qty_ordered) AS qty_sold "
                     . "FROM sales_order_item oi JOIN sales_order o ON o.entity_id = oi.order_id "
                     . "WHERE {$valid} AND oi.parent_item_id IS NULL GROUP BY oi.sku ORDER BY qty_sold DESC LIMIT 10",
                 '- Customers who ordered: group sales_order by customer_email (guest orders have customer_id NULL, so do not join customer_entity).',
                 "Example (top customers): SELECT o.customer_email, MAX(CONCAT_WS(' ', o.customer_firstname, o.customer_lastname)) AS customer_name, "
-                    . "COUNT(*) AS orders, ROUND(SUM(o.base_grand_total - IFNULL(o.base_total_refunded, 0)), 2) AS revenue "
+                    . "COUNT(*) AS orders, ROUND(SUM({$revenue}), 2) AS revenue "
                     . "FROM sales_order o WHERE {$valid} GROUP BY o.customer_email ORDER BY orders DESC LIMIT 10",
                 "Example (daily revenue, last 30 days, store-local dates): SELECT DATE(CONVERT_TZ(o.created_at, '+00:00', '{$offset}')) AS day, "
-                    . "ROUND(SUM(o.base_grand_total - IFNULL(o.base_total_refunded, 0)), 2) AS revenue FROM sales_order o "
+                    . "ROUND(SUM({$revenue}), 2) AS revenue FROM sales_order o "
                     . "WHERE {$valid} AND o.created_at >= '{$thirtyDaysFrom}' GROUP BY day ORDER BY day",
                 "Example (catalog names and prices): SELECT e.sku, n.value AS name, p.value AS price FROM catalog_product_entity e "
                     . "LEFT JOIN catalog_product_entity_varchar n ON n.{$link} = e.{$link} AND n.attribute_id = {$nameId} AND n.store_id = 0 "
@@ -818,9 +820,14 @@ SCHEMA;
                 "- All created_at/updated_at columns are stored in UTC. Store timezone: {$ctx->getTimezone()->getName()} (current UTC offset {$offset}).",
                 "- Store-local today is {$today->format('Y-m-d')}; in UTC that is created_at >= '{$todayFrom}' AND created_at < '{$todayTo}'.",
                 "- For day/week/month grouping use CONVERT_TZ(created_at, '+00:00', '{$offset}'). Do not use CURDATE()/NOW() for store-local dates.",
-                "- Money: amounts are in base currency {$ctx->getCurrencyCode()}; use base_* columns (base_grand_total, base_row_total, base_discount_amount).",
+                "- Money: report every amount in the global base currency {$ctx->getCurrencyCode()}. Use base_* columns "
+                    . '(base_grand_total, base_subtotal, base_tax_amount, base_shipping_amount, base_discount_amount, base_total_refunded; '
+                    . 'items: base_row_total, base_price, base_discount_amount, base_amount_refunded) and multiply them by the order\'s '
+                    . 'IFNULL(o.base_to_global_rate, 1) (invoices, credit memos and carts have their own base_to_global_rate). '
+                    . 'Columns without base_ (grand_total, row_total, price, ...) are in each order\'s own currency: '
+                    . 'use them only when the question asks what customers paid in their currency (order_currency_code).',
                 "- Sales/revenue: exclude orders with state IN ('canceled','pending_payment'). "
-                    . 'Net revenue = base_grand_total - IFNULL(base_total_refunded, 0).',
+                    . "Net revenue = {$revenue}.",
                 '- Product-level sales: use sales_order_item rows with parent_item_id IS NULL so configurable/bundle lines are not double counted.',
                 $stockLine,
                 '',

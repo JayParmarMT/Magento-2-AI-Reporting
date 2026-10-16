@@ -3,13 +3,13 @@
  *
  * Renders every section from the dashboard data (first from the page, then from
  * dashboard/refreshData), and wires the date range, live refresh, export, product table
- * (filter, category, paging, CSV) and the AI assistant (chat/send).
+ * (filter, category, paging, CSV).
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
  * @copyright Copyright (c) Meetanshi (https://meetanshi.com)
  */
-define(['jquery', 'chartjs'], function ($, Chart) {
+define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($, Chart, chartZoom) {
     'use strict';
 
     var BRAND = '#ee672f',
@@ -35,6 +35,10 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             data = config.data,
             charts = {},
             trendMode = 'both',
+            trendUnit = 'day',
+            trendRangeKey = null,
+            trendSeries = [],
+            trendZoom = null,
             liveTimer = null,
             loading = false,
             table = {query: '', category: '', page: 1},
@@ -158,13 +162,102 @@ define(['jquery', 'chartjs'], function ($, Chart) {
 
         // ── Revenue & order trend ───────────────────────────────────────────
 
-        /** Draws the peak-day callout next to the highest revenue point. */
+        /**
+         * Long ranges are easier to read by week or month; the toolbar can switch.
+         */
+        function autoTrendUnit(days) {
+            return days <= 92 ? 'day' : (days <= 731 ? 'week' : 'month');
+        }
+
+        function weekStart(ymd) {
+            var parts = String(ymd).split('-'),
+                date = new Date(Date.UTC(+parts[0], parts[1] - 1, +parts[2]));
+
+            date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+            return date.toISOString().slice(0, 10);
+        }
+
+        /** Daily rows → [{start, end, revenue, orders}] per day, week (Monday) or month. */
+        function aggregateTrend(days, unit) {
+            var buckets = [],
+                byKey = {};
+
+            days.forEach(function (day) {
+                var key = unit === 'day' ? day.date : (unit === 'week' ? weekStart(day.date) : day.date.slice(0, 7)),
+                    bucket = byKey[key];
+
+                if (!bucket) {
+                    bucket = byKey[key] = {start: day.date, end: day.date, revenue: 0, orders: 0};
+                    buckets.push(bucket);
+                }
+                bucket.end = day.date;
+                bucket.revenue += Number(day.revenue) || 0;
+                bucket.orders += Number(day.orders) || 0;
+            });
+            buckets.forEach(function (bucket) {
+                bucket.revenue = Math.round(bucket.revenue * 100) / 100;
+            });
+
+            return buckets;
+        }
+
+        function longDate(ymd) {
+            var parts = String(ymd).split('-');
+
+            return new Date(+parts[0], parts[1] - 1, +parts[2])
+                .toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+        }
+
+        /** "Dec 1, 2025", "Week of Dec 1, 2025" or "Dec 2025" */
+        function describeTrend(index) {
+            var row = trendSeries[index];
+
+            if (!row) {
+                return '';
+            }
+            return trendUnit === 'month' ? monthLabel(row.start)
+                : (trendUnit === 'week' ? 'Week of ' + longDate(row.start) : longDate(row.start));
+        }
+
+        /** Axis labels shorten with the visible span. */
+        function trendTick(index) {
+            var row = trendSeries[index],
+                bounds = trendZoom ? trendZoom.bounds() : [0, trendSeries.length - 1],
+                span = bounds[1] - bounds[0] + 1,
+                parts;
+
+            if (!row) {
+                return '';
+            }
+            if (trendUnit === 'month' || (trendUnit === 'week' && span > 26)) {
+                return monthLabel(row.start);
+            }
+            if (trendUnit === 'day' && span > 120) {
+                parts = String(row.start).split('-');
+                return new Date(+parts[0], parts[1] - 1, +parts[2])
+                    .toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: '2-digit'});
+            }
+            return shortDate(row.start);
+        }
+
+        function trendPeakIndex(series) {
+            var best = -1;
+
+            series.forEach(function (row, i) {
+                if (row.revenue > 0 && (best === -1 || row.revenue > series[best].revenue)) {
+                    best = i;
+                }
+            });
+            return best;
+        }
+
+        /** Draws the peak callout next to the highest revenue point of the grouped series (if in view). */
         var peakPlugin = {
             id: 'mxdPeak',
             afterDatasetsDraw: function (chart) {
-                var peak = data.trend_stats && data.trend_stats.peak_revenue,
+                var index = trendPeakIndex(trendSeries),
+                    peak = trendSeries[index],
                     meta = chart.getDatasetMeta(0),
-                    index,
                     point,
                     ctx = chart.ctx,
                     lines,
@@ -176,11 +269,9 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 if (!peak || meta.hidden || !chart.isDatasetVisible(0)) {
                     return;
                 }
-                index = data.revenue_trend.findIndex(function (day) {
-                    return day.date === peak.date;
-                });
                 point = meta.data[index];
-                if (!point) {
+                // Outside the zoom window (points there keep stale positions): no callout
+                if (!point || index < chart.scales.x.min || index > chart.scales.x.max) {
                     return;
                 }
 
@@ -194,9 +285,12 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 ctx.stroke();
 
                 lines = [
-                    [shortDate(peak.date) + ': Peak day', '600 11px "IBM Plex Sans", sans-serif', '#fff'],
+                    [(trendUnit === 'month' ? monthLabel(peak.start) + ': Peak month'
+                        : (trendUnit === 'week' ? 'Week of ' + shortDate(peak.start) + ': Peak week'
+                            : shortDate(peak.start) + ': Peak day')),
+                        '600 11px "IBM Plex Sans", sans-serif', '#fff'],
                     [money(peak.revenue) + ' revenue', '500 10px "IBM Plex Sans", sans-serif', '#fdba74'],
-                    [peak.orders + ' orders processed', '400 10px "IBM Plex Sans", sans-serif', '#6ee7b7']
+                    [num(peak.orders) + ' orders processed', '400 10px "IBM Plex Sans", sans-serif', '#6ee7b7']
                 ];
                 lines.forEach(function (line) {
                     ctx.font = line[1];
@@ -227,13 +321,22 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         };
 
         function renderTrend() {
-            var trend = data.revenue_trend || [],
+            var days = data.revenue_trend || [],
                 stats = data.trend_stats || {},
                 canvas = $el('trend-chart')[0],
+                rangeKey = data.date_range.start + '|' + data.date_range.end,
+                unitWords = {day: 'Daily', week: 'Weekly', month: 'Monthly'},
                 gradient,
                 ctx;
 
-            $el('trend-sub').text('Daily net revenue and order count across ' + num(data.date_range.days)
+            // A new range picks its granularity again; a choice made in the toolbar holds for the range
+            if (rangeKey !== trendRangeKey) {
+                trendRangeKey = rangeKey;
+                trendUnit = autoTrendUnit(days.length);
+            }
+            trendSeries = aggregateTrend(days, trendUnit);
+
+            $el('trend-sub').text(unitWords[trendUnit] + ' net revenue and order count across ' + num(data.date_range.days)
                 + (Number(data.date_range.days) === 1 ? ' calendar day' : ' calendar days') + ' (store time)');
             $el('trend-stats').html(
                 '<div><span class="mxd-label">Peak Daily Revenue</span><span class="mxd-stat">'
@@ -248,6 +351,24 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 + ' <small>(' + esc(stats.utc_offset || '') + ')</small></span></div>'
             );
 
+            if (!trendZoom) {
+                trendZoom = chartZoom.create($(canvas).parent(), {unit: 'days', describe: describeTrend});
+                trendZoom.slot().html(
+                    '<div class="mxd-segmented" role="group" aria-label="Group by" data-role="trend-unit">'
+                    + '<button type="button" data-unit="day">Day</button>'
+                    + '<button type="button" data-unit="week">Week</button>'
+                    + '<button type="button" data-unit="month">Month</button></div>'
+                ).on('click', '[data-unit]', function () {
+                    trendUnit = $(this).data('unit');
+                    renderTrend();
+                });
+            }
+            trendZoom.slot().find('[data-unit]').each(function () {
+                $(this).toggleClass('is-active', $(this).data('unit') === trendUnit)
+                    .attr('aria-pressed', String($(this).data('unit') === trendUnit));
+            });
+            trendZoom.setUnit({day: 'days', week: 'weeks', month: 'months'}[trendUnit]);
+
             destroyChart('trend');
             ctx = canvas.getContext('2d');
             gradient = ctx.createLinearGradient(0, 0, 0, canvas.parentNode.clientHeight || 288);
@@ -257,27 +378,27 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             charts.trend = new Chart(canvas, {
                 type: 'line',
                 data: {
-                    labels: trend.map(function (day) {
-                        return day.date;
+                    labels: trendSeries.map(function (row) {
+                        return row.start;
                     }),
                     datasets: [{
                         label: 'Net Revenue',
-                        data: trend.map(function (day) {
-                            return Number(day.revenue) || 0;
+                        data: trendSeries.map(function (row) {
+                            return row.revenue;
                         }),
                         borderColor: BRAND,
                         backgroundColor: gradient,
                         fill: true,
                         borderWidth: 2.5,
                         tension: 0.35,
-                        pointRadius: 0,
+                        pointRadius: trendSeries.length <= 60 ? 2 : 0,
                         pointHoverRadius: 4,
                         yAxisID: 'y',
                         hidden: trendMode === 'orders'
                     }, {
                         label: 'Orders',
-                        data: trend.map(function (day) {
-                            return Number(day.orders) || 0;
+                        data: trendSeries.map(function (row) {
+                            return row.orders;
                         }),
                         borderColor: GREEN,
                         backgroundColor: GREEN,
@@ -303,7 +424,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                             padding: 10,
                             callbacks: {
                                 title: function (items) {
-                                    return items.length ? shortDate(items[0].label) : '';
+                                    return items.length ? describeTrend(items[0].dataIndex) : '';
                                 },
                                 label: function (item) {
                                     return item.datasetIndex === 0
@@ -318,21 +439,14 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                             grid: {display: false},
                             border: {display: false},
                             ticks: {
-                                autoSkip: false,
+                                autoSkip: true,
+                                autoSkipPadding: 14,
+                                maxTicksLimit: 12,
                                 maxRotation: 0,
                                 color: '#594139',
                                 font: {family: '"JetBrains Mono", monospace', size: 11},
-                                callback: function (value, index) {
-                                    var date = trend[index] && trend[index].date;
-
-                                    if (!date) {
-                                        return '';
-                                    }
-                                    // Only the first day of each month, unless the range is short
-                                    if (trend.length <= 14) {
-                                        return shortDate(date);
-                                    }
-                                    return (index === 0 && trend.length < 40) || date.slice(8) === '01' ? monthLabel(date) : '';
+                                callback: function (value, index, ticks) {
+                                    return trendTick(ticks[index] ? ticks[index].value : value);
                                 }
                             }
                         },
@@ -365,6 +479,8 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 },
                 plugins: [peakPlugin]
             });
+            // Keep the zoom while only the datasets change; start from everything for a new range or grouping
+            trendZoom.bind(charts.trend, trendUnit + '|' + rangeKey);
         }
 
         // ── Orders by status ────────────────────────────────────────────────
@@ -625,8 +741,6 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                     + '<td class="mxd-r"><div class="mxd-rowactions">'
                     + (url ? '<a class="mxd-iconbtn" href="' + esc(url) + '" target="_blank" rel="noopener" title="Open in Magento catalog">'
                         + icon('open_in_new', 'md') + '</a>' : '')
-                    + '<button type="button" class="mxd-iconbtn mxd-iconbtn--ai" data-ask-sku="' + esc(row.sku)
-                    + '" title="Ask the AI assistant about this product">' + icon('auto_awesome', 'md') + '</button>'
                     + '</div></td></tr>';
             }).join('') : '<tr><td colspan="8" class="mxd-empty">'
                 + (data.products && data.products.length ? 'No products match the filter.' : 'No products sold in this period.')
@@ -693,80 +807,10 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             }, 0);
         }
 
-        // ── AI assistant ────────────────────────────────────────────────────
-
-        function formatAnswer(text) {
-            var html = esc(text);
-
-            html = html.replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>')
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/`(.+?)`/g, '<code>$1</code>')
-                .replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>')
-                .replace(/(?:<li>.*<\/li>\n?)+/g, function (list) {
-                    return '<ul>' + list.replace(/\n/g, '') + '</ul>';
-                })
-                .replace(/\n/g, '<br>');
-
-            return html;
-        }
-
-        function ask(question) {
-            var $answer = $el('answer'),
-                $submit = $el('ask-submit');
-
-            question = $.trim(question || '');
-            if (!question || $submit.prop('disabled')) {
-                return;
-            }
-            if (!config.aiEnabled || !config.aiConfigured) {
-                $answer.prop('hidden', false).html('<p class="mxd-answer__error">The AI provider is not configured. '
-                    + 'Set it up in Stores > Configuration > Meetanshi > AI Reporting.</p>');
-                return;
-            }
-
-            $el('ask-input').val(question);
-            $submit.prop('disabled', true);
-            $answer.prop('hidden', false).html('<p class="mxd-answer__q">' + icon('person', 'xs') + ' ' + esc(question)
-                + '</p><p class="mxd-answer__loading">' + icon('progress_activity', 'sm') + ' Thinking… local models can take a minute.</p>');
-
-            $.ajax({
-                url: config.chatUrl,
-                type: 'POST',
-                dataType: 'json',
-                data: {message: question, form_key: config.formKey, isAjax: true},
-                timeout: 300000
-            }).done(function (response) {
-                var html = '<p class="mxd-answer__q">' + icon('person', 'xs') + ' ' + esc(question) + '</p>';
-
-                if (!response || !response.success) {
-                    html += '<p class="mxd-answer__error">' + esc((response && response.message) || 'Something went wrong.') + '</p>';
-                } else {
-                    html += '<div class="mxd-answer__text">' + formatAnswer(response.answer) + '</div>';
-                    if (response.assumption) {
-                        html += '<p class="mxd-answer__assumption">Interpreted as: ' + esc(response.assumption) + '</p>';
-                    }
-                    if (response.sql) {
-                        html += '<div class="mxd-answer__meta"><span>' + esc(num(response.rows) + ' rows · '
-                            + num(response.time_ms) + ' ms') + '</span>'
-                            + '<button type="button" class="mxd-linkbtn" data-role="toggle-sql">Show SQL</button>'
-                            + '<a class="mxd-linkbtn" href="' + esc(config.askAiUrl) + '">Open Ask AI</a></div>'
-                            + '<pre class="mxd-answer__sql" hidden>' + esc(response.sql) + '</pre>';
-                    }
-                }
-                $answer.html(html);
-            }).fail(function (xhr, status) {
-                $answer.html('<p class="mxd-answer__error">' + (status === 'timeout'
-                    ? 'The AI took too long to answer. Try a simpler question.'
-                    : 'Request failed (' + esc(xhr.status) + '). Please try again.') + '</p>');
-            }).always(function () {
-                $submit.prop('disabled', false);
-            });
-        }
-
         // ── Data loading ────────────────────────────────────────────────────
 
         function rangeParams() {
-            var params = {date_range: $el('range').val()};
+            var params = {date_range: $el('range').val(), scope: config.scope};
 
             if (params.date_range === 'custom') {
                 params.custom_start = $el('custom-start').val();
@@ -843,6 +887,11 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             load();
         });
 
+        // Store scope: reload the page for it (currency and timezone change with it), keeping the range
+        $el('scope').on('change', function () {
+            window.location.href = window.location.pathname + '?' + $.param($.extend(rangeParams(), {scope: $(this).val()}));
+        });
+
         $el('custom-apply').on('click', function () {
             if (!$el('custom-start').val() || !$el('custom-end').val()) {
                 return;
@@ -891,32 +940,24 @@ define(['jquery', 'chartjs'], function ($, Chart) {
 
         $el('product-export').on('click', exportProducts);
 
-        $el('products').on('click', '[data-ask-sku]', function () {
-            var sku = String($(this).data('askSku'));
-
-            ask('How many units of SKU ' + sku + ' were sold each month in the last 6 months, and what was its net revenue?');
-            $el('assistant')[0].scrollIntoView({behavior: 'smooth', block: 'center'});
-        });
-
-        $el('ask-form').on('submit', function (event) {
-            event.preventDefault();
-            ask($el('ask-input').val());
-        });
-
-        $root.on('click', '.mxd-chip', function () {
-            ask($(this).data('question'));
-        });
-
-        $el('answer').on('click', '[data-role="toggle-sql"]', function () {
-            var $sql = $el('answer').find('.mxd-answer__sql'),
-                show = $sql.prop('hidden');
-
-            $sql.prop('hidden', !show);
-            $(this).text(show ? 'Hide SQL' : 'Show SQL');
-        });
-
         // Charts use the page fonts: draw once they are ready
         renderAll();
+
+        // A range in the address (kept when the store scope changes) replaces the default one
+        (function () {
+            var query = new URLSearchParams(window.location.search),
+                range = query.get('date_range');
+
+            if (range && /^[a-z0-9_]+$/.test(range) && $el('range').find('option[value="' + range + '"]').length
+                && (range !== data.date_range.key || range === 'custom')) {
+                $el('range').val(range);
+                if (range === 'custom') {
+                    $el('custom-start').val(query.get('custom_start') || '');
+                    $el('custom-end').val(query.get('custom_end') || '');
+                }
+                load();
+            }
+        }());
         if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(function () {
                 renderTrend();

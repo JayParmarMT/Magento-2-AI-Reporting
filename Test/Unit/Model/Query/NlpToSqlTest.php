@@ -247,6 +247,8 @@ class NlpToSqlTest extends TestCase
                 return str_contains($prompt, 'STORE FACTS')
                     && str_contains($prompt, 'Store timezone: America/Chicago')
                     && str_contains($prompt, 'base currency USD')
+                    && str_contains($prompt, 'IFNULL(o.base_to_global_rate, 1)')
+                    && !str_contains($prompt, 'SUM(o.base_grand_total - IFNULL(o.base_total_refunded, 0))')
                     && str_contains($prompt, "state IN ('canceled','pending_payment')")
                     && !str_contains($prompt, 'price attribute_id = 75');
             }))

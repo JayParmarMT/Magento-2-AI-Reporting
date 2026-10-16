@@ -2,9 +2,10 @@
 /**
  * Meetanshi AIReporting — Sales & Revenue Report
  *
- * Revenue = net revenue (grand total minus refunds) in the global base currency.
+ * Revenue = net revenue (grand total minus refunds) in the report currency: the global base currency,
+ * or the website's base currency when one website / store view is selected (ReportScope).
  * Orders in state canceled / pending_payment are not counted as sales.
- * All date buckets use the store timezone.
+ * All date buckets use the store timezone. Every order query is limited to the selected store views.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -64,7 +65,7 @@ class SalesReport
                 ROUND(AVG({$rev}), 2) AS aov
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY month
             ORDER BY month ASC
         "), [$from, $to]);
@@ -90,7 +91,7 @@ class SalesReport
                 ROUND(SUM({$rev}), 2) AS revenue
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY day
             ORDER BY day ASC
         "), [$from, $to]);
@@ -110,6 +111,7 @@ class SalesReport
                 ROUND(SUM({$this->context->orderValueExpr()}), 2) AS revenue
             FROM {{sales_order}} o
             LEFT JOIN {{sales_order_status}} st ON st.status = o.status
+            WHERE 1 = 1{$this->context->storeFilter()}
             GROUP BY o.status, st.label
             ORDER BY orders DESC
         "));
@@ -143,7 +145,7 @@ class SalesReport
                     ROUND(SUM({$this->context->orderValueExpr()}), 2) AS revenue
                 FROM {{sales_order}} o
                 LEFT JOIN {{sales_order_status}} st ON st.status = o.status
-                WHERE o.created_at >= ? AND o.created_at < ?
+                WHERE o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
                 GROUP BY o.status, st.label
                 ORDER BY orders DESC
             "), [$from, $to]);
@@ -166,7 +168,7 @@ class SalesReport
                 ROUND(SUM({$rev}), 2) AS revenue,
                 ROUND(AVG({$rev}), 2) AS aov
             FROM {{sales_order}} o
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
             GROUP BY COALESCE(NULLIF(o.shipping_description, ''), 'No Shipping (Virtual)')
             ORDER BY revenue DESC
             LIMIT 10
@@ -190,7 +192,7 @@ class SalesReport
                 ROUND(AVG({$rev}), 2) AS avg_order_value
             FROM {{sales_order}} o
             WHERE o.coupon_code IS NOT NULL AND o.coupon_code != ''
-              AND {$this->context->validOrderCondition()}
+              AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
             GROUP BY o.coupon_code
             ORDER BY times_used DESC
             LIMIT 20
@@ -211,7 +213,7 @@ class SalesReport
             FROM {{sales_order}} o
             LEFT JOIN {{sales_order_address}} sa ON sa.parent_id = o.entity_id AND sa.address_type = 'shipping'
             LEFT JOIN {{sales_order_address}} ba ON ba.parent_id = o.entity_id AND ba.address_type = 'billing'
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
             GROUP BY COALESCE(NULLIF(sa.region, ''), NULLIF(ba.region, ''), 'N/A'), COALESCE(sa.country_id, ba.country_id)
             ORDER BY revenue DESC
             LIMIT 15
@@ -232,6 +234,7 @@ class SalesReport
                 COALESCE(SUM(o.state = 'canceled'), 0) AS cancel_count,
                 COALESCE(ROUND(SUM(IF(o.state = 'canceled', {$this->context->orderValueExpr()}, 0)), 2), 0) AS cancel_revenue
             FROM {{sales_order}} o
+            WHERE 1 = 1{$this->context->storeFilter()}
         "));
 
         return [
@@ -261,7 +264,7 @@ class SalesReport
                 ROUND(AVG({$rev}), 2) AS aov
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY day_num
             ORDER BY day_num ASC
         "), [$from, $to]);
@@ -336,7 +339,7 @@ class SalesReport
                 ROUND(SUM({$rev}), 2) AS revenue
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY bucket
             ORDER BY bucket ASC
         "), [$from, $to]);
@@ -419,7 +422,7 @@ class SalesReport
                     ROUND(AVG({$rev}), 2) AS aov
                 FROM {{sales_order}} o
                 WHERE {$this->context->validOrderCondition()}
-                  AND o.created_at >= ? AND o.created_at < ?
+                  AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
                 GROUP BY day_num
                 ORDER BY day_num ASC
             "), [$from, $to]);
@@ -445,7 +448,7 @@ class SalesReport
                 COALESCE(AVG({$rev}), 0) AS aov
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
         "), [$from, $to]) ?: ['orders' => 0, 'revenue' => 0, 'aov' => 0];
     }
 
@@ -498,7 +501,7 @@ class SalesReport
                 COALESCE(SUM(o.state = 'pending_payment'), 0) AS pending_payment,
                 COALESCE(SUM(o.state = 'canceled'), 0) AS canceled
             FROM {{sales_order}} o
-            WHERE o.created_at >= ? AND o.created_at < ?";
+            WHERE o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}";
     }
 
     /**
@@ -520,7 +523,7 @@ class SalesReport
             LEFT JOIN {{sales_order_address}} sa ON sa.parent_id = o.entity_id AND sa.address_type = 'shipping'
             LEFT JOIN {{sales_order_address}} ba ON ba.parent_id = o.entity_id AND ba.address_type = 'billing'
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             ORDER BY amount DESC, o.entity_id DESC
             LIMIT 1
         "), [$from, $to]);
@@ -544,9 +547,9 @@ class SalesReport
         $row = $this->context->getConnection()->fetchRow($this->context->resolveTables("
             SELECT
                 COUNT(*) AS memos,
-                COALESCE(SUM(cm.base_grand_total * IFNULL(cm.base_to_global_rate, 1)), 0) AS refunded
+                COALESCE(SUM({$this->context->orderAmountExpr('cm.base_grand_total', 'cm')}), 0) AS refunded
             FROM {{sales_creditmemo}} cm
-            WHERE cm.created_at >= ? AND cm.created_at < ?
+            WHERE cm.created_at >= ? AND cm.created_at < ?{$this->context->storeFilter('cm')}
         "), [$from, $to]) ?: [];
 
         return ['memos' => (int) ($row['memos'] ?? 0), 'refunded' => round((float) ($row['refunded'] ?? 0), 2)];
@@ -575,7 +578,7 @@ class SalesReport
                 ROUND(SUM({$rev}), 2) AS revenue
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY bucket
             ORDER BY bucket ASC
         "), [$from, $to]);
@@ -618,7 +621,7 @@ class SalesReport
                 ROUND(SUM({$this->context->orderValueExpr()}), 2) AS value
             FROM {{sales_order}} o
             LEFT JOIN {{sales_order_status}} st ON st.status = o.status
-            WHERE o.created_at >= ? AND o.created_at < ?
+            WHERE o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY o.status, o.state, st.label
             ORDER BY orders DESC, value DESC
         "), [$from, $to]);
@@ -649,7 +652,7 @@ class SalesReport
                 ROUND(SUM({$rev}), 2) AS revenue
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY day_num
         "), [$from, $to]);
 
@@ -673,7 +676,7 @@ class SalesReport
             SELECT HOUR({$local}) AS hour_num
             FROM {{sales_order}} o
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY hour_num
             ORDER BY COUNT(*) DESC, SUM({$this->context->orderRevenueExpr()}) DESC
             LIMIT 1
@@ -702,7 +705,7 @@ class SalesReport
             LEFT JOIN {{sales_order_address}} sa ON sa.parent_id = o.entity_id AND sa.address_type = 'shipping'
             LEFT JOIN {{sales_order_address}} ba ON ba.parent_id = o.entity_id AND ba.address_type = 'billing'
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY {$region}, {$country}
             ORDER BY revenue DESC, orders DESC
             LIMIT " . max(1, $limit)), [$from, $to]);
@@ -737,7 +740,7 @@ class SalesReport
             FROM {{sales_order}} o
             LEFT JOIN (SELECT DISTINCT order_id FROM {{sales_shipment}}) sh ON sh.order_id = o.entity_id
             WHERE {$this->context->validOrderCondition()}
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY {$method}, {$description}
             ORDER BY revenue DESC, orders DESC
             LIMIT 20
@@ -783,7 +786,7 @@ class SalesReport
             INNER JOIN {{salesrule}} r ON FIND_IN_SET(r.rule_id, o.applied_rule_ids){$this->context->currentVersionCondition('r')}
             WHERE {$this->context->validOrderCondition()}
               AND o.applied_rule_ids IS NOT NULL AND o.applied_rule_ids <> ''
-              AND o.created_at >= ? AND o.created_at < ?
+              AND o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             GROUP BY r.rule_id, r.name, r.coupon_type, r.simple_action, r.discount_amount, r.simple_free_shipping,
                      r.is_active, r.from_date, r.to_date, {$code}
             ORDER BY revenue DESC, orders DESC
@@ -835,7 +838,7 @@ class SalesReport
             FROM {{sales_order}} o
             LEFT JOIN {{sales_order_address}} sa ON sa.parent_id = o.entity_id AND sa.address_type = 'shipping'
             LEFT JOIN {{sales_order_address}} ba ON ba.parent_id = o.entity_id AND ba.address_type = 'billing'
-            WHERE o.created_at >= ? AND o.created_at < ?
+            WHERE o.created_at >= ? AND o.created_at < ?{$this->context->storeFilter()}
             ORDER BY o.created_at ASC, o.entity_id ASC
         "), [$from, $to]);
     }

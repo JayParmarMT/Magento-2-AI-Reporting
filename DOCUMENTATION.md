@@ -754,3 +754,188 @@ The template was rendered from the CLI and loaded in headless Chrome with Magent
 ### 19.4 Deployment note
 
 No existing constructor changed and there is no database change. The new classes work without `setup:di:compile`, but until the next compile the two new controllers run without interceptors (see §15.4 before compiling on this machine).
+
+## 20. Base currency in AI answers (2026-10-16)
+
+The dashboard, pre-built reports and their exports already report every amount in the global base currency (§13.2). Ask AI and Chat did not fully follow that:
+
+- **AI SQL could mix currencies.** The prompt's net-revenue rule and examples used `base_grand_total - base_total_refunded` without `base_to_global_rate`, and the core schema listed only order-currency columns for invoices, credit memos, payments and carts. On a store where websites have different base currencies, AI totals would add those currencies up.
+- **Chat answers assumed dollars.** The answer prompt used `$1,234.56` as its example and was never told the store currency.
+
+Changes:
+
+- `NlpToSql`: the examples and the "Net revenue =" rule now use `ReportContext::orderRevenueExpr()`, the same expression as the reports. The money rule says to multiply `base_*` columns by `base_to_global_rate`, and to use order-currency columns only when the question asks what customers paid in their own currency. The core schema lists the `base_*` money columns, `base_to_global_rate` and the currency codes for orders, items, payments, invoices, credit memos and carts.
+- `Chat\Send`: the answer message states the base currency code, and the system prompt no longer uses a `$` example.
+- `Model/Config::getBaseCurrencyCode()` (new; same config path as `ReportContext::getCurrencyCode()`).
+- Tests: `ConfigTest` (2 new cases); `NlpToSqlTest` checks that the prompt includes the rate conversion.
+
+On this store nothing changes in practice: the only currency is USD, price scope is Global, and every order has `base_to_global_rate` = 1.
+
+No constructor changed (`Chat\Send` reads the currency through its existing `Config`), so no `setup:di:compile` is needed. No database change.
+
+## 21. Volume test data and prompts (2026-10-16)
+
+### 21.1 Tools
+
+| File | Purpose |
+|---|---|
+| `Test/perf-data/generate.php` | Creates a tagged dataset with direct batch inserts in one transaction (`--products --customers --orders --carts --years --seed --dry-run`). Defaults: 10,000 products, 10,000 customers, 12,000 orders over 3 years, 1,500 carts. |
+| `Test/perf-data/cleanup.php` | Deletes exactly the tagged rows, in one transaction (`--dry-run` counts only). |
+| `Test/ai-prompts/perf_prompts.md` | 565 prompts in 15 sections written for this dataset (sales over time, documents, refunds, coupons, payment/shipping, geography/tax, customers, products, variants, stock, carts, websites, phrasing and Chat follow-ups, "no such data", security). |
+| `Test/ai-prompts/run_ai_test.php` | New `--file=` option: `--file=perf_prompts.md`. |
+
+What the generator creates:
+- **Products:** configurable apparel (color × size children) and simple apparel and gear, in the existing Luma categories, with price, cost, special prices, stock and MSI source items.
+- **Customers:** with addresses on both websites and in all customer groups.
+- **Orders:** spread over the period with growth, November/December peaks, Black Friday week, a summer sale and hours of the day; guests and repeat buyers; six coupons; tax by region; three shipping methods; four offline payment methods only, so no order qualifies for Payment Services or SaaS export; every order state.
+- **Order documents:** invoices, shipments with UPS/USPS/FedEx/DHL tracking, full and partial credit memos, grid rows, and MSI reservations for open orders.
+- **Carts:** active (abandoned) carts.
+
+Tags used by `cleanup.php`: SKU `PT-…`, email `@perftest.example`, order `ext_order_id = 'aireporting-perf'` and increment `PT…` (invoices `PTI…`, shipments `PTS…`, credit memos `PTC…`), rule name `PerfTest:…`. After either script, run:
+
+```bash
+bin/magento indexer:reindex customer_grid catalog_category_product catalog_product_category catalog_product_attribute catalog_product_price cataloginventory_stock inventory catalogsearch_fulltext
+```
+
+### 21.2 State of this install
+
+The data was generated on 2026-10-16 with the defaults (seed 2026) in 28 s, and the indexes were rebuilt. It holds 12,000 orders from 2023-10-16 to now, 10,877 invoices, 10,678 shipments, 1,038 credit memos, 10,000 customers, 10,000 products (1,072 configurable) and 1,500 carts. The 81 real orders, 8 customers and 46 products are unchanged. A full backup taken just before is in `var/backups/pre_perf_data_2026-10-16.sql.gz`.
+
+Consistency checks all returned 0. Item rows sum to subtotals; grand totals add up; every order has a grid row; refunds match their credit memos; closed orders are fully refunded; no document is dated before its order; nothing is in the future; no customer orders before registering; no product sells before it exists.
+
+### 21.3 Report timings at this volume
+
+Measured by calling each report's data method directly, for Today, This Month, This Year and a custom 3-year range:
+
+| Report | Time |
+|---|---|
+| Sales & Revenue | 27–603 ms |
+| Customer Analytics (period) | 6–277 ms |
+| Customer Analytics (lifetime: CLV, RFM, top 200) | 402 ms |
+| Inventory | 369–501 ms |
+| Executive Dashboard | 171–786 ms |
+| Product Performance (before the fix below) | 0.6 s (today), 20.6 s (month), 414 s (year), 87 s (3 years) |
+| Product Performance (after the fix) | 0.27 s (today), 0.34 s (month), 0.64 s (year), 1.0 s (3 years) |
+
+**Fixed: Product Performance hung on longer ranges.**
+- **Cause:** `ProductReport::soldExpr()` was a correlated `EXISTS` subquery for each sellable product (about 9,900 here) on `sales_order_item.product_id`. That column has no index in core Magento, so each check scanned every order line.
+- **Where it ran:** `getSalesTotals()` used it twice per page load (current and previous period), and `getDeadStock()` used it too.
+- **Side effect:** admin sessions are stored in files, and PHP holds the session lock for the whole request. While one of these requests ran, every other admin page and AJAX call from the same login waited, so Sales, Customer and Inventory looked stuck too.
+- **Fix:** `soldJoin()` replaces it with one `LEFT JOIN` to the distinct products sold in the period. The figures are unchanged.
+- **Deployment:** no constructor or schema change, so no compile is needed.
+
+## 22. Multi-website and multi-store-view test setup (2026-10-16)
+
+### 22.1 Tool
+
+`Test/perf-data/multistore.php` builds on the `generate.php` dataset. It reuses the generator's order code, which is now currency-aware: amounts are computed in the website's base currency, and the order-currency columns are base × `base_to_order_rate`. A frozen-clock dry run of `generate.php` is byte-identical before and after that change. `--now="Y-m-d H:i:s"` makes runs reproducible.
+
+- `php …/multistore.php [--seed=2027]` creates the setup.
+- `php …/multistore.php --remove` deletes the multi-store orders and customers (through `cleanup.php --scope=multistore`), then the stock, sources, store views, groups and websites. It restores the price scope and the exchange rates recorded in `var/aireporting_perf_multistore.json`.
+- After either: `bin/magento indexer:reindex && bin/magento cache:flush`.
+
+### 22.2 What it creates
+
+| Area | Data |
+|---|---|
+| Websites | **Europe Website** (`perf_eu`, base EUR, Europe/Berlin), **UK Website** (`perf_uk`, base GBP, Europe/London) |
+| Store views | Europe English / German / French; UK Store View; on the Main Website a new **Canada Store** group (Canada English / French, display currency **CAD**) and a **US Spanish** view |
+| Settings | `catalog/price/scope` = Website (price attributes switched to website scope), base/display/allowed currencies per scope, locales, timezones, default countries, exchange rates USD↔EUR/GBP/CAD |
+| Catalog | ~45% of listings on Europe, ~37% on UK, with website prices (EUR ≈ 0.95 × USD, GBP ≈ 0.82 × USD) per store view; German/French/Spanish product names per store view; 31 listings disabled in Europe German |
+| Inventory | Sources `perf_us_east`, `perf_eu_warehouse`, `perf_uk_warehouse`. **PerfTest Europe Stock** (EU + UK sources) serves the Europe and UK websites. US East is in no stock: MSI refuses links between other sources and the Default Stock, and moving the Main Website to a new stock would change salable quantities of the existing orders |
+| Customers | 5,600 per-website accounts; 221 people have an account on two websites (same email) |
+| Orders | 6,899 `PTM…` orders with their documents. Europe: 3,000 over 20 months (EUR, `base_to_global_rate` ≈ 1.04–1.12). UK: 1,799 over 14 months (GBP, ≈ 1.22–1.32). Canada: 1,500 over 24 months (USD base, CAD order currency, `base_to_order_rate` ≈ 1.33–1.39). US Spanish: 600 over 18 months. VAT/GST by country; local shipping rates and carriers; order lines in the store-view language; reservations on the Europe Stock for open Europe/UK orders |
+
+The Sales, Customer, Product and Inventory reports and the dashboard have no website or store filter: they total all stores and use admin (store 0) product names. Customer Analytics identifies buyers by email, so a person with accounts on two websites counts once. The Inventory report adds quantities over every enabled source, including US East, which serves no website, and values all stock at the USD list price.
+
+### 22.3 Verification on this install
+
+- **Consistency:** all checks returned 0. Order-currency totals equal base × rate. Base totals and items add up. Credit memos match `base_total_refunded`. Every line's product is on the order's website. Every customer's store view belongs to their website. No dates are in the future. The export feed stayed empty.
+- **Currency conversion:** This Year net revenue on the dashboard and the Sales report is $1,522,150.34. That equals the SQL reference with `× base_to_global_rate`; without conversion the sum would be $1,439,407.22.
+- **Timings** (17,629 orders in 3 years, 9 store views): Sales 0.45–0.86 s, Customer 0.54–0.68 s, Product 1.8–2.6 s, Inventory 0.7–0.9 s, Dashboard 1.0–1.2 s.
+- **`--remove`:** tested once, after a first run stopped at the stock-source links. It restored websites, stores, stock, sources, price scope, price attribute scope and exchange rates exactly, and left no scoped settings or sequence tables behind.
+- **Prompts:** `Test/ai-prompts/perf_prompts.md` Section 16 (prompts 566–625) covers websites, currencies, store views, customers across websites, website prices and sources.
+
+## 23. Store scope switcher — Phase 1: Dashboard and Sales & Revenue (2026-10-16)
+
+### 23.1 Behaviour
+
+On a multi-store install, the header of the Executive Dashboard and the Sales & Revenue report has a **Store** dropdown: **All Store Views**, each website, and under it its store views. The store group is named when a website has several groups. On a single-store install (`StoreManager::hasSingleStore()`), the old "Store: …" label stays.
+
+| Scope | Orders counted | Currency | Timezone | Stock / prices (Dashboard) |
+|---|---|---|---|---|
+| All Store Views (default) | every store view | global base currency (× `base_to_global_rate`) | default | every enabled source, admin prices |
+| Website | its store views | the **website's base currency** (no conversion) | the website's | its products, its MSI stock's sources, its website price |
+| Store view | that store view | its website's base currency | the store view's | as its website; product names from the store view |
+
+- Choosing a scope reloads the page with `?scope=website:<id>` or `store:<id>` and keeps the date range in the URL. Data reloads, CSV exports and "Inspect raw query" carry the scope.
+- The choice is remembered in the admin session for the next scoped page. Pages without a switcher (Customer, Product, Inventory, Saved Reports, Ask AI, Chat) stay on All Store Views until Phases 2–3. A remembered scope therefore never half-applies to them, which would mix currencies.
+- Copilot follow-up questions on these pages are not scoped yet (Phase 3).
+- Dashboard top products now show the catalog name: the store view's name for a store view, the admin name otherwise. Before, it was `MAX()` of the order-line names, which mixed languages.
+
+### 23.2 Implementation
+
+- **New `Model/Report/ReportScope`:** validates `website:<id>` / `store:<id>` (anything else means All), reads the request parameter, remembers the scope in the admin session, and provides the switcher options in a stable order. `di.xml` passes the session as a proxy. Until the next `setup:di:compile` the plain session is used; that is harmless, because the admin session is already open and Magento never starts a session in CLI.
+- **`ReportContext`:**
+  - optional constructor argument `?ReportScope $scope = null` with an ObjectManager fallback, so the existing compiled DI keeps working without a compile;
+  - `storeFilter($alias)` returns ` AND o.store_id IN (…)`;
+  - the currency expressions multiply by `base_to_global_rate` only for All;
+  - `getCurrencyCode()`, `getTimezone()` and `getStockSql()` follow the scope (`getStockId()` resolves the website's MSI stock);
+  - new `getProductNames()`.
+- **`SalesReport`:** all 23 order and credit-memo queries take the store filter; credit memos are converted through `orderAmountExpr()`.
+- **`Block/Adminhtml/Dashboard`:** all 9 order queries take the store filter; stock value uses the website price; the block activates the scope.
+- **`ViewModel/SalesRevenue`:** activates the scope.
+- **Front end:** `reports/sales.phtml`, `executive_dashboard.phtml`, `sales-report.js`, `executive-dashboard.js`, `prebuilt_report.css`, `executive_dashboard.css`.
+- **Tests:** new `ReportScopeTest` (8); `ReportContextTest` +3 (website filter, no conversion, EUR, Europe/Berlin, website stock). `ReportContextTrait` builds an All Store Views scope. 345 tests pass.
+
+### 23.3 Verification on the multi-store data
+
+- **SQL match:** This Year net revenue matched direct SQL for every scope: All $1,522,150.34; Main $785,581.28; Second $167,389.44; Europe €269,706.59 (Europe/Berlin); UK £216,729.91 (Europe/London); Europe German €91,892.19; Canada English $80,992.10. The Dashboard shows the same figures.
+- **Websites add up:** converted to USD, the four websites total $1,522,150.35, against All $1,522,150.34 (one cent of rounding).
+- **Pages:** both templates rendered without errors in each scope, with the right selection, currency, timezone and JS scope.
+- **Unscoped reports:** Customer, Product and Inventory return exactly the figures from before.
+- **Static files:** a static-content deploy on 2026-10-15 17:44 had replaced the module's `pub/static` files with real copies again. The four edited files were deleted there, so developer mode now serves them as symlinks to the source. Clear the browser cache if the dropdown does not appear.
+
+## 24. Zoom and grouping for long time-series charts (2026-10-16)
+
+**Problem.** For a long range the dashboard drew one point per day: 1,750 points for Jan 2022 – Oct 2026, every date on the axis (`autoSkip: false`), unreadable.
+
+**`view/adminhtml/web/js/chart-zoom.js`** (new, no plugin or download) adds a toolbar above a time-series chart:
+- **Buttons:** zoom out / in, move earlier / later, show everything.
+- **Range label:** "Feb 5, 2024 – Sep 11, 2024 · 220 of 1,750 days".
+- **On the chart:** drag across it to zoom into that stretch; **Ctrl/⌘ + scroll** zooms around the pointer (plain scrolling still scrolls the page); double-click shows everything.
+- **How it works:** the window is the x scale's `min`/`max`, and the y axis rescales to the visible points. The window is kept while only the datasets change (Overlaid / Revenue / Orders, Live refresh) and resets for a new range or grouping. The toolbar styles are injected by the module, so no layout XML changed.
+
+Where it is used:
+- **Executive Dashboard → Revenue & Order Volume Trend:**
+  - **Day / Week (Monday) / Month** grouping in the toolbar, built in the browser from the daily rows. A new range picks a default: up to 92 days by day, up to 2 years by week, longer by month.
+  - The x axis shows at most 12 labels, formatted for the visible span.
+  - Tooltip, subtitle and peak callout follow the grouping ("Peak week", "Peak month"). The callout is hidden when the peak is outside the zoom window.
+- **Sales & Revenue → Revenue & Order Volume Velocity** (hours / days / months from the server).
+- **Customer Analytics → Acquisition & Retention** (hours / days / months).
+
+**Verified** in headless Chrome with the real templates and scripts, on the 1,750-day range:
+- the default grouping is Month (58 points, 12 axis labels); Day shows 1,750 points with 12 labels;
+- zoom in/out, move, drag-to-zoom, Ctrl+scroll and double-click all set the expected window, and plain scrolling does not zoom;
+- the dataset toggle keeps the zoom;
+- drawn point positions match their values (y pixel = scale value);
+- Sales zoom works on 34 months.
+
+Two bugs were found and fixed in testing:
+- a zoom applied during the chart's entry animation was undone by the animation, so the chart now calls `chart.stop()` before applying it;
+- the peak callout used stale positions of points outside the window.
+
+**Deployment.** No PHP change. On this install a static-content deploy at 2026-10-16 12:21 had copied the scripts into `pub/static`. The edited ones were re-linked to the source (see the pub/static note in §23.3). Browsers may need a hard refresh (Ctrl+Shift+R), because static files are not versioned in developer mode.
+
+## 25. Executive Dashboard: header label and AI assistant removed (2026-10-16)
+
+At the user's request:
+
+- **Header:** the "Magento 2.4.9 Community" label (with its dot and separator) is no longer shown next to the title. The Store switcher stands on its own. On a single-store install, the "Store: …" label keeps its pill.
+- **AI assistant panel removed:** the "Meetanshi AI Assistant is Active" panel at the bottom (question box, Query button, quick questions, answer area) is gone. So is the per-product ✦ button in Top Products, which answered in that panel; each row keeps its link to the product edit page.
+  - Removed from `executive-dashboard.js`: `formatAnswer()`, `ask()` and their event handlers.
+  - Removed from `executive_dashboard.css`: the assistant styles.
+  - Removed from `Block/Adminhtml/Dashboard::getJsConfig()`: `chatUrl`.
+  - The header still shows the AI provider and model, and **Ask Copilot** still opens Ask AI.
+
+Verified in headless Chrome: no assistant elements, product rows without the AI button, zoom unchanged, no script errors. 345 unit tests pass.
