@@ -38,6 +38,14 @@ class Query extends Template
         return $this->config->isEnabled();
     }
 
+    /**
+     * Whether the SQL Inspector panel is shown under results (Security Settings, off by default).
+     */
+    public function isSqlInspectorEnabled(): bool
+    {
+        return $this->config->isSqlInspectorEnabled();
+    }
+
     public function getQueryExecuteUrl(): string
     {
         return $this->getUrl('meetanshi_aireporting/query/execute');

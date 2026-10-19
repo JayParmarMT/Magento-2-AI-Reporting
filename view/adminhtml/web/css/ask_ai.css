@@ -646,8 +646,15 @@
     max-width: 440px;
 }
 
-.mxq .mxq-state.is-loading .mxq-state__icon {
+.mxq .mxq-state.is-loading .mxq-state__icon .mxd-ico {
     animation: mxd-spin 1.2s linear infinite;
+}
+
+/* Result stack: toolbar, assumption, table / chart / no data, SQL Inspector */
+.mxq .mxq-results {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 /* Telemetry & Action Toolbar */

@@ -3,9 +3,8 @@
  *
  * Renders every section from the view model's data and reloads it from reports/inventoryData when
  * the range changes or "Sync MSI" is pressed: KPI cards, stock tiers (donut), top sellers, the SKU
- * table (tabs, search, source/category/tier filters, sorting, paging), the copilot insight and the
- * SQL inspector. Also wires the CSV exports (open tab, clearance list, reorder plan), print-to-PDF
- * and AI follow-ups (chat/send).
+ * table (tabs, search, source/category/tier filters, sorting, paging) and the copilot insight. Also
+ * wires the CSV export of the open tab, the print layout and AI follow-ups (chat/send).
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -173,7 +172,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         }
 
         function rangeParams() {
-            var params = {range: data.range.key};
+            var params = {scope: config.scope, range: data.range.key};
 
             if (data.range.key === 'custom') {
                 params.start = data.range.start;
@@ -769,7 +768,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                         + esc(plural(s.selling, 'SKU', 'SKUs')) + '; top seller <strong>' + esc(top.name) + '</strong> ('
                         + esc(plural(top.sold, 'unit', 'units')) + (top.cover_days !== null ? ', ' + esc(coverInfo(top).short) : '') + ').'
                         + (reorder ? ' ' + esc(plural(reorder, 'selling SKU is', 'selling SKUs are')) + ' below '
-                            + th.healthyCover[0] + ' days of cover — the PO reorder plan lists them.' : '')
+                            + th.healthyCover[0] + ' days of cover.' : '')
                         + (s.overstock ? ' ' + esc(plural(s.overstock, 'SKU holds', 'SKUs hold')) + ' more than '
                             + th.healthyCover[1] + ' days of cover at this pace.' : '')
                     : 'No units were sold in ' + esc(data.range.label) + '.') + '</p>';
@@ -778,58 +777,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             }
 
             $el('runtime').text('Runtime: ' + num(data.query_ms) + 'ms');
-            $el('query-time').html(icon('speed', 'xs') + ' Query time: ' + esc(num(data.query_ms)) + 'ms');
             $el('snapshot').text('Snapshot: ' + data.generated_at + ' · ' + data.range.label);
-            $el('sql-text').text(formatSql(data.sql));
-
-            $el('export-clearance').attr('href', exportUrl($.extend({tab: 'clearance'}, rangeParams())));
-            setCount($el('export-clearance'), s.idle);
-            $el('export-reorder').attr('href', exportUrl($.extend({tab: 'reorder'}, rangeParams())));
-            setCount($el('export-reorder'), reorder);
-        }
-
-        function setCount($button, count) {
-            var $count = $button.find('.mxi-btncount');
-
-            if (!$count.length) {
-                $count = $('<span class="mxi-btncount">').appendTo($button);
-            }
-            $count.text(num(count));
-        }
-
-        function formatSql(sql) {
-            return String(sql || '').replace(/ (LEFT JOIN|JOIN|FROM|WHERE|GROUP BY|ORDER BY) /g, '\n$1 ');
-        }
-
-        function copied() {
-            $el('sql-copy-label').text('Copied');
-            setTimeout(function () {
-                $el('sql-copy-label').text('Copy SQL');
-            }, 1500);
-        }
-
-        /** Clipboard without the async API (plain-HTTP admin): a hidden textarea and execCommand. */
-        function copyWithTextarea(text) {
-            var $area = $('<textarea readonly>').val(text).css({position: 'fixed', top: '-1000px'}).appendTo('body');
-
-            $area[0].select();
-            try {
-                document.execCommand('copy');
-                copied();
-            } catch (e) {
-                window.prompt('Copy the SQL:', text);
-            }
-            $area.remove();
-        }
-
-        function copySql() {
-            var text = formatSql(data.sql);
-
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text).then(copied, function () { copyWithTextarea(text); });
-            } else {
-                copyWithTextarea(text);
-            }
         }
 
         // ── AI follow-up ────────────────────────────────────────────────────
@@ -846,13 +794,9 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 .replace(/\n/g, '<br>');
         }
 
-        function openAsk(focus) {
+        function openAsk() {
             $el('ask-panel').prop('hidden', false);
-            $el('ask-toggle').attr('aria-expanded', 'true');
             $el('copilot')[0].scrollIntoView({behavior: 'smooth', block: 'center'});
-            if (focus) {
-                $el('ask-input').trigger('focus');
-            }
         }
 
         function ask(question) {
@@ -863,7 +807,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             if (!question || $submit.prop('disabled')) {
                 return;
             }
-            openAsk(false);
+            openAsk();
             if (!config.aiEnabled || !config.aiConfigured) {
                 $answer.prop('hidden', false).html('<p class="mxi-answer__error">The AI provider is not configured. '
                     + 'Set it up in Stores > Configuration > Meetanshi > AI Reporting.</p>');
@@ -939,7 +883,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 url: config.dataUrl,
                 type: 'GET',
                 dataType: 'json',
-                data: params
+                data: $.extend({scope: config.scope}, params)
             }).done(function (response) {
                 if (response && response.success) {
                     data = response.data;
@@ -969,6 +913,11 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         }
 
         // ── Events ──────────────────────────────────────────────────────────
+
+        // Store scope: reload the page for it (currency, timezone and MSI stock change with it), keeping the range
+        $el('scope').on('change', function () {
+            window.location.href = window.location.pathname + '?' + $.param($.extend(rangeParams(), {scope: $(this).val()}));
+        });
 
         $el('range').on('click', '[data-range]', function () {
             var key = $(this).data('range'),
@@ -1112,33 +1061,6 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             window.location.href = exportUrl(params);
         });
 
-        $el('print').on('click', function () {
-            window.print();
-        });
-
-        $el('sql-toggle').on('click', function () {
-            var open = $el('sql-panel').prop('hidden');
-
-            $el('sql-panel').prop('hidden', !open);
-            $(this).attr('aria-expanded', String(open));
-        });
-
-        $el('sql-copy').on('click', copySql);
-
-        $el('ask-open').on('click', function () {
-            openAsk(true);
-        });
-
-        $el('ask-toggle').on('click', function () {
-            var open = $el('ask-panel').prop('hidden');
-
-            $el('ask-panel').prop('hidden', !open);
-            $(this).attr('aria-expanded', String(open));
-            if (open) {
-                $el('ask-input').trigger('focus');
-            }
-        });
-
         $el('ask-form').on('submit', function (event) {
             event.preventDefault();
             ask($el('ask-input').val());
@@ -1172,5 +1094,16 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         });
 
         renderAll();
+
+        // A range in the address (kept when the store scope changes) replaces the default one
+        (function () {
+            var query = new URLSearchParams(window.location.search),
+                range = query.get('range');
+
+            if (range && /^[a-z]+$/.test(range) && (range !== data.range.key || range === 'custom')) {
+                setActiveRange(range);
+                load(range === 'custom' ? {range: 'custom', start: query.get('start'), end: query.get('end')} : {range: range});
+            }
+        }());
     };
 });

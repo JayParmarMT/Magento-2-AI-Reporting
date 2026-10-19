@@ -34,44 +34,7 @@ $range     = $config['data']['range'];
                 </nav>
                 <div class="mxc-titlerow">
                     <h1 class="mxd-h1 mxc-h1"><?= $escaper->escapeHtml(__('Sales & Revenue Intelligence')) ?></h1>
-                    <div class="mxc-badges">
-                        <span class="mxc-badge mxc-badge--brand">
-                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
-                            <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
-                        </span>
-                        <span class="mxc-badge">
-                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">dataset</span>
-                            <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
-                        </span>
-                        <?php $scopeOptions = $viewModel->getScopeOptions(); ?>
-                        <?php if ($scopeOptions): ?>
-                            <label class="mxc-badge mxc-badge--slate mxr-scope"
-                                   title="<?= $escaper->escapeHtmlAttr(__('Every figure, chart and export follows the selected website or store view. One website is shown in its own base currency and timezone.')) ?>">
-                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
-                                <span><?= $escaper->escapeHtml(__('Store:')) ?></span>
-                                <select class="mxr-scope__select" data-role="scope" aria-label="<?= $escaper->escapeHtmlAttr(__('Store scope')) ?>">
-                                    <?php foreach ($scopeOptions as $option): ?>
-                                        <option value="<?= $escaper->escapeHtmlAttr($option['value']) ?>"<?= /* @noEscape */ $option['value'] === $viewModel->getScopeKey() ? ' selected' : '' ?>><?= $escaper->escapeHtml(($option['level'] === 2 ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : '') . $option['label']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </label>
-                        <?php elseif ($viewModel->getStoreLabel() !== ''): ?>
-                            <span class="mxc-badge mxc-badge--slate">
-                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
-                                <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
-                            </span>
-                        <?php endif; ?>
-                    </div>
                 </div>
-                <p class="mxc-note">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
-                    <span>
-                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
-                        <?= $escaper->escapeHtml(__('Currency: %1', $viewModel->getCurrencyLabel())) ?> ·
-                        <?= $escaper->escapeHtml(__('Net rules:')) ?>
-                        <code class="mxr-code"><?= $escaper->escapeHtml($viewModel->getNetRule()) ?></code>
-                    </span>
-                </p>
             </div>
 
             <div class="mxc-header__actions">
@@ -95,6 +58,24 @@ $range     = $config['data']['range'];
                     <span class="mxc-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($range['label']) ?></span>
                 </div>
                 <div class="mxc-header__buttons">
+                    <?php $scopeOptions = $viewModel->getScopeOptions(); ?>
+                    <?php if ($scopeOptions): ?>
+                        <label class="mxc-badge mxc-badge--slate mxr-scope"
+                               title="<?= $escaper->escapeHtmlAttr(__('Every figure, chart and export follows the selected website or store view. One website is shown in its own base currency and timezone.')) ?>">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                            <span><?= $escaper->escapeHtml(__('Store:')) ?></span>
+                            <select class="mxr-scope__select" data-role="scope" aria-label="<?= $escaper->escapeHtmlAttr(__('Store scope')) ?>">
+                                <?php foreach ($scopeOptions as $option): ?>
+                                    <option value="<?= $escaper->escapeHtmlAttr($option['value']) ?>"<?= /* @noEscape */ $option['value'] === $viewModel->getScopeKey() ? ' selected' : '' ?>><?= $escaper->escapeHtml(($option['level'] === 2 ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : '') . $option['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    <?php elseif ($viewModel->getStoreLabel() !== ''): ?>
+                        <span class="mxc-badge mxc-badge--slate">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                            <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                        </span>
+                    <?php endif; ?>
                     <div class="mxr-dropdown">
                         <button type="button" class="mxd-btn" data-role="csv-toggle" aria-haspopup="true" aria-expanded="false">
                             <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
@@ -118,15 +99,6 @@ $range     = $config['data']['range'];
                             </button>
                         </div>
                     </div>
-                    <button type="button" class="mxd-btn" data-role="print"
-                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
-                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
-                    </button>
-                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
-                        <span class="mxd-ico mxd-ico--sm mxc-ico-soft" aria-hidden="true">auto_awesome</span>
-                        <span><?= $escaper->escapeHtml(__('Ask Copilot about Report')) ?></span>
-                    </button>
                 </div>
             </div>
         </section>
@@ -305,55 +277,6 @@ $range     = $config['data']['range'];
                 <span class="mxd-mono mxc-copilot__runtime" data-role="runtime"></span>
             </header>
             <div class="mxc-copilot__insight" data-role="insight"></div>
-            <div class="mxc-copilot__actions">
-                <div class="mxc-copilot__buttons">
-                    <button type="button" class="mxc-darkbtn" data-role="ask-region">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">groups</span>
-                        <span data-role="ask-region-label"><?= $escaper->escapeHtml(__('Analyze Top Region Cohort')) ?></span>
-                    </button>
-                    <button type="button" class="mxc-darkbtn" data-role="ask-compare">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">compare_arrows</span>
-                        <span><?= $escaper->escapeHtml(__('Compare with Previous Period')) ?></span>
-                    </button>
-                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-toggle" aria-expanded="false">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">chat</span>
-                        <span><?= $escaper->escapeHtml(__('Ask Follow-up')) ?></span>
-                    </button>
-                </div>
-                <div class="mxc-sqlbar">
-                    <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">database</span>
-                    <span class="mxc-sqlbar__text" data-role="sql-text"></span>
-                    <button type="button" class="mxc-linkbtn" data-role="sql-copy">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
-                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy Raw SQL')) ?></span>
-                    </button>
-                </div>
-            </div>
-            <div class="mxc-ask" data-role="ask-panel" hidden>
-                <p class="mxc-ask__engine">
-                    <span class="mxd-dot <?= /* @noEscape */ $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>
-                    <span class="mxd-mono"><?= $escaper->escapeHtml(__('Follow-ups use %1: %2', $config['provider'], $config['model'])) ?></span>
-                </p>
-                <form class="mxc-ask__form" data-role="ask-form">
-                    <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
-                           placeholder="<?= $escaper->escapeHtmlAttr(__('Ask about your sales (e.g. \'Net revenue by payment method this month\')...')) ?>"
-                           aria-label="<?= $escaper->escapeHtmlAttr(__('Ask about your sales')) ?>">
-                    <button type="submit" class="mxd-btn mxd-btn--primary" data-role="ask-submit">
-                        <span><?= $escaper->escapeHtml(__('Ask')) ?></span>
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
-                    </button>
-                </form>
-                <div class="mxc-quick">
-                    <?php foreach ([
-                        __('Net revenue by payment method this month'),
-                        __('Refund rate by payment method'),
-                        __('Average order value by customer group this year'),
-                    ] as $question): ?>
-                        <button type="button" class="mxc-chip" data-question="<?= $escaper->escapeHtmlAttr($question) ?>"><?= $escaper->escapeHtml($question) ?></button>
-                    <?php endforeach; ?>
-                </div>
-                <div class="mxc-answer" data-role="answer" hidden></div>
-            </div>
         </section>
     </div>
 </div>

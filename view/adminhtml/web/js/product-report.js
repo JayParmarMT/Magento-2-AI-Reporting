@@ -115,7 +115,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         }
 
         function rangeParams() {
-            var params = {range: data.range.key};
+            var params = {scope: config.scope, range: data.range.key};
 
             if (data.range.key === 'custom') {
                 params.start = data.range.start;
@@ -606,37 +606,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             }
 
             $el('insight').html(icon('trending_up', 'md') + '<p>' + parts.join(' ') + '</p>');
-            $el('act-dead-label').text('Plan Promotion for ' + plural(data.dead.count, 'Dead-Stock SKU', 'Dead-Stock SKUs'));
-            $el('act-dead').prop('disabled', !data.dead.count);
             $el('runtime').text('Runtime: ' + num(data.query_ms) + 'ms');
-            $el('sql-text').text(data.sql);
-        }
-
-        function copySql() {
-            var done = function () {
-                $el('sql-copy-label').text('Copied');
-                setTimeout(function () {
-                    $el('sql-copy-label').text('Copy Raw SQL');
-                }, 1500);
-            };
-
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(data.sql).then(done, function () {
-                    window.prompt('Copy the SQL:', data.sql);
-                });
-                return;
-            }
-            // Plain-HTTP admin: no async clipboard API
-            var $area = $('<textarea readonly>').val(data.sql).css({position: 'fixed', top: '-1000px'}).appendTo('body');
-
-            $area[0].select();
-            try {
-                document.execCommand('copy');
-                done();
-            } catch (e) {
-                window.prompt('Copy the SQL:', data.sql);
-            }
-            $area.remove();
         }
 
         // ── AI follow-up ────────────────────────────────────────────────────
@@ -653,13 +623,9 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 .replace(/\n/g, '<br>');
         }
 
-        function openAsk(focus) {
+        function openAsk() {
             $el('ask-panel').prop('hidden', false);
-            $el('ask-toggle').attr('aria-expanded', 'true');
             $el('summary')[0].scrollIntoView({behavior: 'smooth', block: 'center'});
-            if (focus) {
-                $el('ask-input').trigger('focus');
-            }
         }
 
         function ask(question) {
@@ -670,7 +636,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             if (!question || asking) {
                 return;
             }
-            openAsk(false);
+            openAsk();
             if (!config.aiEnabled || !config.aiConfigured) {
                 $answer.prop('hidden', false).html('<p class="mxp-answer__error">The AI provider is not configured. '
                     + 'Set it up in Stores > Configuration > Meetanshi > AI Reporting.</p>');
@@ -733,7 +699,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             $root.addClass('is-loading');
             $el('error').prop('hidden', true);
 
-            $.ajax({url: config.dataUrl, type: 'GET', dataType: 'json', data: params}).done(function (response) {
+            $.ajax({url: config.dataUrl, type: 'GET', dataType: 'json', data: $.extend({scope: config.scope}, params)}).done(function (response) {
                 if (response && response.success) {
                     data = response.data;
                     table.page = 1;
@@ -767,6 +733,11 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         }
 
         // ── Events ──────────────────────────────────────────────────────────
+
+        // Store scope: reload the page for it (currency and timezone change with it), keeping the range
+        $el('scope').on('change', function () {
+            window.location.href = window.location.pathname + '?' + $.param($.extend(rangeParams(), {scope: $(this).val()}));
+        });
 
         $el('range').on('click', '[data-range]', function () {
             var key = $(this).data('range'),
@@ -869,35 +840,6 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 : 'How many units of SKU ' + sku + ' were sold each month this year, and what was its net revenue?');
         });
 
-        $el('act-restock').on('click', function () {
-            setTab('revenue', {stock: 'restock'});
-            scrollToTable();
-        });
-
-        $el('act-dead').on('click', function () {
-            setTab('dead', {});
-            scrollToTable();
-        });
-
-        $el('act-price').on('click', function () {
-            ask('Compare units sold and net revenue by product price band (under $25, $25-$50, $50-$100, $100 and above) for '
-                + data.range.label.replace(/^[^(]*\(|\)$/g, '') + ' versus the previous period of the same length.');
-        });
-
-        $el('ask-open').on('click', function () {
-            openAsk(true);
-        });
-
-        $el('ask-toggle').on('click', function () {
-            var open = $el('ask-panel').prop('hidden');
-
-            $el('ask-panel').prop('hidden', !open);
-            $(this).attr('aria-expanded', String(open));
-            if (open) {
-                $el('ask-input').trigger('focus');
-            }
-        });
-
         $el('ask-form').on('submit', function (event) {
             event.preventDefault();
             ask($el('ask-input').val());
@@ -915,12 +857,6 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             $(this).text(show ? 'Hide SQL' : 'Show SQL');
         });
 
-        $el('sql-copy').on('click', copySql);
-
-        $el('print').on('click', function () {
-            window.print();
-        });
-
         window.addEventListener('beforeprint', function () {
             Object.keys(charts).forEach(function (name) {
                 charts[name].resize();
@@ -928,5 +864,16 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         });
 
         renderAll();
+
+        // A range in the address (kept when the store scope changes) replaces the default one
+        (function () {
+            var query = new URLSearchParams(window.location.search),
+                range = query.get('range');
+
+            if (range && /^[a-z]+$/.test(range) && (range !== data.range.key || range === 'custom')) {
+                setActiveRange(range);
+                load(range === 'custom' ? {range: 'custom', start: query.get('start'), end: query.get('end')} : {range: range});
+            }
+        }());
     };
 });

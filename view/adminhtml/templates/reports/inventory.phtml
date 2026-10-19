@@ -39,31 +39,6 @@ $thresholds = $config['thresholds'];
                         <?= $escaper->escapeHtml($config['msi'] ? __('Live MSI Telemetry') : __('Live Stock Telemetry')) ?>
                     </span>
                 </div>
-                <div class="mxi-badges">
-                    <span class="mxi-badge mxi-badge--brand">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
-                        <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
-                    </span>
-                    <span class="mxi-badge">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">layers</span>
-                        <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
-                        · <?= $escaper->escapeHtml($viewModel->getStockSourceLabel()) ?>
-                    </span>
-                    <?php if ($viewModel->getStoreLabel() !== ''): ?>
-                        <span class="mxi-badge mxi-badge--slate">
-                            <span class="mxd-dot mxi-dot--green" aria-hidden="true"></span>
-                            <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
-                        </span>
-                    <?php endif; ?>
-                    <span class="mxi-badge mxi-badge--ghost" data-role="query-time"></span>
-                </div>
-                <p class="mxi-note">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
-                    <span>
-                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
-                        <?= $escaper->escapeHtml(__('Stock is the current snapshot; sales, days of cover and turnover follow the selected range')) ?>
-                    </span>
-                </p>
             </div>
 
             <div class="mxi-header__actions">
@@ -87,19 +62,28 @@ $thresholds = $config['thresholds'];
                     <span class="mxi-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($data['range']['label']) ?></span>
                 </div>
                 <div class="mxi-header__buttons">
+                    <?php $scopeOptions = $viewModel->getScopeOptions(); ?>
+                    <?php if ($scopeOptions): ?>
+                        <label class="mxi-badge mxi-badge--slate mxi-scope"
+                               title="<?= $escaper->escapeHtmlAttr(__('Every figure and export follows the selected website or store view: the website\'s products, the sources and reservations of its MSI stock, its orders and prices, in its own base currency.')) ?>">
+                            <span class="mxd-dot mxi-dot--green" aria-hidden="true"></span>
+                            <span><?= $escaper->escapeHtml(__('Store:')) ?></span>
+                            <select class="mxi-scope__select" data-role="scope" aria-label="<?= $escaper->escapeHtmlAttr(__('Store scope')) ?>">
+                                <?php foreach ($scopeOptions as $option): ?>
+                                    <option value="<?= $escaper->escapeHtmlAttr($option['value']) ?>"<?= /* @noEscape */ $option['value'] === $viewModel->getScopeKey() ? ' selected' : '' ?>><?= $escaper->escapeHtml(($option['level'] === 2 ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : '') . $option['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    <?php elseif ($viewModel->getStoreLabel() !== ''): ?>
+                        <span class="mxi-badge mxi-badge--slate">
+                            <span class="mxd-dot mxi-dot--green" aria-hidden="true"></span>
+                            <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                        </span>
+                    <?php endif; ?>
                     <button type="button" class="mxd-btn" data-role="export"
                             title="<?= $escaper->escapeHtmlAttr(__('Export the SKUs of the open tab, with the current filters, as CSV')) ?>">
                         <span class="mxd-ico mxd-ico--sm" aria-hidden="true">download</span>
                         <span><?= $escaper->escapeHtml(__('CSV')) ?></span>
-                    </button>
-                    <button type="button" class="mxd-btn" data-role="print"
-                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
-                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
-                    </button>
-                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
-                        <span class="mxd-ico mxd-ico--sm mxi-ico-soft" aria-hidden="true">auto_awesome</span>
-                        <span><?= $escaper->escapeHtml(__('Ask Copilot')) ?></span>
                     </button>
                 </div>
             </div>
@@ -249,41 +233,11 @@ $thresholds = $config['thresholds'];
                     </div>
                 </div>
                 <div class="mxi-copilot__tools">
-                    <button type="button" class="mxi-darkbtn mxi-darkbtn--sm" data-role="sql-toggle" aria-expanded="false">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">code</span>
-                        <span><?= $escaper->escapeHtml(__('Inspect Raw Query')) ?></span>
-                    </button>
                     <span class="mxi-runtime" data-role="runtime"></span>
                 </div>
             </header>
             <div class="mxi-copilot__body">
                 <div class="mxi-copilot__insight mxi-loadable" data-role="insight"></div>
-                <div class="mxi-copilot__actions">
-                    <a class="mxd-btn mxd-btn--primary" data-role="export-clearance" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
-                       title="<?= $escaper->escapeHtmlAttr(__('In-stock SKUs with no sale for over %1 days, by idle capital (CSV) — ready for a clearance promotion', $thresholds['idleDays'])) ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">bolt</span>
-                        <span><?= $escaper->escapeHtml(__('Export Clearance List')) ?></span>
-                    </a>
-                    <a class="mxi-darkbtn" data-role="export-reorder" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
-                       title="<?= $escaper->escapeHtmlAttr(__('Selling SKUs under %1 days of cover, with the quantity that brings them to %2 days at the range\'s sales pace (CSV)', $thresholds['healthyCover'][0], $thresholds['reorderCover'])) ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">receipt_long</span>
-                        <span><?= $escaper->escapeHtml(__('Generate PO Reorder Plan')) ?></span>
-                    </a>
-                    <button type="button" class="mxi-ghostbtn" data-role="ask-toggle" aria-expanded="false">
-                        <span><?= $escaper->escapeHtml(__('Ask Follow-up Question')) ?></span>
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">arrow_forward</span>
-                    </button>
-                </div>
-            </div>
-            <div class="mxi-sql" data-role="sql-panel" hidden>
-                <div class="mxi-sql__head">
-                    <span><?= $escaper->escapeHtml(__('// SKU table query (store tables resolved, sales range inlined)')) ?></span>
-                    <button type="button" class="mxi-linkbtn" data-role="sql-copy">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
-                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy SQL')) ?></span>
-                    </button>
-                </div>
-                <pre class="mxi-sql__code" data-role="sql-text"></pre>
             </div>
             <div class="mxi-ask" data-role="ask-panel" hidden>
                 <p class="mxi-ask__engine">

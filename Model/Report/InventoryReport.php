@@ -5,6 +5,8 @@
  * Stock comes from ReportContext::getStockSql(): only stock-managed products of
  * quantity-holding types (no configurable/bundle/grouped parents), summed across
  * enabled MSI sources when MSI is installed. Stock status uses is_in_stock.
+ * For one website or store view (ReportScope): the website's products, the sources and
+ * reservations of its MSI stock, its orders, and its names, prices and status.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -110,24 +112,28 @@ class InventoryReport
     {
         $conn  = $this->context->getConnection();
         $qty   = $this->context->itemQtyExpr();
-        $valid = $this->context->validOrderCondition();
+        $valid = $this->context->validOrderCondition() . $this->context->storeFilter();
 
         $reserved = $this->context->isMsiEnabled()
             ? 'COALESCE(r.reserved, 0)'
             : '0';
+        // One website: only the reservations of its stock
+        $stockCondition = $this->context->getScope()->getWebsiteId() !== null
+            ? ' WHERE stock_id = ' . $this->context->getStockId()
+            : '';
         $reservedJoin = $this->context->isMsiEnabled()
-            ? 'LEFT JOIN (SELECT sku, -SUM(quantity) AS reserved FROM {{inventory_reservation}} GROUP BY sku) r ON r.sku = s.sku'
+            ? "LEFT JOIN (SELECT sku, -SUM(quantity) AS reserved FROM {{inventory_reservation}}{$stockCondition} GROUP BY sku) r ON r.sku = s.sku"
             : '';
 
         return $this->context->resolveTables("
             SELECT
                 s.product_id,
                 s.sku,
-                COALESCE(pv.value, s.sku) AS product_name,
+                COALESCE({$this->eavValue('pv')}, s.sku) AS product_name,
                 s.qty,
                 s.is_in_stock,
-                COALESCE(pp.value, 0) AS price,
-                COALESCE(pst.value, 1) AS status,
+                COALESCE({$this->eavValue('pp')}, 0) AS price,
+                COALESCE({$this->eavValue('pst')}, 1) AS status,
                 {$reserved} AS reserved,
                 COALESCE(d.sold, 0) AS sold,
                 ls.last_sold_at
@@ -210,7 +216,7 @@ class InventoryReport
     }
 
     /**
-     * Enabled MSI sources, code => name (empty without MSI).
+     * Enabled MSI sources, code => name (empty without MSI); for one website, those of its stock.
      *
      * @return array<string, string>
      */
@@ -221,12 +227,13 @@ class InventoryReport
         }
 
         return $this->context->getConnection()->fetchPairs($this->context->resolveTables(
-            'SELECT source_code, name FROM {{inventory_source}} WHERE enabled = 1 ORDER BY name'
+            "SELECT src.source_code, src.name FROM {{inventory_source}} src{$this->stockSourceJoin()}
+             WHERE src.enabled = 1 ORDER BY src.name"
         ));
     }
 
     /**
-     * Quantity per enabled MSI source (empty without MSI).
+     * Quantity per enabled MSI source (empty without MSI); for one website, its stock's sources.
      *
      * @return array<string, array<string, float>> sku => [source code => quantity]
      */
@@ -237,12 +244,12 @@ class InventoryReport
         }
 
         $result = [];
-        foreach ($this->context->getConnection()->fetchAll($this->context->resolveTables('
+        foreach ($this->context->getConnection()->fetchAll($this->context->resolveTables("
             SELECT isi.sku, isi.source_code, isi.quantity
             FROM {{inventory_source_item}} isi
-            JOIN {{inventory_source}} src ON src.source_code = isi.source_code AND src.enabled = 1
+            JOIN {{inventory_source}} src ON src.source_code = isi.source_code AND src.enabled = 1{$this->stockSourceJoin()}
             ORDER BY isi.sku, isi.source_code
-        ')) as $row) {
+        ")) as $row) {
             $result[$row['sku']][$row['source_code']] = (float) $row['quantity'];
         }
 
@@ -344,7 +351,7 @@ class InventoryReport
         ") ?: [];
 
         $value = $conn->fetchOne("
-            SELECT COALESCE(ROUND(SUM(s.qty * pp.value), 2), 0)
+            SELECT COALESCE(ROUND(SUM(s.qty * {$this->eavValue('pp')}), 2), 0)
             FROM ({$stock}) s
             {$this->priceJoin()}
             WHERE s.qty > 0
@@ -368,11 +375,11 @@ class InventoryReport
             SELECT
                 s.product_id AS entity_id,
                 s.sku,
-                COALESCE(pv.value, s.sku) AS product_name,
+                COALESCE({$this->eavValue('pv')}, s.sku) AS product_name,
                 s.qty,
                 s.min_qty,
                 s.is_in_stock,
-                COALESCE(pp.value, 0) AS price
+                COALESCE({$this->eavValue('pp')}, 0) AS price
             FROM ({$this->context->getStockSql()}) s
             {$this->nameJoin()}
             {$this->priceJoin()}
@@ -390,9 +397,9 @@ class InventoryReport
             SELECT
                 s.product_id AS entity_id,
                 s.sku,
-                COALESCE(pv.value, s.sku) AS product_name,
+                COALESCE({$this->eavValue('pv')}, s.sku) AS product_name,
                 s.qty,
-                COALESCE(pp.value, 0) AS price
+                COALESCE({$this->eavValue('pp')}, 0) AS price
             FROM ({$this->context->getStockSql()}) s
             {$this->nameJoin()}
             {$this->priceJoin()}
@@ -487,7 +494,7 @@ class InventoryReport
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
             JOIN ({$this->context->getStockSql()}) s ON s.product_id = oi.product_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND o.created_at >= ? AND o.created_at < ?
             GROUP BY s.product_id, s.sku, s.qty, s.is_in_stock
             ORDER BY qty_sold_30d DESC
@@ -535,7 +542,7 @@ class InventoryReport
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
             JOIN ({$this->context->getStockSql()}) s ON s.product_id = oi.product_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND o.created_at >= ? AND o.created_at < ?
               AND s.qty > 0
             GROUP BY s.product_id, s.sku, s.qty
@@ -563,24 +570,55 @@ class InventoryReport
         return $this->eavJoin('pp', 'catalog_product_entity_decimal', 'price');
     }
 
+    /**
+     * " JOIN inventory_source_stock_link …" keeping the sources of the selected website's stock
+     * (on alias src); '' for All Store Views.
+     */
+    private function stockSourceJoin(): string
+    {
+        return $this->context->getScope()->getWebsiteId() !== null
+            ? ' JOIN {{inventory_source_stock_link}} stl ON stl.source_code = src.source_code AND stl.stock_id = '
+                . $this->context->getStockId()
+            : '';
+    }
+
+    /**
+     * LEFT JOIN of a product attribute's admin value as {$alias} and, for one website or store view,
+     * its value there as {$alias}_s; read it with eavValue().
+     */
     private function eavJoin(string $alias, string $table, string $attributeCode): string
     {
         $link        = $this->context->getProductLinkField();
         $attributeId = $this->context->getAttributeId('catalog_product', $attributeCode);
+        $storeId     = $this->context->getScope()->getValueStoreId();
+        $stores      = $storeId > 0 ? ['' => 0, '_s' => $storeId] : ['' => 0];
 
         if ($link === 'entity_id') {
-            return $this->context->resolveTables(
-                "LEFT JOIN {{{$table}}} {$alias} ON {$alias}.entity_id = s.product_id"
-                . " AND {$alias}.attribute_id = {$attributeId} AND {$alias}.store_id = 0"
-            );
+            $sql = '';
+            foreach ($stores as $suffix => $store) {
+                $sql .= " LEFT JOIN {{{$table}}} {$alias}{$suffix} ON {$alias}{$suffix}.entity_id = s.product_id"
+                    . " AND {$alias}{$suffix}.attribute_id = {$attributeId} AND {$alias}{$suffix}.store_id = {$store}";
+            }
+
+            return $this->context->resolveTables(ltrim($sql));
         }
 
         // Adobe Commerce: EAV values are keyed by row_id of the current (non-staged) version
-        return $this->context->resolveTables(
-            "LEFT JOIN {{catalog_product_entity}} {$alias}_e ON {$alias}_e.entity_id = s.product_id"
-            . $this->context->currentVersionCondition("{$alias}_e")
-            . " LEFT JOIN {{{$table}}} {$alias} ON {$alias}.{$link} = {$alias}_e.{$link}"
-            . " AND {$alias}.attribute_id = {$attributeId} AND {$alias}.store_id = 0"
-        );
+        $sql = "LEFT JOIN {{catalog_product_entity}} {$alias}_e ON {$alias}_e.entity_id = s.product_id"
+            . $this->context->currentVersionCondition("{$alias}_e");
+        foreach ($stores as $suffix => $store) {
+            $sql .= " LEFT JOIN {{{$table}}} {$alias}{$suffix} ON {$alias}{$suffix}.{$link} = {$alias}_e.{$link}"
+                . " AND {$alias}{$suffix}.attribute_id = {$attributeId} AND {$alias}{$suffix}.store_id = {$store}";
+        }
+
+        return $this->context->resolveTables($sql);
+    }
+
+    /**
+     * The value of an eavJoin() that applies: the website's or store view's, else the admin value.
+     */
+    private function eavValue(string $alias): string
+    {
+        return $this->context->getScope()->getValueStoreId() > 0 ? "COALESCE({$alias}_s.value, {$alias}.value)" : "{$alias}.value";
     }
 }

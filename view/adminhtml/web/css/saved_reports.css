@@ -682,7 +682,6 @@ body.mxs-noscroll { overflow: hidden; }
     width: 16px;
 }
 
-.mxd .mxs-check:focus-visible { outline: 2px solid var(--mxd-brand); outline-offset: 2px; }
 
 .mxs-title {
     align-items: center;
@@ -1229,7 +1228,6 @@ body.mxs-noscroll { overflow: hidden; }
     color: var(--mxd-brand);
 }
 
-.mxs-formatopt > input:focus-visible + span { box-shadow: 0 0 0 3px rgba(238, 103, 47, 0.2); }
 
 /* ── Toast ──────────────────────────────────────────────────────────────── */
 

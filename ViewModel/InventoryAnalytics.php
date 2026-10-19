@@ -5,6 +5,8 @@
  * Stock (on hand, reserved, available, value, tiers) is the current snapshot; sales, days of
  * cover, turnover and the top sellers follow the selected range. Shared by the page template and
  * the reports/inventoryData and reports/inventoryExport controllers.
+ * Follows the store scope chosen in the header (ReportScope): all store views, one website (in its own
+ * base currency and timezone) or one store view.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -73,21 +75,30 @@ class InventoryAnalytics implements ArgumentInterface
         return $this->reportRange->getPresetLabels();
     }
 
-    public function getPlatformLabel(): string
-    {
-        return $this->aiContext->getPlatformLabel();
-    }
-
     public function getStoreLabel(): string
     {
+        $scope = $this->activateScope();
+        if ($scope->isMultiStore()) {
+            return (string) __('Store: %1', $scope->getLabel());
+        }
         $name = $this->aiContext->getStoreName();
 
         return $name !== '' ? (string) __('Store: %1', $name) : '';
     }
 
-    public function getTimezoneLabel(): string
+    /**
+     * Options of the store scope switcher; empty on a single-store install.
+     *
+     * @return array<int, array{value: string, label: string, level: int}>
+     */
+    public function getScopeOptions(): array
     {
-        return $this->aiContext->getTimezoneLabel();
+        return $this->activateScope()->getOptions();
+    }
+
+    public function getScopeKey(): string
+    {
+        return $this->activateScope()->getKey();
     }
 
     public function isMsiEnabled(): bool
@@ -100,6 +111,7 @@ class InventoryAnalytics implements ArgumentInterface
      */
     public function getStockSourceLabel(): string
     {
+        $this->activateScope();
         if (!$this->isMsiEnabled()) {
             return (string) __('Single-source stock (cataloginventory)');
         }
@@ -115,10 +127,11 @@ class InventoryAnalytics implements ArgumentInterface
 
     /**
      * Every figure on the page for a range: totals, tiers, top sellers, the table rows (up to
-     * TABLE_LIMIT per tab), filter options and the SQL behind the table.
+     * TABLE_LIMIT per tab) and filter options.
      */
     public function getReportData(string $range = self::DEFAULT_RANGE, ?string $customStart = null, ?string $customEnd = null): array
     {
+        $this->activateScope();
         $startedAt = microtime(true);
         $resolved  = $this->reportRange->resolve($range, $customStart, $customEnd);
         $rows      = $this->getRows($resolved);
@@ -144,7 +157,6 @@ class InventoryAnalytics implements ArgumentInterface
             ],
             'categories'   => $this->categoryOptions($rows),
             'sources'      => $this->sourceOptions(),
-            'sql'          => trim((string) preg_replace('/\s+/', ' ', $this->report->getSkuRowsSql($from, $to))),
             'generated_at' => $this->reportContext->now()->format('Y-m-d H:i'),
             'query_ms'     => (int) round((microtime(true) - $startedAt) * 1000),
         ];
@@ -165,6 +177,7 @@ class InventoryAnalytics implements ArgumentInterface
         int $categoryId = 0,
         string $tier = ''
     ): array {
+        $this->activateScope();
         $resolved = $this->reportRange->resolve($range, $customStart, $customEnd);
         $query    = mb_strtolower(trim($query));
 
@@ -204,7 +217,19 @@ class InventoryAnalytics implements ArgumentInterface
 
     public function getRangeLabel(string $range = self::DEFAULT_RANGE, ?string $customStart = null, ?string $customEnd = null): string
     {
+        $this->activateScope();
         return $this->reportRange->resolve($range, $customStart, $customEnd)['label'];
+    }
+
+    /**
+     * The page follows the scope picked in its header (or remembered from the last report page).
+     */
+    private function activateScope(): \Meetanshi\AIReporting\Model\Report\ReportScope
+    {
+        $scope = $this->reportContext->getScope();
+        $scope->activate();
+
+        return $scope;
     }
 
     /**
@@ -215,6 +240,7 @@ class InventoryAnalytics implements ArgumentInterface
         return [
             'data'         => $this->getReportData(),
             'currency'     => $this->reportContext->getCurrencyCode(),
+            'scope'        => $this->activateScope()->getKey(),
             'msi'          => $this->isMsiEnabled(),
             'thresholds'   => [
                 'low'           => InventoryReport::LOW_STOCK_QTY,

@@ -257,6 +257,26 @@ class ConfigTest extends TestCase
         $this->assertFalse($this->config->isQueryLoggingEnabled());
     }
 
+    // ── SQL Inspector ────────────────────────────────────────────────────
+
+    public function testIsSqlInspectorEnabledReadsTheSecuritySetting(): void
+    {
+        $this->scopeConfig->method('isSetFlag')
+            ->with('meetanshi_aireporting/security/show_sql_inspector', 'store')
+            ->willReturn(true);
+
+        $this->assertTrue($this->config->isSqlInspectorEnabled());
+    }
+
+    public function testSqlInspectorIsHiddenWhenNotSet(): void
+    {
+        $this->scopeConfig->method('isSetFlag')
+            ->with('meetanshi_aireporting/security/show_sql_inspector', 'store')
+            ->willReturn(false);
+
+        $this->assertFalse($this->config->isSqlInspectorEnabled());
+    }
+
     // ── Ollama URL ───────────────────────────────────────────────────────
 
     public function testGetOllamaBaseUrlReturnsConfiguredValue(): void

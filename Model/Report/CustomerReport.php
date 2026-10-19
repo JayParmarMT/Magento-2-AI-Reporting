@@ -3,8 +3,10 @@
  * Meetanshi AIReporting — Customer Analytics Report
  *
  * Buyers are identified by order email, so guest buyers are included.
- * Spend = net revenue (after refunds) in the global base currency; cancelled
+ * Spend = net revenue (after refunds) in the report currency; cancelled
  * and unpaid (pending_payment) orders are ignored. Dates use the store timezone.
+ * For one website or store view (ReportScope) only its orders and customer accounts count,
+ * in that website's base currency and timezone.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -67,7 +69,7 @@ class CustomerReport
                 MAX(o.created_at) AS last_order_date
             FROM {{sales_order}} o
             WHERE o.customer_email IS NOT NULL AND o.customer_email != ''
-              AND {$this->context->validOrderCondition()}
+              AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
             GROUP BY o.customer_email
             ORDER BY lifetime_value DESC
             LIMIT " . max(1, $limit)));
@@ -101,7 +103,7 @@ class CustomerReport
                     SUM({$rev}) AS monetary
                 FROM {{sales_order}} o
                 WHERE o.customer_email IS NOT NULL AND o.customer_email != ''
-                  AND {$this->context->validOrderCondition()}
+                  AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
                 GROUP BY o.customer_email
             ) rfm
             ORDER BY monetary DESC
@@ -154,10 +156,10 @@ class CustomerReport
                 SELECT so.customer_email, MIN(so.created_at) AS first_at
                 FROM {{sales_order}} so
                 WHERE so.customer_email IS NOT NULL AND so.customer_email != ''
-                  AND {$this->context->validOrderCondition('so')}
+                  AND {$this->context->validOrderCondition('so')}{$this->context->storeFilter('so')}
                 GROUP BY so.customer_email
             ) f ON f.customer_email = o.customer_email
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND o.created_at >= ? AND o.created_at < ?
             GROUP BY month
             ORDER BY month ASC
@@ -181,7 +183,7 @@ class CustomerReport
                 DATE_FORMAT({$local}, '%Y-%m') AS month,
                 COUNT(*) AS new_customers
             FROM {{customer_entity}} c
-            WHERE c.created_at >= ? AND c.created_at < ?
+            WHERE c.created_at >= ? AND c.created_at < ?{$this->context->customerFilter()}
             GROUP BY month
             ORDER BY month ASC
         "), [$from, $to]);
@@ -202,7 +204,7 @@ class CustomerReport
                 SELECT o.customer_email, SUM({$this->context->orderRevenueExpr()}) AS total_spent
                 FROM {{sales_order}} o
                 WHERE o.customer_email IS NOT NULL AND o.customer_email != ''
-                  AND {$this->context->validOrderCondition()}
+                  AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
                 GROUP BY o.customer_email
             ) clv_data
             GROUP BY bucket
@@ -394,7 +396,7 @@ class CustomerReport
             JOIN {{catalog_category_entity}} ce ON ce.entity_id = ccp.category_id AND ce.level >= 2{$this->context->currentVersionCondition('ce')}
             JOIN {{catalog_category_entity_varchar}} cv
                 ON cv.{$link} = ce.{$link} AND cv.attribute_id = {$nameId} AND cv.store_id = 0
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND o.customer_email IN ({$conn->quote($emails)})
             GROUP BY o.customer_email, ce.entity_id, cv.value, ce.level
@@ -458,16 +460,16 @@ class CustomerReport
         "), [$prevFrom, $from]);
 
         $registrations = (int) $conn->fetchOne($this->context->resolveTables(
-            'SELECT COUNT(*) FROM {{customer_entity}} WHERE created_at >= ? AND created_at < ?'
+            "SELECT COUNT(*) FROM {{customer_entity}} c WHERE c.created_at >= ? AND c.created_at < ?{$this->context->customerFilter()}"
         ), [$from, $to]);
 
         $registrationsOrdered = (int) $conn->fetchOne($this->context->resolveTables("
             SELECT COUNT(DISTINCT c.entity_id)
             FROM {{customer_entity}} c
             JOIN {{sales_order}} o ON o.customer_id = c.entity_id
-                AND {$this->context->validOrderCondition()}
+                AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
                 AND o.created_at >= ? AND o.created_at < ?
-            WHERE c.created_at >= ? AND c.created_at < ?
+            WHERE c.created_at >= ? AND c.created_at < ?{$this->context->customerFilter()}
         "), [$from, $to, $from, $to]);
 
         $buyerCount = (int) ($row['buyers'] ?? 0);
@@ -579,7 +581,7 @@ class CustomerReport
                 SELECT o.customer_email, COUNT(*) AS order_count
                 FROM {{sales_order}} o
                 WHERE o.customer_email IS NOT NULL AND o.customer_email != ''
-                  AND {$this->context->validOrderCondition()}
+                  AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
                 GROUP BY o.customer_email
             ) repeat_data
         "));
@@ -618,7 +620,7 @@ class CustomerReport
                        COUNT(*)     AS order_count
                 FROM {{sales_order}} o
                 WHERE o.customer_email IS NOT NULL AND o.customer_email != ''
-                  AND {$this->context->validOrderCondition()}
+                  AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
                 GROUP BY o.customer_email
             ) t
         ")) ?: ['buyer_count' => 0, 'total_spend' => 0, 'total_orders' => 0];
@@ -634,7 +636,7 @@ class CustomerReport
                 SUM({$rev}) AS total_spent
             FROM {{sales_order}} o
             WHERE o.customer_email IS NOT NULL AND o.customer_email != ''
-              AND {$this->context->validOrderCondition()}
+              AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
             GROUP BY o.customer_email
             ORDER BY total_spent DESC
             LIMIT 1
@@ -697,7 +699,7 @@ class CustomerReport
                        DATEDIFF(MAX(o.created_at), MIN(o.created_at)) / NULLIF(COUNT(*) - 1, 0) AS cycle_days
                 FROM {{sales_order}} o
                 WHERE o.customer_email IS NOT NULL AND o.customer_email != ''
-                  AND {$this->context->validOrderCondition()}
+                  AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
                 GROUP BY o.customer_email
                 HAVING COUNT(*) > 1
             ) t
@@ -796,7 +798,7 @@ class CustomerReport
     private function buyerCondition(string $alias = 'o'): string
     {
         return "{$alias}.customer_email IS NOT NULL AND {$alias}.customer_email != ''"
-            . " AND {$this->context->validOrderCondition($alias)}";
+            . " AND {$this->context->validOrderCondition($alias)}{$this->context->storeFilter($alias)}";
     }
 
     /**

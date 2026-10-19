@@ -4,7 +4,7 @@
  * Renders every section from the view model's data: the period part (KPI cards, ticker,
  * acquisition chart) reloads from reports/customerData when the range changes; the all-time part
  * (CLV tiers, RFM matrix, velocity, top customers, copilot insight) comes with the page. Also wires
- * the tables (segment filter, search, paging), the CSV exports, print-to-PDF and AI follow-ups
+ * the tables (segment filter, search, paging), the CSV exports, the print layout and AI follow-ups
  * (chat/send).
  *
  * @category  Meetanshi
@@ -132,9 +132,15 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
         }
 
         function exportUrl(params) {
-            var query = $.param(params || {});
+            var query = $.param($.extend({scope: config.scope}, params));
 
-            return config.exportUrl + (query ? (config.exportUrl.indexOf('?') === -1 ? '?' : '&') + query : '');
+            return config.exportUrl + (config.exportUrl.indexOf('?') === -1 ? '?' : '&') + query;
+        }
+
+        function rangeParams() {
+            return $.extend({scope: config.scope}, period.range.key === 'custom'
+                ? {range: 'custom', start: period.range.start, end: period.range.end}
+                : {range: period.range.key});
         }
 
         function customerUrl(buyer) {
@@ -697,36 +703,6 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
                     + actions.join(', and ') + '.</p>' : ''));
             $el('runtime').text('Runtime: ' + num(period.query_ms + life.query_ms) + 'ms · '
                 + plural(life.totals.buyer_count, 'buyer', 'buyers') + ' scored');
-            $el('sql-text').text(life.sql).attr('title', life.sql);
-        }
-
-        function copied() {
-            $el('sql-copy-label').text('Copied');
-            setTimeout(function () {
-                $el('sql-copy-label').text('Copy Raw SQL');
-            }, 1500);
-        }
-
-        /** Clipboard without the async API (plain-HTTP admin): a hidden textarea and execCommand. */
-        function copyWithTextarea() {
-            var $area = $('<textarea readonly>').val(life.sql).css({position: 'fixed', top: '-1000px'}).appendTo('body');
-
-            $area[0].select();
-            try {
-                document.execCommand('copy');
-                copied();
-            } catch (e) {
-                window.prompt('Copy the SQL:', life.sql);
-            }
-            $area.remove();
-        }
-
-        function copySql() {
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(life.sql).then(copied, copyWithTextarea);
-            } else {
-                copyWithTextarea();
-            }
         }
 
         // ── AI follow-up ────────────────────────────────────────────────────
@@ -743,13 +719,9 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
                 .replace(/\n/g, '<br>');
         }
 
-        function openAsk(focus) {
+        function openAsk() {
             $el('ask-panel').prop('hidden', false);
-            $el('ask-toggle').attr('aria-expanded', 'true');
             $el('copilot')[0].scrollIntoView({behavior: 'smooth', block: 'center'});
-            if (focus) {
-                $el('ask-input').trigger('focus');
-            }
         }
 
         function ask(question) {
@@ -760,7 +732,7 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
             if (!question || $submit.prop('disabled')) {
                 return;
             }
-            openAsk(false);
+            openAsk();
             if (!config.aiEnabled || !config.aiConfigured) {
                 $answer.prop('hidden', false).html('<p class="mxc-answer__error">The AI provider is not configured. '
                     + 'Set it up in Stores > Configuration > Meetanshi > AI Reporting.</p>');
@@ -826,7 +798,7 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
                 url: config.dataUrl,
                 type: 'GET',
                 dataType: 'json',
-                data: params
+                data: $.extend({scope: config.scope}, params)
             }).done(function (response) {
                 if (response && response.success) {
                     period = response.data;
@@ -866,6 +838,11 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
         }
 
         // ── Events ──────────────────────────────────────────────────────────
+
+        // Store scope: reload the page for it (currency and timezone change with it), keeping the range
+        $el('scope').on('change', function () {
+            window.location.href = window.location.pathname + '?' + $.param($.extend(rangeParams(), {scope: $(this).val()}));
+        });
 
         $el('range').on('click', '[data-range]', function () {
             var key = $(this).data('range'),
@@ -947,26 +924,6 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
             window.location.href = exportUrl(params);
         });
 
-        $el('print').on('click', function () {
-            window.print();
-        });
-
-        $el('sql-copy').on('click', copySql);
-
-        $el('ask-open').on('click', function () {
-            openAsk(true);
-        });
-
-        $el('ask-toggle').on('click', function () {
-            var open = $el('ask-panel').prop('hidden');
-
-            $el('ask-panel').prop('hidden', !open);
-            $(this).attr('aria-expanded', String(open));
-            if (open) {
-                $el('ask-input').trigger('focus');
-            }
-        });
-
         $el('ask-form').on('submit', function (event) {
             event.preventDefault();
             ask($el('ask-input').val());
@@ -1000,6 +957,18 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
 
         renderPeriod();
         renderLifetime();
+
+        // A range in the address (kept when the store scope changes) replaces the default one
+        (function () {
+            var query = new URLSearchParams(window.location.search),
+                range = query.get('range');
+
+            if (range && /^[a-z]+$/.test(range) && (range !== period.range.key || range === 'custom')) {
+                setActiveRange(range);
+                load(range === 'custom' ? {range: 'custom', start: query.get('start'), end: query.get('end')} : {range: range});
+            }
+        }());
+
         // Charts use the page fonts: draw again once they are ready
         if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(function () {

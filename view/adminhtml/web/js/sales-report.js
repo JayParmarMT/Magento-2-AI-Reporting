@@ -4,8 +4,8 @@
  * Renders every section from the range data (first from the page, then from reports/salesData):
  * KPI cards, ticker, revenue velocity and order lifecycle charts, the 30-day trajectory, weekday
  * distribution, region / shipping / promotion tables and the rule-based copilot summary. Wires
- * the range filter, CSV exports (reports/salesExport), print-to-PDF, Copy SQL and AI follow-ups
- * (chat/send).
+ * the range filter and the CSV exports (reports/salesExport); charts are redrawn at print width
+ * when the page is printed.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -649,122 +649,6 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
             $el('insight').html('<p>' + findings.join(' ') + '</p>'
                 + (actions.length ? '<p><span class="mxc-copilot__label">Recommended action:</span> ' + actions.join('; ') + '.</p>' : ''));
             $el('runtime').text('Rows scanned: ' + num(t.all_orders) + ' · Time: ' + num(data.query_ms) + 'ms');
-            $el('sql-text').text(data.sql).attr('title', data.sql);
-            $el('ask-region-label').text(region ? 'Analyze ' + region.place + ' cohort' : 'Analyze top region cohort');
-            $el('ask-region').prop('disabled', !region);
-        }
-
-        // ── Copy SQL ────────────────────────────────────────────────────────
-
-        function copied() {
-            $el('sql-copy-label').text('Copied');
-            setTimeout(function () {
-                $el('sql-copy-label').text('Copy Raw SQL');
-            }, 1500);
-        }
-
-        /** Clipboard without the async API (plain-HTTP admin): a hidden textarea and execCommand. */
-        function copyWithTextarea() {
-            var $area = $('<textarea readonly>').val(data.sql).css({position: 'fixed', top: '-1000px'}).appendTo('body');
-
-            $area[0].select();
-            try {
-                document.execCommand('copy');
-                copied();
-            } catch (e) {
-                window.prompt('Copy the SQL:', data.sql);
-            }
-            $area.remove();
-        }
-
-        function copySql() {
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(data.sql).then(copied, copyWithTextarea);
-            } else {
-                copyWithTextarea();
-            }
-        }
-
-        // ── AI follow-up ────────────────────────────────────────────────────
-
-        function formatAnswer(text) {
-            return esc(text)
-                .replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>')
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/`(.+?)`/g, '<code>$1</code>')
-                .replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>')
-                .replace(/(?:<li>.*<\/li>\n?)+/g, function (list) {
-                    return '<ul>' + list.replace(/\n/g, '') + '</ul>';
-                })
-                .replace(/\n/g, '<br>');
-        }
-
-        function openAsk(focus) {
-            $el('ask-panel').prop('hidden', false);
-            $el('ask-toggle').attr('aria-expanded', 'true');
-            $el('copilot')[0].scrollIntoView({behavior: 'smooth', block: 'center'});
-            if (focus) {
-                $el('ask-input').trigger('focus');
-            }
-        }
-
-        function ask(question) {
-            var $answer = $el('answer'),
-                $submit = $el('ask-submit');
-
-            question = $.trim(question || '');
-            if (!question || $submit.prop('disabled')) {
-                return;
-            }
-            openAsk(false);
-            if (!config.aiEnabled || !config.aiConfigured) {
-                $answer.prop('hidden', false).html('<p class="mxc-answer__error">The AI provider is not configured. '
-                    + 'Set it up in Stores > Configuration > Meetanshi > AI Reporting.</p>');
-                return;
-            }
-
-            $el('ask-input').val(question);
-            $submit.prop('disabled', true);
-            $answer.prop('hidden', false).html('<p class="mxc-answer__q">' + icon('person', 'xs') + ' ' + esc(question)
-                + '</p><p class="mxc-answer__loading">' + icon('progress_activity', 'sm') + ' Thinking… local models can take a minute.</p>');
-
-            $.ajax({
-                url: config.chatUrl,
-                type: 'POST',
-                dataType: 'json',
-                data: {message: question, form_key: config.formKey, isAjax: true},
-                timeout: 300000
-            }).done(function (response) {
-                var html = '<p class="mxc-answer__q">' + icon('person', 'xs') + ' ' + esc(question) + '</p>';
-
-                if (!response || !response.success) {
-                    html += '<p class="mxc-answer__error">' + esc((response && response.message) || 'Something went wrong.') + '</p>';
-                } else {
-                    html += '<div class="mxc-answer__text">' + formatAnswer(response.answer) + '</div>';
-                    if (response.assumption) {
-                        html += '<p class="mxc-answer__assumption">Interpreted as: ' + esc(response.assumption) + '</p>';
-                    }
-                    if (response.sql) {
-                        html += '<div class="mxc-answer__meta"><span>' + esc(num(response.rows) + ' rows · '
-                            + num(response.time_ms) + ' ms') + '</span>'
-                            + '<button type="button" class="mxc-linkbtn" data-role="toggle-sql">Show SQL</button>'
-                            + '<a class="mxc-linkbtn" href="' + esc(config.askAiUrl) + '">Open Ask AI</a></div>'
-                            + '<pre class="mxc-answer__sql" hidden>' + esc(response.sql) + '</pre>';
-                    }
-                }
-                $answer.html(html);
-            }).fail(function (xhr, status) {
-                $answer.html('<p class="mxc-answer__error">' + (status === 'timeout'
-                    ? 'The AI took too long to answer. Try a simpler question.'
-                    : 'Request failed (' + esc(xhr.status) + '). Please try again.') + '</p>');
-            }).always(function () {
-                $submit.prop('disabled', false);
-            });
-        }
-
-        /** "between 2026-01-01 and 2026-10-08" for questions about the selected range. */
-        function rangePhrase() {
-            return 'between ' + data.range.start + ' and ' + data.range.end;
         }
 
         // ── Data loading ────────────────────────────────────────────────────
@@ -893,57 +777,6 @@ define(['jquery', 'chartjs', 'Meetanshi_AIReporting/js/chart-zoom'], function ($
         $el('regions-toggle').on('click', function () {
             showAllRegions = !showAllRegions;
             renderRegions();
-        });
-
-        $el('print').on('click', function () {
-            window.print();
-        });
-
-        $el('sql-copy').on('click', copySql);
-
-        $el('ask-open').on('click', function () {
-            openAsk(true);
-        });
-
-        $el('ask-toggle').on('click', function () {
-            var open = $el('ask-panel').prop('hidden');
-
-            $el('ask-panel').prop('hidden', !open);
-            $(this).attr('aria-expanded', String(open));
-            if (open) {
-                $el('ask-input').trigger('focus');
-            }
-        });
-
-        $el('ask-region').on('click', function () {
-            var region = data.regions[0];
-
-            if (region) {
-                ask('Top 10 customers shipping to ' + (region.region || region.country_name) + ' by net revenue for orders placed '
-                    + rangePhrase() + ', with order count and average order value');
-            }
-        });
-
-        $el('ask-compare').on('click', function () {
-            ask('Compare net revenue, order count and average order value for orders placed ' + rangePhrase()
-                + ' with orders placed between ' + data.previous.start + ' and ' + data.previous.end);
-        });
-
-        $el('ask-form').on('submit', function (event) {
-            event.preventDefault();
-            ask($el('ask-input').val());
-        });
-
-        $root.on('click', '.mxc-chip', function () {
-            ask($(this).data('question'));
-        });
-
-        $el('answer').on('click', '[data-role="toggle-sql"]', function () {
-            var $sql = $el('answer').find('.mxc-answer__sql'),
-                show = $sql.prop('hidden');
-
-            $sql.prop('hidden', !show);
-            $(this).text(show ? 'Hide SQL' : 'Show SQL');
         });
 
         // Redraw charts at print width (the PDF), then back

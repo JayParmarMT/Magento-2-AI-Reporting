@@ -5,6 +5,8 @@
  * Period figures (KPI cards, ticker, acquisition chart) follow the selected range; CLV tiers,
  * RFM segments, repeat/churn velocity and the buyer tables are all-time. Shared by the page
  * template and the reports/customerData and reports/customerExport controllers.
+ * Follows the store scope chosen in the header (ReportScope): all store views, one website (in its own
+ * base currency and timezone) or one store view.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -55,29 +57,32 @@ class CustomerAnalytics implements ArgumentInterface
     }
 
     /**
-     * "Magento 2.4.9 Community"
-     */
-    public function getPlatformLabel(): string
-    {
-        return $this->aiContext->getPlatformLabel();
-    }
-
-    /**
      * "Store: Default Store View (Main Website)"
      */
     public function getStoreLabel(): string
     {
+        $scope = $this->activateScope();
+        if ($scope->isMultiStore()) {
+            return (string) __('Store: %1', $scope->getLabel());
+        }
         $name = $this->aiContext->getStoreName();
 
         return $name !== '' ? (string) __('Store: %1', $name) : '';
     }
 
     /**
-     * "America/Chicago (UTC-5)"
+     * Options of the store scope switcher; empty on a single-store install.
+     *
+     * @return array<int, array{value: string, label: string, level: int}>
      */
-    public function getTimezoneLabel(): string
+    public function getScopeOptions(): array
     {
-        return $this->aiContext->getTimezoneLabel();
+        return $this->activateScope()->getOptions();
+    }
+
+    public function getScopeKey(): string
+    {
+        return $this->activateScope()->getKey();
     }
 
     /**
@@ -85,6 +90,7 @@ class CustomerAnalytics implements ArgumentInterface
      */
     public function getPeriodData(string $range = self::DEFAULT_RANGE, ?string $customStart = null, ?string $customEnd = null): array
     {
+        $this->activateScope();
         $startedAt = microtime(true);
         $resolved  = $this->reportRange->resolve($range, $customStart, $customEnd);
 
@@ -102,6 +108,7 @@ class CustomerAnalytics implements ArgumentInterface
      */
     public function getLifetimeData(): array
     {
+        $this->activateScope();
         $startedAt  = microtime(true);
         $buyers     = $this->report->getBuyers(self::TABLE_LIMIT);
         $categories = $this->report->getPreferredCategories(array_column($buyers, 'customer_email'));
@@ -123,9 +130,19 @@ class CustomerAnalytics implements ArgumentInterface
             'winback'            => $this->report->getWinBackCandidate(),
             'buyers'             => $buyers,
             'buyers_limit'       => self::TABLE_LIMIT,
-            'sql'                => trim((string) preg_replace('/\s+/', ' ', $this->report->getBuyersSql(self::TABLE_LIMIT))),
             'query_ms'           => (int) round((microtime(true) - $startedAt) * 1000),
         ];
+    }
+
+    /**
+     * The page follows the scope picked in its header (or remembered from the last report page).
+     */
+    private function activateScope(): \Meetanshi\AIReporting\Model\Report\ReportScope
+    {
+        $scope = $this->reportContext->getScope();
+        $scope->activate();
+
+        return $scope;
     }
 
     /**
@@ -137,6 +154,7 @@ class CustomerAnalytics implements ArgumentInterface
             'period'       => $this->getPeriodData(),
             'lifetime'     => $this->getLifetimeData(),
             'currency'     => $this->reportContext->getCurrencyCode(),
+            'scope'        => $this->activateScope()->getKey(),
             'formKey'      => $this->formKey->getFormKey(),
             'dataUrl'      => $this->urlBuilder->getUrl('meetanshi_aireporting/reports/customerData'),
             'exportUrl'    => $this->urlBuilder->getUrl('meetanshi_aireporting/reports/customerExport'),

@@ -207,6 +207,13 @@
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                     <comment><![CDATA[Chat answers are written by the AI from the query results, which can include customer names, emails and addresses. When set to <strong>No</strong>, only your question and the database schema are sent; the chat shows a summary built on your server instead. Enable only if your AI provider's data terms allow it (Ollama runs locally).]]></comment>
                 </field>
+
+                <field id="show_sql_inspector" translate="label comment" type="select" sortOrder="30"
+                       showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Show SQL Inspector on Ask AI</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Shows the "Executed Magento 2 SQL Inspector" panel (the generated SQL, the tables it reads and Copy SQL) under each Ask AI result. Hidden when set to No; saved reports still keep their SQL.</comment>
+                </field>
             </group>
         </section>
     </system>

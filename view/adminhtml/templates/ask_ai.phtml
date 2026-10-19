@@ -211,6 +211,7 @@ $ready   = $config['aiConfigured'];
                         <span><?= $escaper->escapeHtml(__('The query ran, but there is no matching data. Try a wider date range or a different question.')) ?></span>
                     </div>
 
+                    <?php if ($block->isSqlInspectorEnabled()): ?>
                     <section class="mxq-sql" data-role="sql">
                         <header class="mxq-sql__head" data-role="sql-toggle" role="button" tabindex="0" aria-expanded="true">
                             <span class="mxd-ico mxd-ico--md mxd-text-brand" aria-hidden="true">database</span>
@@ -228,6 +229,7 @@ $ready   = $config['aiConfigured'];
                             <footer class="mxq-sql__foot" data-role="sql-foot"></footer>
                         </div>
                     </section>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -266,22 +268,10 @@ $ready   = $config['aiConfigured'];
                 </div>
                 <div class="mxq-typing" data-role="typing" hidden><span></span><span></span><span></span>
                     <em><?= $escaper->escapeHtml(__('Copilot is working… local models can take a minute.')) ?></em></div>
-                <div class="mxq-attached" data-role="attached" hidden>
-                    <span class="mxd-ico mxd-ico--xs" aria-hidden="true">attach_file</span>
-                    <span class="mxq-attached__text" data-role="attached-text"></span>
-                    <button type="button" class="mxq-attached__remove" data-role="attach-remove"
-                            title="<?= $escaper->escapeHtmlAttr(__('Ask without the Studio result')) ?>">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">close</span>
-                    </button>
-                </div>
                 <form class="mxq-compose" data-role="chat-form" autocomplete="off">
                     <input type="text" class="mxd-input" data-role="chat-input" maxlength="500"
                            placeholder="<?= $escaper->escapeHtmlAttr(__('Ask follow-up or investigate SKU...')) ?>"
                            aria-label="<?= $escaper->escapeHtmlAttr(__('Message the Copilot')) ?>">
-                    <button type="button" class="mxq-attach" data-role="chat-attach" aria-pressed="false" disabled
-                            title="<?= $escaper->escapeHtmlAttr(__('Ask about the Studio result (run a question first)')) ?>">
-                        <span class="mxd-ico mxd-ico--md" aria-hidden="true">attach_file</span>
-                    </button>
                     <button type="submit" class="mxq-send" data-role="chat-send" title="<?= $escaper->escapeHtmlAttr(__('Send')) ?>">
                         <span class="mxd-ico mxd-ico--md" aria-hidden="true">send</span>
                     </button>

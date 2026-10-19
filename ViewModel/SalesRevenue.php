@@ -67,11 +67,6 @@ class SalesRevenue implements ArgumentInterface
         return $this->reportRange->getPresetLabels();
     }
 
-    public function getPlatformLabel(): string
-    {
-        return $this->aiContext->getPlatformLabel();
-    }
-
     public function getStoreLabel(): string
     {
         $scope = $this->activateScope();
@@ -96,30 +91,6 @@ class SalesRevenue implements ArgumentInterface
     public function getScopeKey(): string
     {
         return $this->activateScope()->getKey();
-    }
-
-    public function getTimezoneLabel(): string
-    {
-        $this->activateScope();
-
-        return $this->aiContext->getTimezoneLabel();
-    }
-
-    public function getCurrencyLabel(): string
-    {
-        $this->activateScope();
-        $code   = $this->reportContext->getCurrencyCode();
-        $symbol = $this->reportContext->getCurrencySymbol();
-
-        return $symbol !== '' && $symbol !== $code ? "{$code} ({$symbol})" : $code;
-    }
-
-    /**
-     * "state NOT IN ('canceled','pending_payment')"
-     */
-    public function getNetRule(): string
-    {
-        return "state NOT IN ('" . implode("','", ReportContext::EXCLUDED_STATES) . "')";
     }
 
     /**
@@ -183,7 +154,6 @@ class SalesRevenue implements ArgumentInterface
             'regions'    => $regions,
             'shipping'   => $this->report->getShippingBreakdown($start, $end),
             'promotions' => $this->describePromotions($this->report->getPromotionBreakdown($start, $end), $today),
-            'sql'        => trim((string) preg_replace('/\s+/', ' ', $this->reportContext->resolveTables($this->report->getRangeTotalsSql()))),
             'query_ms'   => (int) round((microtime(true) - $startedAt) * 1000),
         ];
     }
@@ -230,19 +200,12 @@ class SalesRevenue implements ArgumentInterface
             'currency'      => $this->reportContext->getCurrencyCode(),
             'scope'         => $this->activateScope()->getKey(),
             'regionPreview' => self::REGION_PREVIEW,
-            'formKey'       => $this->formKey->getFormKey(),
             'dataUrl'       => $this->urlBuilder->getUrl('meetanshi_aireporting/reports/salesData'),
             'exportUrl'     => $this->urlBuilder->getUrl('meetanshi_aireporting/reports/salesExport'),
-            'chatUrl'       => $this->urlBuilder->getUrl('meetanshi_aireporting/chat/send'),
-            'askAiUrl'      => $this->urlBuilder->getUrl('meetanshi_aireporting/query/index'),
             'orderUrl'      => $this->urlBuilder->getUrl('sales/order/view', ['order_id' => '__ID__']),
             'ruleUrl'       => $this->urlBuilder->getUrl('sales_rule/promo_quote/edit', ['id' => '__ID__']),
             'rulesUrl'      => $this->urlBuilder->getUrl('sales_rule/promo_quote/index'),
             'carriersUrl'   => $this->urlBuilder->getUrl('adminhtml/system_config/edit', ['section' => 'carriers']),
-            'aiEnabled'     => $this->config->isEnabled(),
-            'aiConfigured'  => $this->aiContext->isProviderConfigured(),
-            'provider'      => $this->aiContext->getProviderLabel(),
-            'model'         => $this->aiContext->getModel(),
         ];
     }
 

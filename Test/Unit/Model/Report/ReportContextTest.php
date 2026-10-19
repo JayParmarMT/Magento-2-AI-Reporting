@@ -168,16 +168,44 @@ class ReportContextTest extends TestCase
         $this->assertStringContainsString('catalog_product_website pw ON pw.product_id = e.entity_id AND pw.website_id = 4', $context->getStockSql());
     }
 
+    public function testAllStoreViewsKeepEveryCustomerAccountAndProduct(): void
+    {
+        $this->assertSame('', $this->context->customerFilter());
+        $this->assertSame('', $this->context->productWebsiteJoin());
+    }
+
+    public function testWebsiteScopeKeepsItsCustomerAccountsAndProducts(): void
+    {
+        $context = $this->createScopedContext(websiteId: 4, storeIds: [10, 11], valueStoreId: 10);
+
+        // by website: accounts created in the admin have store 0
+        $this->assertSame(' AND c.website_id = 4', $context->customerFilter());
+        $this->assertSame(
+            ' JOIN catalog_product_website p_web ON p_web.product_id = p.entity_id AND p_web.website_id = 4',
+            $context->productWebsiteJoin('p')
+        );
+    }
+
+    public function testStoreViewScopeKeepsTheAccountsCreatedInIt(): void
+    {
+        $context = $this->createScopedContext(websiteId: 4, storeIds: [11], valueStoreId: 11, storeViewId: 11);
+
+        $this->assertSame(' AND cu.store_id = 11', $context->customerFilter('cu'));
+        $this->assertStringContainsString('e_web.website_id = 4', $context->productWebsiteJoin());
+    }
+
     /**
-     * A context whose scope is one website (EUR, Europe/Berlin) of a multi-store install.
+     * A context whose scope is one website (EUR, Europe/Berlin) of a multi-store install, or one of
+     * its store views.
      */
-    private function createScopedContext(int $websiteId, array $storeIds, int $valueStoreId): ReportContext
+    private function createScopedContext(int $websiteId, array $storeIds, int $valueStoreId, ?int $storeViewId = null): ReportContext
     {
         $scope = $this->createMock(ReportScope::class);
-        $scope->method('getKey')->willReturn('website:' . $websiteId);
+        $scope->method('getKey')->willReturn($storeViewId !== null ? 'store:' . $storeViewId : 'website:' . $websiteId);
         $scope->method('getWebsiteId')->willReturn($websiteId);
         $scope->method('getWebsiteCode')->willReturn('perf_eu');
         $scope->method('getStoreIds')->willReturn($storeIds);
+        $scope->method('getStoreViewId')->willReturn($storeViewId);
         $scope->method('getValueStoreId')->willReturn($valueStoreId);
 
         $scopeConfig = $this->createMock(ScopeConfigInterface::class);

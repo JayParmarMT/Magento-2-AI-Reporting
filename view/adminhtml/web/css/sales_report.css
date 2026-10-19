@@ -51,12 +51,6 @@
     text-align: left;
 }
 
-.mxd .mxr-menu button:hover,
-.mxd .mxr-menu button:focus-visible {
-    background: var(--mxd-surface-low);
-    color: var(--mxd-ink);
-    outline: none;
-}
 
 .mxr-menu button .mxd-ico { color: var(--mxd-brand); margin-top: 1px; }
 .mxr-menu button > span:last-child { display: flex; flex-direction: column; gap: 1px; }

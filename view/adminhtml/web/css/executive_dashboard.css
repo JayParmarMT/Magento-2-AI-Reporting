@@ -685,7 +685,7 @@
     background: transparent;
     cursor: pointer;
     font-weight: 600;
-    padding: 7px 0;
+    padding: 7px 10px;
 }
 
 .mxd-tablewrap { overflow-x: auto; width: 100%; }
@@ -845,7 +845,7 @@
     align-items: center;
     background: rgba(255, 247, 237, 0.7);
     border: 1px solid var(--mxd-brand-200);
-    border-radius: 999px;
+    border-radius: 7px;
     cursor: pointer;
     display: inline-flex;
     font-weight: 600;
@@ -870,6 +870,6 @@
 }
 
 .mxd .mxd-scope__select:focus-visible {
-    outline: 2px solid var(--mxd-brand);
-    outline-offset: 2px;
+    /* outline: 2px solid var(--mxd-brand);
+    outline-offset: 2px; */
 }

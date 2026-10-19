@@ -4,8 +4,9 @@
  *
  * Product figures use top-level order items only (a configurable/bundle line is
  * counted once, not again for its child rows). Revenue is net of discounts and
- * refunds, in the global base currency; quantity is net of refunds/cancellations.
- * Cancelled and unpaid (pending_payment) orders are ignored.
+ * refunds, in the report currency; quantity is net of refunds/cancellations.
+ * Cancelled and unpaid (pending_payment) orders are ignored. For one website or store view
+ * (ReportScope) only its orders and the website's products count, with its status and prices.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -60,7 +61,7 @@ class ProductReport
                 ROUND(SUM({$this->context->itemRevenueExpr()}), 2) AS total_revenue
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
             GROUP BY oi.product_type
             ORDER BY total_revenue DESC
@@ -82,7 +83,7 @@ class ProductReport
             SELECT oi.sku
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND o.created_at >= ? AND o.created_at < ?
             GROUP BY oi.sku
@@ -107,7 +108,7 @@ class ProductReport
                 ROUND(SUM({$rev}), 2) AS revenue
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND __SKU_FILTER__
               AND o.created_at >= ? AND o.created_at < ?
@@ -126,13 +127,13 @@ class ProductReport
     {
         return $this->context->getConnection()->fetchAll($this->context->resolveTables("
             SELECT e.entity_id, e.sku, e.type_id
-            FROM {{catalog_product_entity}} e
+            FROM {{catalog_product_entity}} e{$this->context->productWebsiteJoin()}
             WHERE NOT EXISTS (
                 SELECT 1
                 FROM {{sales_order_item}} oi
                 JOIN {{sales_order}} o ON o.entity_id = oi.order_id
                 WHERE oi.product_id = e.entity_id
-                  AND {$this->context->validOrderCondition()}
+                  AND {$this->context->validOrderCondition()}{$this->context->storeFilter()}
             )
             ORDER BY e.entity_id DESC
             LIMIT " . max(1, $limit)));
@@ -161,7 +162,7 @@ class ProductReport
                 ON cv.{$link} = ce.{$link}
                 AND cv.attribute_id = {$nameId}
                 AND cv.store_id = 0
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
             GROUP BY ce.entity_id, cv.value
             ORDER BY total_revenue DESC
@@ -182,7 +183,7 @@ class ProductReport
                 COUNT(*) AS total,
                 COALESCE(SUM({$this->enabledExpr()}), 0) AS enabled,
                 COALESCE(SUM(e.created_at >= ? AND e.created_at < ?), 0) AS created
-            FROM {{catalog_product_entity}} e
+            FROM {{catalog_product_entity}} e{$this->context->productWebsiteJoin()}
             {$this->statusJoin()}
             WHERE 1 = 1{$this->context->currentVersionCondition('e')}
         "), [$from, $to]) ?: [];
@@ -210,14 +211,14 @@ class ProductReport
                 COUNT(DISTINCT oi.order_id) AS orders
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND o.created_at >= ? AND o.created_at < ?
         "), [$from, $to]) ?: [];
 
         $catalog = $conn->fetchRow($this->context->resolveTables("
             SELECT COUNT(*) AS sellable, COALESCE(SUM(sold.product_id IS NOT NULL), 0) AS sold
-            FROM {{catalog_product_entity}} e
+            FROM {{catalog_product_entity}} e{$this->context->productWebsiteJoin()}
             {$this->statusJoin()}
             {$this->soldJoin()}
             WHERE {$this->sellableCondition()}
@@ -284,7 +285,7 @@ class ProductReport
                 {$this->costExpr()} AS cost
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND o.created_at >= ? AND o.created_at < ?
             GROUP BY oi.product_id, oi.sku
@@ -339,17 +340,13 @@ class ProductReport
     {
         $conn   = $this->context->getConnection();
         [$from, $to] = $this->context->utcRange($start, $end);
-        $link   = $this->context->getProductLinkField();
-        $nameId = $this->context->getAttributeId('catalog_product', 'name');
-        $priceId = $this->context->getAttributeId('catalog_product', 'price');
-        $value  = 'GREATEST(IFNULL(s.qty, 0), 0) * IFNULL(pr.value, 0)';
+        $price  = $this->scopedValue('pr');
+        $value  = "GREATEST(IFNULL(s.qty, 0), 0) * IFNULL({$price}, 0)";
         $base   = "
-            FROM {{catalog_product_entity}} e
+            FROM {{catalog_product_entity}} e{$this->context->productWebsiteJoin()}
             {$this->statusJoin()}
-            LEFT JOIN {{catalog_product_entity_varchar}} nm
-                ON nm.{$link} = e.{$link} AND nm.attribute_id = {$nameId} AND nm.store_id = 0
-            LEFT JOIN {{catalog_product_entity_decimal}} pr
-                ON pr.{$link} = e.{$link} AND pr.attribute_id = {$priceId} AND pr.store_id = 0
+            {$this->attributeJoin('nm', 'catalog_product_entity_varchar', 'name')}
+            {$this->attributeJoin('pr', 'catalog_product_entity_decimal', 'price')}
             LEFT JOIN ({$this->context->getStockSql()}) s ON s.product_id = e.entity_id
             {$this->soldJoin()}
             WHERE {$this->sellableCondition()} AND sold.product_id IS NULL";
@@ -361,9 +358,9 @@ class ProductReport
         $rows = $conn->fetchAll($this->context->resolveTables("
             SELECT
                 e.entity_id AS product_id, e.sku, e.type_id AS product_type, e.created_at,
-                IFNULL(nm.value, e.sku) AS product_name,
+                IFNULL({$this->scopedValue('nm')}, e.sku) AS product_name,
                 s.qty AS stock_qty, s.is_in_stock,
-                ROUND(IFNULL(pr.value, 0), 2) AS price,
+                ROUND(IFNULL({$price}, 0), 2) AS price,
                 ROUND({$value}, 2) AS stock_value
             {$base}
             ORDER BY stock_value DESC, e.entity_id DESC"
@@ -402,7 +399,7 @@ class ProductReport
                 ROUND(SUM({$this->context->itemRevenueExpr()}), 2) AS revenue
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND o.created_at >= ? AND o.created_at < ?
             GROUP BY product_type
@@ -440,7 +437,7 @@ class ProductReport
                 COUNT(DISTINCT oi.product_id) AS products
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND o.created_at >= ? AND o.created_at < ?
             GROUP BY band
@@ -490,7 +487,7 @@ class ProductReport
             JOIN {{catalog_category_entity}} ce ON ce.entity_id = ccp.category_id AND ce.level >= 2{$this->context->currentVersionCondition('ce')}
             JOIN {{catalog_category_entity_varchar}} cv
                 ON cv.{$link} = ce.{$link} AND cv.attribute_id = {$nameId} AND cv.store_id = 0
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
               AND o.created_at >= ? AND o.created_at < ?
             GROUP BY ce.entity_id, cv.value
@@ -573,25 +570,50 @@ class ProductReport
     }
 
     /**
-     * Status of each product at store 0 (products without a status value count as enabled).
+     * Status of each product (products without a status value count as enabled).
      */
     private function statusJoin(): string
     {
-        $link     = $this->context->getProductLinkField();
-        $statusId = $this->context->getAttributeId('catalog_product', 'status');
-
-        return "LEFT JOIN {{catalog_product_entity_int}} st
-                ON st.{$link} = e.{$link} AND st.attribute_id = {$statusId} AND st.store_id = 0";
+        return $this->attributeJoin('st', 'catalog_product_entity_int', 'status');
     }
 
     /**
-     * Product cost of the lines (base_cost × net qty, global base currency), only when every line
+     * LEFT JOIN of a product attribute's admin value as {$alias} and, for one website or store view,
+     * its value there as {$alias}_s; read it with scopedValue().
+     */
+    private function attributeJoin(string $alias, string $table, string $attributeCode): string
+    {
+        $link        = $this->context->getProductLinkField();
+        $attributeId = $this->context->getAttributeId('catalog_product', $attributeCode);
+        $storeId     = $this->context->getScope()->getValueStoreId();
+
+        $join = "LEFT JOIN {{{$table}}} {$alias}
+                ON {$alias}.{$link} = e.{$link} AND {$alias}.attribute_id = {$attributeId} AND {$alias}.store_id = 0";
+        if ($storeId > 0) {
+            $join .= "
+            LEFT JOIN {{{$table}}} {$alias}_s
+                ON {$alias}_s.{$link} = e.{$link} AND {$alias}_s.attribute_id = {$attributeId} AND {$alias}_s.store_id = {$storeId}";
+        }
+
+        return $join;
+    }
+
+    /**
+     * The value of an attributeJoin() that applies: the website's or store view's, else the admin value.
+     */
+    private function scopedValue(string $alias): string
+    {
+        return $this->context->getScope()->getValueStoreId() > 0 ? "COALESCE({$alias}_s.value, {$alias}.value)" : "{$alias}.value";
+    }
+
+    /**
+     * Product cost of the lines (base_cost × net qty, report currency), only when every line
      * carries a cost — otherwise NULL, so no margin is shown on partial or missing cost data.
      */
     private function costExpr(): string
     {
-        return "CASE WHEN SUM(IFNULL(oi.base_cost, 0) > 0) = COUNT(*) THEN ROUND(SUM(oi.base_cost * "
-            . $this->context->itemQtyExpr() . " * IFNULL(o.base_to_global_rate, 1)), 2) END";
+        return "CASE WHEN SUM(IFNULL(oi.base_cost, 0) > 0) = COUNT(*) THEN ROUND(SUM("
+            . $this->context->orderAmountExpr('oi.base_cost * ' . $this->context->itemQtyExpr(), 'o') . "), 2) END";
     }
 
     /**
@@ -605,7 +627,7 @@ class ProductReport
 
     private function enabledExpr(): string
     {
-        return 'IFNULL(st.value, 1) = 1';
+        return "IFNULL({$this->scopedValue('st')}, 1) = 1";
     }
 
     /**
@@ -627,7 +649,7 @@ class ProductReport
                 SELECT DISTINCT soi.product_id
                 FROM {{sales_order_item}} soi
                 JOIN {{sales_order}} so ON so.entity_id = soi.order_id
-                WHERE {$this->context->validOrderCondition('so')}
+                WHERE {$this->context->validOrderCondition('so')}{$this->context->storeFilter('so')}
                   AND so.created_at >= ? AND so.created_at < ?
             ) sold ON sold.product_id = e.entity_id";
     }
@@ -645,7 +667,7 @@ class ProductReport
                 COUNT(DISTINCT oi.order_id) AS order_count
             FROM {{sales_order_item}} oi
             JOIN {{sales_order}} o ON o.entity_id = oi.order_id
-            WHERE {$this->context->validOrderCondition()}
+            WHERE {$this->context->validOrderCondition()}{$this->context->storeFilter()}
               AND oi.parent_item_id IS NULL
             GROUP BY oi.product_id, oi.sku
             ORDER BY {$orderBy}

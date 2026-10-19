@@ -31,6 +31,7 @@
             <security>
                 <log_queries>1</log_queries>
                 <share_results_with_llm>0</share_results_with_llm>
+                <show_sql_inspector>0</show_sql_inspector>
             </security>
         </meetanshi_aireporting>
     </default>

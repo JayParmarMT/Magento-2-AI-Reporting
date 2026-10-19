@@ -708,7 +708,6 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 appendSummary();
             }
             state.attach = !!state.question;
-            renderAttach();
         }
 
         // ── Copilot ─────────────────────────────────────────────────────────
@@ -736,20 +735,9 @@ define(['jquery', 'chartjs'], function ($, Chart) {
             scrollThread();
         }
 
-        /** The "attached" Studio result: typed follow-ups are sent with the Studio question as context. */
-        function renderAttach() {
-            var on = !!(state.attach && state.question);
-
-            $el('chat-attach').prop('disabled', !state.question).toggleClass('is-on', on).attr('aria-pressed', on ? 'true' : 'false')
-                .attr('title', state.question ? (on ? 'Follow-ups refer to the Studio result. Click to detach.'
-                    : 'Ask about the Studio result') : 'Ask about the Studio result (run a question first)');
-            $el('attached').prop('hidden', !on);
-            $el('attached-text').text(on ? 'Re: ' + state.question : '');
-        }
-
         /**
          * @param {string} text
-         * @param {boolean} [withContext] send the Studio question along, for follow-ups such as "which customers bought it?"
+         * @param {boolean} [withContext] unused, kept for call-site compatibility
          */
         function sendChat(text, withContext) {
             var message;
@@ -763,9 +751,7 @@ define(['jquery', 'chartjs'], function ($, Chart) {
                 appendBot('<p>The AI provider is not configured. Set it up under Configure Engine below.</p>', {error: true});
                 return;
             }
-            message = withContext && state.attach && state.question
-                ? 'Follow-up to the question "' + state.question.slice(0, 200) + '": ' + text
-                : text;
+            message = text;
             chatting = true;
             $el('chat-input').val('');
             $el('chat-send').prop('disabled', true);
@@ -1200,17 +1186,6 @@ define(['jquery', 'chartjs'], function ($, Chart) {
         $el('chat-form').on('submit', function (event) {
             event.preventDefault();
             sendChat($el('chat-input').val(), true);
-        });
-
-        $el('chat-attach').on('click', function () {
-            state.attach = !state.attach;
-            renderAttach();
-            $el('chat-input').trigger('focus');
-        });
-
-        $el('attach-remove').on('click', function () {
-            state.attach = false;
-            renderAttach();
         });
 
         $root.on('click', '[data-chat]', function () {

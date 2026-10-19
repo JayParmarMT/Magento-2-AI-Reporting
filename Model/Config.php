@@ -38,6 +38,7 @@ class Config
     private const XML_PATH_LLM_TIMEOUT          = 'meetanshi_aireporting/general/llm_timeout';
     private const XML_PATH_LOG_QUERIES          = 'meetanshi_aireporting/security/log_queries';
     private const XML_PATH_SHARE_RESULTS        = 'meetanshi_aireporting/security/share_results_with_llm';
+    private const XML_PATH_SHOW_SQL_INSPECTOR   = 'meetanshi_aireporting/security/show_sql_inspector';
     private const XML_PATH_BASE_CURRENCY        = 'currency/options/base';
 
     public function __construct(
@@ -180,6 +181,17 @@ class Config
     {
         return $this->scopeConfig->isSetFlag(
             self::XML_PATH_SHARE_RESULTS,
+            ScopeInterface::SCOPE_STORE
+        );
+    }
+
+    /**
+     * Whether Ask AI shows the "Executed Magento 2 SQL Inspector" panel under a result (off by default).
+     */
+    public function isSqlInspectorEnabled(): bool
+    {
+        return $this->scopeConfig->isSetFlag(
+            self::XML_PATH_SHOW_SQL_INSPECTOR,
             ScopeInterface::SCOPE_STORE
         );
     }

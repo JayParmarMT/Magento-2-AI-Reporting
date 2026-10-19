@@ -34,30 +34,7 @@ $range     = $config['data']['range'];
                 </nav>
                 <div class="mxc-titlerow">
                     <h1 class="mxd-h1 mxc-h1"><?= $escaper->escapeHtml(__('Product Performance & Catalog Intelligence')) ?></h1>
-                    <div class="mxc-badges">
-                        <span class="mxc-badge mxc-badge--brand">
-                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
-                            <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
-                        </span>
-                        <span class="mxc-badge">
-                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">dataset</span>
-                            <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
-                        </span>
-                        <?php if ($viewModel->getStoreLabel() !== ''): ?>
-                            <span class="mxc-badge mxc-badge--slate">
-                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
-                                <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
-                            </span>
-                        <?php endif; ?>
-                    </div>
                 </div>
-                <p class="mxc-note">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
-                    <span>
-                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
-                        <?= $escaper->escapeHtml(__('Net item revenue after discounts and refunds · catalog and stock as of now')) ?>
-                    </span>
-                </p>
             </div>
 
             <div class="mxc-header__actions">
@@ -81,20 +58,29 @@ $range     = $config['data']['range'];
                     <span class="mxc-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($range['label']) ?></span>
                 </div>
                 <div class="mxc-header__buttons">
+                    <?php $scopeOptions = $viewModel->getScopeOptions(); ?>
+                    <?php if ($scopeOptions): ?>
+                        <label class="mxc-badge mxc-badge--slate mxr-scope"
+                               title="<?= $escaper->escapeHtmlAttr(__('Every figure, chart and export follows the selected website or store view: its orders and the website\'s products, prices and stock, in its own base currency and timezone.')) ?>">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                            <span><?= $escaper->escapeHtml(__('Store:')) ?></span>
+                            <select class="mxr-scope__select" data-role="scope" aria-label="<?= $escaper->escapeHtmlAttr(__('Store scope')) ?>">
+                                <?php foreach ($scopeOptions as $option): ?>
+                                    <option value="<?= $escaper->escapeHtmlAttr($option['value']) ?>"<?= /* @noEscape */ $option['value'] === $viewModel->getScopeKey() ? ' selected' : '' ?>><?= $escaper->escapeHtml(($option['level'] === 2 ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : '') . $option['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    <?php elseif ($viewModel->getStoreLabel() !== ''): ?>
+                        <span class="mxc-badge mxc-badge--slate">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                            <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                        </span>
+                    <?php endif; ?>
                     <a class="mxd-btn" data-role="export-all" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
                        title="<?= $escaper->escapeHtmlAttr(__('Every product sold in the range, with stock and velocity')) ?>">
                         <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
                         <span><?= $escaper->escapeHtml(__('CSV')) ?></span>
                     </a>
-                    <button type="button" class="mxd-btn" data-role="print"
-                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
-                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
-                    </button>
-                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
-                        <span class="mxd-ico mxd-ico--sm mxc-ico-soft" aria-hidden="true">auto_awesome</span>
-                        <span><?= $escaper->escapeHtml(__('Ask Copilot about Catalog')) ?></span>
-                    </button>
                 </div>
             </div>
         </section>
@@ -277,24 +263,6 @@ $range     = $config['data']['range'];
                 </div>
             </header>
             <div class="mxp-summary__insight" data-role="insight"></div>
-            <div class="mxp-summary__actions">
-                <button type="button" class="mxp-action" data-role="act-restock">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">inventory</span>
-                    <span><?= $escaper->escapeHtml(__('Restock Warning for Top Sellers')) ?></span>
-                </button>
-                <button type="button" class="mxp-action" data-role="act-dead">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">sell</span>
-                    <span data-role="act-dead-label"><?= $escaper->escapeHtml(__('Plan Promotion for Dead-Stock SKUs')) ?></span>
-                </button>
-                <button type="button" class="mxp-action" data-role="act-price">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">price_change</span>
-                    <span><?= $escaper->escapeHtml(__('Price Elasticity Simulation')) ?></span>
-                </button>
-                <button type="button" class="mxp-action mxp-action--primary" data-role="ask-toggle" aria-expanded="false">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">chat</span>
-                    <span><?= $escaper->escapeHtml(__('Ask Copilot')) ?></span>
-                </button>
-            </div>
             <div class="mxp-ask" data-role="ask-panel" hidden>
                 <form class="mxp-ask__form" data-role="ask-form">
                     <input type="text" class="mxd-input" data-role="ask-input" maxlength="500"
@@ -315,19 +283,6 @@ $range     = $config['data']['range'];
                     <?php endforeach; ?>
                 </div>
                 <div class="mxp-answer" data-role="answer" hidden></div>
-            </div>
-            <div class="mxp-sql">
-                <div class="mxp-sql__head">
-                    <span class="mxd-label">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">terminal</span>
-                        <?= $escaper->escapeHtml(__('Underlying Executed SQL Query')) ?>
-                    </span>
-                    <button type="button" class="mxc-linkbtn" data-role="sql-copy">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
-                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy Raw SQL')) ?></span>
-                    </button>
-                </div>
-                <pre class="mxp-sql__code" data-role="sql-text"></pre>
             </div>
         </section>
     </div>

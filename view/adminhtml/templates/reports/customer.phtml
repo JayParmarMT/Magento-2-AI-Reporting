@@ -32,30 +32,7 @@ $config    = $viewModel->getJsConfig();
                 </nav>
                 <div class="mxc-titlerow">
                     <h1 class="mxd-h1 mxc-h1"><?= $escaper->escapeHtml(__('Customer Intelligence & Retention Analytics')) ?></h1>
-                    <div class="mxc-badges">
-                        <span class="mxc-badge mxc-badge--brand">
-                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">bolt</span>
-                            <?= $escaper->escapeHtml(__('Pre-built SQL · Zero LLM Latency')) ?>
-                        </span>
-                        <span class="mxc-badge">
-                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">dataset</span>
-                            <?= $escaper->escapeHtml($viewModel->getPlatformLabel()) ?>
-                        </span>
-                        <?php if ($viewModel->getStoreLabel() !== ''): ?>
-                            <span class="mxc-badge mxc-badge--slate">
-                                <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
-                                <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
-                            </span>
-                        <?php endif; ?>
-                    </div>
                 </div>
-                <p class="mxc-note">
-                    <span class="mxd-ico mxd-ico--sm" aria-hidden="true">schedule</span>
-                    <span>
-                        <?= $escaper->escapeHtml(__('Timezone: %1', $viewModel->getTimezoneLabel())) ?> ·
-                        <?= $escaper->escapeHtml(__('Buyers identified by order email (guest checkouts included) · Net revenue after refunds')) ?>
-                    </span>
-                </p>
             </div>
 
             <div class="mxc-header__actions">
@@ -79,20 +56,29 @@ $config    = $viewModel->getJsConfig();
                     <span class="mxc-rangelabel" data-role="range-label"><?= $escaper->escapeHtml($config['period']['range']['label']) ?></span>
                 </div>
                 <div class="mxc-header__buttons">
-                    <a class="mxd-btn" href="<?= $escaper->escapeUrl($config['exportUrl']) ?>"
+                    <?php $scopeOptions = $viewModel->getScopeOptions(); ?>
+                    <?php if ($scopeOptions): ?>
+                        <label class="mxc-badge mxc-badge--slate mxr-scope"
+                               title="<?= $escaper->escapeHtmlAttr(__('Every figure, chart and export follows the selected website or store view: its orders and customer accounts, in the website\'s own base currency and timezone.')) ?>">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                            <span><?= $escaper->escapeHtml(__('Store:')) ?></span>
+                            <select class="mxr-scope__select" data-role="scope" aria-label="<?= $escaper->escapeHtmlAttr(__('Store scope')) ?>">
+                                <?php foreach ($scopeOptions as $option): ?>
+                                    <option value="<?= $escaper->escapeHtmlAttr($option['value']) ?>"<?= /* @noEscape */ $option['value'] === $viewModel->getScopeKey() ? ' selected' : '' ?>><?= $escaper->escapeHtml(($option['level'] === 2 ? "\u{00A0}\u{00A0}\u{00A0}\u{00A0}" : '') . $option['label']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    <?php elseif ($viewModel->getStoreLabel() !== ''): ?>
+                        <span class="mxc-badge mxc-badge--slate">
+                            <span class="mxd-ico mxd-ico--xs" aria-hidden="true">store</span>
+                            <?= $escaper->escapeHtml($viewModel->getStoreLabel()) ?>
+                        </span>
+                    <?php endif; ?>
+                    <a class="mxd-btn" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?scope=' . rawurlencode($config['scope'])) ?>"
                        title="<?= $escaper->escapeHtmlAttr(__('Every buyer with RFM scores, segment, CLV tier and preferred category')) ?>">
                         <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_download</span>
                         <span><?= $escaper->escapeHtml(__('CSV')) ?></span>
                     </a>
-                    <button type="button" class="mxd-btn" data-role="print"
-                            title="<?= $escaper->escapeHtmlAttr(__('Print or save this report as PDF')) ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">picture_as_pdf</span>
-                        <span><?= $escaper->escapeHtml(__('PDF')) ?></span>
-                    </button>
-                    <button type="button" class="mxd-btn mxd-btn--primary" data-role="ask-open">
-                        <span class="mxd-ico mxd-ico--sm mxc-ico-soft" aria-hidden="true">auto_awesome</span>
-                        <span><?= $escaper->escapeHtml(__('Ask Copilot about Customers')) ?></span>
-                    </button>
                 </div>
             </div>
         </section>
@@ -156,7 +142,7 @@ $config    = $viewModel->getJsConfig();
                 </div>
                 <footer class="mxc-card__foot">
                     <span><?= $escaper->escapeHtml(__('*Net of refunds; cancelled and unpaid orders excluded. Base currency.')) ?></span>
-                    <a class="mxd-link" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?segment=vip') ?>">
+                    <a class="mxd-link" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?segment=vip&scope=' . rawurlencode($config['scope'])) ?>">
                         <span><?= $escaper->escapeHtml(__('Export VIP tier')) ?></span>
                         <span class="mxd-ico mxd-ico--xs" aria-hidden="true">arrow_forward</span>
                     </a>
@@ -277,31 +263,6 @@ $config    = $viewModel->getJsConfig();
                 <span class="mxd-mono mxc-copilot__runtime" data-role="runtime"></span>
             </header>
             <div class="mxc-copilot__insight" data-role="insight"></div>
-            <div class="mxc-copilot__actions">
-                <div class="mxc-copilot__buttons">
-                    <a class="mxd-btn mxd-btn--primary" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?segment=winback') ?>"
-                       title="<?= $escaper->escapeHtmlAttr(__('Every buyer with no order for over 90 days (CSV), ready for a win-back email campaign')) ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">outgoing_mail</span>
-                        <span><?= $escaper->escapeHtml(__('Export Win-Back List')) ?></span>
-                    </a>
-                    <a class="mxc-darkbtn" href="<?= $escaper->escapeUrl($config['exportUrl'] . '?segment=vip') ?>">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">file_upload</span>
-                        <span><?= $escaper->escapeHtml(__('Export VIP Customer Segment')) ?></span>
-                    </a>
-                    <button type="button" class="mxc-darkbtn" data-role="ask-toggle" aria-expanded="false">
-                        <span class="mxd-ico mxd-ico--sm" aria-hidden="true">chat</span>
-                        <span><?= $escaper->escapeHtml(__('Ask Follow-up')) ?></span>
-                    </button>
-                </div>
-                <div class="mxc-sqlbar">
-                    <span class="mxd-ico mxd-ico--sm mxd-text-brand" aria-hidden="true">database</span>
-                    <span class="mxc-sqlbar__text" data-role="sql-text"></span>
-                    <button type="button" class="mxc-linkbtn" data-role="sql-copy">
-                        <span class="mxd-ico mxd-ico--xs" aria-hidden="true">content_copy</span>
-                        <span data-role="sql-copy-label"><?= $escaper->escapeHtml(__('Copy Raw SQL')) ?></span>
-                    </button>
-                </div>
-            </div>
             <div class="mxc-ask" data-role="ask-panel" hidden>
                 <p class="mxc-ask__engine">
                     <span class="mxd-dot <?= /* @noEscape */ $config['aiConfigured'] ? 'mxd-dot--live' : 'mxd-dot--off' ?>"></span>

@@ -35,6 +35,7 @@ Changes take effect as soon as you click **Save Config**. If you change a value 
 | Database User for AI Queries | (status only) | Shows which database user runs AI queries |
 | Log All Queries | Yes | Writes every question and its SQL to an audit log |
 | Send Query Results to AI Provider | No | Whether chat sends result rows to the AI to write its answer |
+| Show SQL Inspector on Ask AI | No | Whether Ask AI shows the generated SQL under each result |
 
 ---
 
@@ -264,6 +265,17 @@ The log feeds:
 
 **When to set it to Yes:** only if your agreement with the AI provider allows sending customer data, or if you use Ollama, which runs on your own server.
 
+### Show SQL Inspector on Ask AI
+
+**What it does.** Shows or hides the **Executed Magento 2 SQL Inspector** panel under each Ask AI result: the SQL the AI generated, the tables it read, **Copy SQL**, and the limits it ran under (read-only, max rows, timeout).
+
+- **Yes:** the panel appears below the table or chart. Useful for developers who want to check or reuse the query.
+- **No:** the panel is not on the page.
+
+**Default:** No.
+
+The setting only changes what the page shows. Queries still run the same way, are still read-only and are still logged (see [Log All Queries](#log-all-queries)). Saved reports keep their SQL; the ⋮ menu on Saved AI Reports still offers **Copy SQL**.
+
 ---
 
 ## Good to know
@@ -312,5 +324,6 @@ The log feeds:
 | `meetanshi_aireporting/general/llm_timeout` | `120` |
 | `meetanshi_aireporting/security/log_queries` | `1` |
 | `meetanshi_aireporting/security/share_results_with_llm` | `0` |
+| `meetanshi_aireporting/security/show_sql_inspector` | `0` |
 
 Enter API keys on the admin configuration page, which encrypts them before saving. Do not write them into `core_config_data` directly: the extension expects them to be encrypted.

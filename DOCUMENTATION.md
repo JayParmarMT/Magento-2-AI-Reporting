@@ -939,3 +939,136 @@ At the user's request:
   - The header still shows the AI provider and model, and **Ask Copilot** still opens Ask AI.
 
 Verified in headless Chrome: no assistant elements, product rows without the AI button, zoom unchanged, no script errors. 345 unit tests pass.
+
+## 26. Saved AI Reports and Sales & Revenue: elements removed (2026-10-19)
+
+At the user's request:
+
+### 26.1 Saved AI Reports
+- **Removed from the header:** the "Admin Scoped" chip and the badge row ("Read-Only DB Connection Active", the AI engine, "Magento 2.4.9 Community").
+- **Removed panels:** the **Selected Query Inspection** panel (SQL viewer with "Open in Ask AI Studio"), and the **Meetanshi Query Guard Active** banner (with "Configure LLM Providers" and "Export All Saved Queries").
+- **No longer interactive:** with the panel gone, row clicks no longer select a report (no highlighted row), report titles and the "Top Velocity Query" title are plain text, and "Inspect SQL" is gone from the row ⋮ menu.
+- **Still available:**
+  - **Copy SQL** in the ⋮ menu shows the full SQL;
+  - **Bulk Export (JSON/CSV)** replaces "Export All";
+  - Run, Edit, result export, Delete, the audit log and New Natural Language Query are unchanged.
+- **Code removed:** `saved-reports.js` lost `highlightSql()`, `renderInspect()`, `inspect()`, the `activeId` state, the row-click and export-all handlers. The matching styles left `saved_reports.css`.
+
+### 26.2 Sales & Revenue: copilot card
+- **Removed:** "Analyze <region> cohort", "Compare with Previous Period", "Ask Follow-up", and the raw SQL bar with "Copy Raw SQL".
+- **Kept:** the rule-based analysis, "Rows scanned · Time", and the follow-up question panel, which the header button **Ask Copilot about Report** still opens.
+- **Code removed:**
+  - from `sales-report.js`: the SQL copy functions, `rangePhrase()` and the three button handlers;
+  - from `SalesRevenue::getData()`: the `sql` key, which only fed the bar;
+  - the shared `mxc-` styles stay, because the Customer report uses them.
+
+**Verification.** Both pages were run in headless Chrome with their real templates, scripts and data: the removed elements are absent and the remaining actions work, with no script errors. 345 unit tests pass. The edited static files in `pub/static` are re-linked to the source.
+
+### 26.3 Customer Analytics: copilot card (2026-10-19)
+- **Removed:** "Export Win-Back List", "Export VIP Customer Segment", "Ask Follow-up", and the raw SQL bar with "Copy Raw SQL".
+- **Kept:** the rule-based analysis, "Runtime · buyers scored", and the follow-up panel, which the header button **Ask Copilot about Customers** opens.
+- **Other exports:** the VIP export link in the CLV tier section, the RFM segment export and the top-buyers export are unchanged. The win-back CSV no longer has a button; it is still available at `reports/customerExport?segment=winback`.
+- **Code removed:**
+  - from `customer-report.js`: the SQL copy functions and the follow-up toggle handler;
+  - from `CustomerAnalytics::getLifetimeData()`: the `sql` key, which only fed the bar (`CustomerReport::getBuyersSql()` stays, the buyer queries use it).
+- **Verification:** headless Chrome with the real template, script and data (removed elements absent, header button opens the panel, no script errors); 345 unit tests pass.
+
+### 26.4 Product Performance: copilot card (2026-10-19)
+- **Removed:** "Restock Warning for Top Sellers", "Plan Promotion for N Dead-Stock SKUs", "Price Elasticity Simulation", the in-card "Ask Copilot" toggle, and the "Underlying Executed SQL Query" block with "Copy Raw SQL".
+- **Kept:** the executive summary text, the "Follow-ups" and "Runtime" pills, and the follow-up panel, which the header button **Ask Copilot about Catalog** and the per-row AI buttons open. The restock and dead-stock lists are still in the product table tabs.
+- **Code removed:**
+  - from `product-report.js`: `copySql()`, the dead-stock label and SQL text rendering, and the handlers for the three action buttons, the card toggle and the SQL copy (`scrollToTable()` stays, the "View all" link uses it);
+  - from `ProductPerformance`: the `sql` key, which only fed the block (`ProductReport::getProductPerformanceSql()` stays, the product query uses it).
+- **Verification:** headless Chrome with the real template, script and data (removed elements absent, header button opens the panel, table and tabs render, no script errors); 345 unit tests pass; `product-report.js` in `pub/static` is re-linked to the source.
+
+### 26.5 Inventory & Stock Intelligence: copilot card (2026-10-19)
+- **Removed:** "Inspect Raw Query" with its SQL panel and "Copy SQL", "Export Clearance List", "Generate PO Reorder Plan", and "Ask Follow-up Question".
+- **Kept:** the rule-based analysis (now full width), "Runtime", and the follow-up panel, which the header button **Ask Copilot** opens. The follow-up answer still has its own "Show SQL" toggle.
+- **Wording:** the insight's last paragraph said "the PO reorder plan lists them"; it now ends at "below N days of cover", because that button is gone.
+- **Exports:** the open-tab CSV export is unchanged. The clearance list and the PO reorder plan no longer have buttons; they are still available at `reports/inventoryExport?tab=clearance` and `?tab=reorder` (with the same `range`/`start`/`end` parameters).
+- **Code removed:**
+  - from `inventory-report.js`: `setCount()`, `formatSql()`, `copied()`, `copyWithTextarea()`, `copySql()`, the export-button links, and the handlers for the SQL toggle, SQL copy and card follow-up toggle;
+  - from `InventoryAnalytics::getReportData()`: the `sql` key, which only fed the panel (`InventoryReport::getSkuRowsSql()` stays, the SKU query uses it);
+  - the `mxi-` styles stay in `inventory_report.css`, as for the Product report.
+- **Verification:** headless Chrome with the real template, script and data (removed elements absent, header button opens the panel, table, tabs and tab export render, no script errors); 345 unit tests pass; `inventory-report.js` in `pub/static` is re-linked to the source.
+
+### 26.6 Sales & Revenue: header (2026-10-19)
+- **Removed:** the "Pre-built SQL · Zero LLM Latency" and "Magento 2.4.9 Community" badges, the "Timezone · Currency · Net rules" line, the **PDF** button and the **Ask Copilot about Report** button.
+- **Follow-up panel removed too:** that button was the last way to open the AI follow-up panel (the card's own "Ask Follow-up" went in §26.2), so the panel, its question chips and the `chat/send` call were removed from this page. Ask AI and the other reports' follow-ups are unchanged.
+- **Kept:** the breadcrumb, the store switcher, the date range buttons and custom range, the CSV menu and the copilot analysis. Printing with the browser (Ctrl+P) still gives the print layout, with the charts redrawn at print width.
+- **Code removed:**
+  - from `sales-report.js`: `formatAnswer()`, `openAsk()`, `ask()` and the print, ask-open, ask-form, chip and answer handlers;
+  - from `SalesRevenue`: `getPlatformLabel()`, `getTimezoneLabel()`, `getCurrencyLabel()`, `getNetRule()`, and the `chatUrl`, `askAiUrl`, `formKey`, `aiEnabled`, `aiConfigured`, `provider` and `model` settings in `getJsConfig()`;
+  - the constructor is unchanged (changing it needs `setup:di:compile`), so its `Config` and `FormKey` arguments are now unused and can be dropped at the next compile;
+  - the shared `mxc-` styles stay, because the Customer report uses them.
+- **Verification:** headless Chrome with the real template, script and data (removed elements and settings absent; store switcher, range buttons, CSV menu, charts, zoom and the print redraw work; no script errors); 345 unit tests pass. `sales-report.js` in `pub/static` was already linked to the source.
+
+### 26.7 Customer Analytics and Product Performance: header (2026-10-19)
+- **Removed from both headers:** the "Pre-built SQL · Zero LLM Latency" and "Magento 2.4.9 Community" badges, the timezone line (Customer: "Buyers identified by order email … · Net revenue after refunds"; Product: "Net item revenue after discounts and refunds · catalog and stock as of now"), the **PDF** button and the **Ask Copilot about Customers / Catalog** button.
+- **Follow-up panels kept:** unlike Sales (§26.6), both pages still have other ways in: the "Ask AI →" links on the Customer velocity rules and the AI button on each Product table row. Those open the panel as before.
+- **Kept:** the breadcrumb, the store badge, the date range buttons, the CSV export and the copilot analysis. Printing with the browser (Ctrl+P) still gives the print layout.
+- **Code removed:**
+  - from `customer-report.js` and `product-report.js`: the print and header ask-open handlers; `openAsk()` lost its `focus` argument, which only the header button used;
+  - from `CustomerAnalytics` and `ProductPerformance`: `getPlatformLabel()` and `getTimezoneLabel()`.
+- **Verification:** headless Chrome with the real templates, scripts and data (removed elements absent; store badge, range buttons, CSV and the print redraw work; the velocity "Ask AI" link and the row AI button open the follow-up panel; no script errors); 345 unit tests pass. Both scripts in `pub/static` were already linked to the source.
+
+### 26.8 Inventory & Stock Intelligence: header (2026-10-19)
+- **Removed:** the "Pre-built SQL · Zero LLM Latency" badge, the "Magento 2.4.9 Community · Multi-Source Inventory · N sources" badge, the "Query time" badge, the "Timezone: … · Stock is the current snapshot …" line, the **PDF** button and the **Ask Copilot** button.
+- **Kept:** the breadcrumb, the "Live MSI Telemetry" tag, the store badge (the badge row now renders only when there is a store label), the range buttons, the CSV export, and the follow-up panel, which the AI button on each SKU row still opens. The query time is still shown as "Runtime" on the copilot card, and the stock source in the footer. Printing with the browser (Ctrl+P) still gives the print layout.
+- **Code removed:**
+  - from `inventory-report.js`: the query-time line, the print and header ask-open handlers; `openAsk()` lost its `focus` argument;
+  - from `InventoryAnalytics`: `getPlatformLabel()` and `getTimezoneLabel()` (`getStockSourceLabel()` stays for the footer).
+- **Verification:** headless Chrome with the real template, script and data (removed elements absent; live tag, store badge, range buttons, CSV, footer and the print handlers work; the row AI button opens the follow-up panel; no script errors); a styled screenshot of the header; 345 unit tests pass. `inventory-report.js` in `pub/static` was already linked to the source.
+
+## 27. Store switcher on Customer, Product and Inventory (2026-10-19)
+
+The store scope (§23) now covers every pre-built report: the Dashboard, Sales & Revenue, Customer Analytics, Product Performance and Inventory & Stock. The switcher replaces the static store badge in each header when the install has more than one store view. Picking a website or store view reloads the page in that scope, keeping the date range, and the choice is remembered for the next report page.
+
+### 27.1 Why Sales looked broken
+Sales already had the switcher, but the browser kept running a copy of `sales-report.js` from 16 Oct 11:34, from before the switcher existed. The access log shows every Sales data request since then without a `scope` parameter. Static files are sent with `Cache-Control: max-age=31536000, immutable` and static file signing is off (`dev/static/sign = 0`, set on 2026-07-16), so a changed script keeps its URL and the browser does not fetch it again. Static file signing was turned on (2026-10-19, at the user's request: `config:set dev/static/sign 1`, config cache cleaned, `pub/static/deployed_version.txt` bumped). Static URLs now carry `/version<N>/`, so browsers fetch fresh copies; after a script or style change, write a new N to that file, with no trailing newline (Magento uses the file as is). To go back: `config:set dev/static/sign 0`.
+
+### 27.2 What each report filters
+- **Helpers (ReportContext):**
+  - `storeFilter()`: orders of the selected store views;
+  - `customerFilter()`: customer accounts, by `website_id` for a website (admin-created accounts have store 0) and by `store_id` for one store view;
+  - `productWebsiteJoin()`: the website's products (`catalog_product_website`).
+- **Customer Analytics:**
+  - every order query (the 12 `validOrderCondition()` calls, which also cover `buyerCondition()`) has the store filter;
+  - the three `customer_entity` queries (acquisition, registrations, registrations that ordered) have the customer filter;
+  - `CustomerExport` activates the scope itself, because it calls the report directly. The header CSV and VIP links carry `scope`.
+- **Product Performance:**
+  - every order query has the store filter;
+  - catalog counts, sell-through and dead stock count only the website's products;
+  - status, name and price come from the website's store view (or the selected store view), falling back to the admin value;
+  - margin cost uses the scope's rate (no conversion for one website).
+- **Inventory & Stock:**
+  - stock comes from `getStockSql()` (the website's products and the sources of its MSI stock, §23);
+  - reservations are limited to that stock;
+  - the source list, the per-source quantities and the footer's "N sources" are limited to the stock's sources;
+  - sales velocity, cover and turnover use the website's orders;
+  - name, price and status come from its store view.
+- **Pages:** each ViewModel activates the scope in its entry methods, sends `scope` to the script, and offers `getScopeOptions()` and `getScopeKey()`. Each script sends `scope` with data requests and exports, reloads with the new scope (keeping the range) on a switch, and re-applies a range found in the address.
+
+### 27.3 Verification
+- **Figures against SQL:** checked for All, each website (Main, Second, Europe, UK) and two store views:
+  - Customer: buyers, lifetime spend, period orders and spend, and registrations;
+  - Product: revenue and catalog size.
+- **Websites vs All:** orders (16,906) and units sold (42,150) add up to All. Buyers do not (10,520 vs 10,344), because some customers bought on more than one website.
+- **Currency and timezone:** follow the scope (Europe: EUR, Europe/Berlin; UK: GBP, Europe/London).
+- **Speed:** page data takes 0.1–2.1 s per scope.
+- **Pages:** all four were opened in headless Chrome with the scope as a request parameter. Each shows the switcher with the right store selected and sends the scope with range changes. Exports carry the scope. A switch reloads with the new scope and the current range, and the range is re-applied after the reload.
+- **Tests:** 348 unit tests pass (3 new, for the customer filter and the product website join). The edited scripts and `inventory_report.css` in `pub/static` are linked to the source.
+
+## 28. Ask AI: spacing and SQL Inspector setting (2026-10-19)
+
+- **Spacing:** the result block (`.mxq-results`) had no layout, so the toolbar, assumption banner, table or chart card, no-data card and SQL Inspector sat directly on top of each other. It is now a flex column with a 16px gap (`ask_ai.css`).
+- **New setting:** Stores > Configuration > Meetanshi > AI Reporting > Security Settings > **Show SQL Inspector on Ask AI** (`meetanshi_aireporting/security/show_sql_inspector`, Yes/No, default **No**, default scope only).
+  - `Config::isSqlInspectorEnabled()` and `Block\Adminhtml\Query::isSqlInspectorEnabled()` read it;
+  - `ask_ai.phtml` renders the "Executed Magento 2 SQL Inspector" section only when it is Yes;
+  - the script's SQL rendering and Copy SQL find no element when it is No and do nothing, while the response still carries the SQL for Save as Report and CSV.
+  - Documented in CONFIGURATION.md.
+- **Verification:**
+  - headless Chrome with the real template and script and a canned 5-row result (no AI call), with the setting No and Yes. No: no inspector on the page. Yes: inspector with the SQL and its table. Both: 16px from toolbar to table or chart and from table to inspector, no script errors;
+  - the effective default is 0 after `cache:clean config`;
+  - 350 unit tests pass (2 new in ConfigTest);
+  - `ask_ai.css` in `pub/static` re-linked and the static version bumped.

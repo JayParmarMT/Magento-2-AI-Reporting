@@ -84,6 +84,34 @@ class ReportContext
     }
 
     /**
+     * " AND c.website_id = …" (or " AND c.store_id = …" for one store view) on customer_entity rows;
+     * '' for All Store Views. Accounts are matched by website, as admin-created ones have store 0.
+     */
+    public function customerFilter(string $alias = 'c'): string
+    {
+        $storeId = $this->getScope()->getStoreViewId();
+        if ($storeId !== null) {
+            return sprintf(' AND %s.store_id = %d', $alias, $storeId);
+        }
+        $websiteId = $this->getScope()->getWebsiteId();
+
+        return $websiteId !== null ? sprintf(' AND %s.website_id = %d', $alias, $websiteId) : '';
+    }
+
+    /**
+     * " JOIN catalog_product_website …" keeping the selected website's products; '' for All Store Views.
+     */
+    public function productWebsiteJoin(string $productAlias = 'e'): string
+    {
+        $websiteId = $this->getScope()->getWebsiteId();
+
+        return $websiteId !== null
+            ? $this->resolveTables(" JOIN {{catalog_product_website}} {$productAlias}_web"
+                . " ON {$productAlias}_web.product_id = {$productAlias}.entity_id AND {$productAlias}_web.website_id = {$websiteId}")
+            : '';
+    }
+
+    /**
      * Factor turning an order's base amounts into the report currency: base_to_global_rate for All Store
      * Views (global base currency); 1 for one website or store view (that website's own base currency).
      */

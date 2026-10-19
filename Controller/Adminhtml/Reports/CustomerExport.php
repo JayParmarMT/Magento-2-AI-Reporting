@@ -49,6 +49,8 @@ class CustomerExport extends Action implements HttpGetActionInterface
 
     public function execute()
     {
+        // The store scope of the page (scope parameter, else the one remembered in the session)
+        $this->reportContext->getScope()->activate();
         $segment = (string) $this->getRequest()->getParam('segment', '');
         if (!isset(self::SEGMENTS[$segment])) {
             $segment = '';

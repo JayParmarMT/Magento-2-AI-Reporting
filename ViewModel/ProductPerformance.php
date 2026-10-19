@@ -5,6 +5,8 @@
  * Sales figures follow the selected range (Today, This Week, This Month, This Year, custom);
  * catalog size and stock are as of now. Shared by the page template and the
  * reports/productData and reports/productExport controllers.
+ * Follows the store scope chosen in the header (ReportScope): all store views, one website (in its own
+ * base currency and timezone) or one store view.
  *
  * @category  Meetanshi
  * @package   Meetanshi_AIReporting
@@ -65,21 +67,30 @@ class ProductPerformance implements ArgumentInterface
         return $this->reportRange->getPresetLabels();
     }
 
-    public function getPlatformLabel(): string
-    {
-        return $this->aiContext->getPlatformLabel();
-    }
-
     public function getStoreLabel(): string
     {
+        $scope = $this->activateScope();
+        if ($scope->isMultiStore()) {
+            return (string) __('Store: %1', $scope->getLabel());
+        }
         $name = $this->aiContext->getStoreName();
 
         return $name !== '' ? (string) __('Store: %1', $name) : '';
     }
 
-    public function getTimezoneLabel(): string
+    /**
+     * Options of the store scope switcher; empty on a single-store install.
+     *
+     * @return array<int, array{value: string, label: string, level: int}>
+     */
+    public function getScopeOptions(): array
     {
-        return $this->aiContext->getTimezoneLabel();
+        return $this->activateScope()->getOptions();
+    }
+
+    public function getScopeKey(): string
+    {
+        return $this->activateScope()->getKey();
     }
 
     /**
@@ -87,6 +98,7 @@ class ProductPerformance implements ArgumentInterface
      */
     public function getData(string $range = ReportRange::DEFAULT_RANGE, ?string $customStart = null, ?string $customEnd = null): array
     {
+        $this->activateScope();
         $startedAt = microtime(true);
         $resolved  = $this->reportRange->resolve($range, $customStart, $customEnd);
         [$start, $end, $days] = [$resolved['start'], $resolved['end'], $resolved['days']];
@@ -116,7 +128,6 @@ class ProductPerformance implements ArgumentInterface
             'types'        => $this->report->getProductTypeMix($start, $end),
             'bands'        => $this->report->getPriceBands($start, $end),
             'categories'   => $this->report->getTopCategories($start, $end, 5, self::LOW_STOCK_QTY),
-            'sql'          => trim((string) preg_replace('/\s+/', ' ', $this->report->getProductPerformanceSql())),
             'query_ms'     => (int) round((microtime(true) - $startedAt) * 1000),
         ];
     }
@@ -127,6 +138,7 @@ class ProductPerformance implements ArgumentInterface
      */
     public function getExportRows(string $tab, string $range, ?string $customStart, ?string $customEnd): array
     {
+        $this->activateScope();
         $resolved = $this->reportRange->resolve($range, $customStart, $customEnd);
 
         if ($tab === 'dead') {
@@ -145,7 +157,19 @@ class ProductPerformance implements ArgumentInterface
 
     public function getRangeLabel(string $range, ?string $customStart, ?string $customEnd): string
     {
+        $this->activateScope();
         return $this->reportRange->resolve($range, $customStart, $customEnd)['label'];
+    }
+
+    /**
+     * The page follows the scope picked in its header (or remembered from the last report page).
+     */
+    private function activateScope(): \Meetanshi\AIReporting\Model\Report\ReportScope
+    {
+        $scope = $this->reportContext->getScope();
+        $scope->activate();
+
+        return $scope;
     }
 
     /**
@@ -156,6 +180,7 @@ class ProductPerformance implements ArgumentInterface
         return [
             'data'         => $this->getData(),
             'currency'     => $this->reportContext->getCurrencyCode(),
+            'scope'        => $this->activateScope()->getKey(),
             'formKey'      => $this->formKey->getFormKey(),
             'dataUrl'      => $this->urlBuilder->getUrl('meetanshi_aireporting/reports/productData'),
             'exportUrl'    => $this->urlBuilder->getUrl('meetanshi_aireporting/reports/productExport'),
