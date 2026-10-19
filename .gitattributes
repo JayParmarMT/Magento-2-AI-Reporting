@@ -1,0 +1,6 @@
+# Left out of the Marketplace package (git archive): internal notes and dev-only tooling
+/.gitattributes      export-ignore
+/DOCUMENTATION.md    export-ignore
+/Test/ai-prompts     export-ignore
+/Test/perf-data      export-ignore
+/Test/sql            export-ignore

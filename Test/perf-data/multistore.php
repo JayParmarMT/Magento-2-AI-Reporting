@@ -994,7 +994,9 @@ final class MultiStoreSetup extends PerfDataGenerator
         $this->applyPriceScope();
         $this->om->get(\Magento\Store\Model\StoreManagerInterface::class)->reinitStores();
 
-        @unlink($this->statePath());
+        if (is_file($this->statePath())) {
+            unlink($this->statePath());
+        }
         $this->say('Multi-store setup removed. Next: bin/magento indexer:reindex && bin/magento cache:flush');
 
         return 0;

@@ -23,7 +23,6 @@ use Magento\Catalog\Api\Data\CategoryInterface;
 use Magento\Catalog\Api\Data\ProductInterface;
 use Magento\CatalogInventory\Api\StockConfigurationInterface;
 use Magento\Framework\App\Config\ScopeConfigInterface;
-use Magento\Framework\App\ObjectManager;
 use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\EntityManager\MetadataPool;
@@ -49,8 +48,6 @@ class ReportContext
     private array $currencyCodes = [];
     private array $stockIds = [];
 
-    private ?ReportScope $scope;
-
     public function __construct(
         private readonly ResourceConnection $resourceConnection,
         private readonly TimezoneInterface $timezone,
@@ -59,10 +56,8 @@ class ReportContext
         private readonly MetadataPool $metadataPool,
         private readonly ModuleManager $moduleManager,
         private readonly StockConfigurationInterface $stockConfiguration,
-        ?ReportScope $scope = null
+        private readonly ReportScope $scope
     ) {
-        // Optional so that installs with compiled DI from before this argument keep working
-        $this->scope = $scope;
     }
 
     /**
@@ -70,7 +65,7 @@ class ReportContext
      */
     public function getScope(): ReportScope
     {
-        return $this->scope ??= ObjectManager::getInstance()->get(ReportScope::class);
+        return $this->scope;
     }
 
     /**
