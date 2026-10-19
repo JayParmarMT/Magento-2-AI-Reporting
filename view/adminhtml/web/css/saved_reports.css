@@ -240,7 +240,6 @@ body.mxs-noscroll { overflow: hidden; }
 .mxs-kpi:hover { box-shadow: var(--mxs-shadow-md); }
 
 .mxs-kpi:first-child::before {
-    background: var(--mxd-surface-low);
     border-radius: 50%;
     content: '';
     height: 64px;
